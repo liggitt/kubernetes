@@ -75,7 +75,7 @@ ENABLE_SWAGGER_UI=${ENABLE_SWAGGER_UI:-false}
 ENABLE_CLUSTER_DASHBOARD=${KUBE_ENABLE_CLUSTER_DASHBOARD:-false}
 
 # enable audit log
-ENABLE_APISERVER_BASIC_AUDIT=${ENABLE_APISERVER_BASIC_AUDIT:-false}
+ENABLE_APISERVER_BASIC_AUDIT=${ENABLE_APISERVER_BASIC_AUDIT:-true}
 
 # RBAC Mode options
 AUTHORIZATION_MODE=${AUTHORIZATION_MODE:-"Node,RBAC"}
@@ -432,7 +432,8 @@ function start_apiserver {
         # 2000000000 (in MiB) is a large number that fits in 31 bits. If the log
         # grows at 10MiB/s (~30K QPS), it will rotate after ~6 years if apiserver
         # never restarts. Please manually restart apiserver before this time.
-        audit_arg+=" --audit-log-maxsize=2000000000"
+        audit_arg+=" --audit-log-maxsize=100"
+        audit_arg+=" --audit-policy-file=audit.yaml"
     fi
 
     swagger_arg=""

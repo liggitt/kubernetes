@@ -1,0 +1,18 @@
+kind: Policy
+apiVersion: audit.k8s.io/v1beta1
+rules:
+- level: Metadata
+  users:
+  - system:admin
+  - alice
+  - bob
+  - carl
+  - dana
+  - system:serviceaccount:ns1:sa1
+  - system:serviceaccount:ns1:sa2
+  - system:serviceaccount:ns2:sa1
+  - system:serviceaccount:ns2:sa2
+  omitStages:
+  - RequestReceived
+  - ResponseStarted
+  - Panic

@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sa1
+  namespace: ns1
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testjob
+  namespace: ns1
+spec:
+  template:
+    spec:
+      serviceAccountName: sa1
+      terminationGracePeriodSeconds: 1
+      restartPolicy: OnFailure
+      containers:
+      - name: test
+        image: gcr.io/google_containers/hyperkube-amd64:v1.8.0
+        command:
+        - /bin/bash
+        - -c
+        - |
+          retry () {
+            while true; do
+              echo "$@"
+              "$@" && break
+              echo "failed with $?, retrying..."
+              sleep 1
+            done
+          }
+          
+          retry kubectl get configmap
+          retry kubectl delete configmap myconfig --ignore-not-found
+          retry kubectl create configmap myconfig --from-literal key1=value1
+          retry kubectl label configmap myconfig job=testjob
+          retry kubectl delete configmap myconfig
+          
+          retry kubectl get pods
+          retry kubectl get pods -n ns2
+          
+          retry kubectl get nodes
+          
+          retry kubectl delete job/subjob --ignore-not-found
+          # run job 1
+          retry kubectl run subjob1 --image busybox --restart=OnFailure -- echo ok
+          retry kubectl logs job/subjob1 -f
+          retry kubectl delete job/subjob1
+          # run job 2
+          retry kubectl run subjob2 --image busybox --restart=OnFailure -- echo ok
+          retry kubectl logs job/subjob2 -f
+          retry kubectl delete job/subjob2
+
