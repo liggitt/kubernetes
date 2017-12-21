@@ -34,6 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiserver/pkg/storage"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/client-go/discovery"
 	cacheddiscovery "k8s.io/client-go/discovery/cached"
@@ -295,6 +296,7 @@ func deleteNamespaceOrDie(name string, c clientset.Interface, t *testing.T) {
 
 // This test simulates the cascading deletion.
 func TestCascadingDeletion(t *testing.T) {
+	storage.Debug.Store(true)
 	ctx := setup(t, 5)
 	defer ctx.tearDown()
 

@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	utiltrace "k8s.io/apiserver/pkg/util/trace"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/apis/core"
 )
 
 const (
@@ -91,6 +93,8 @@ type watchCacheElement struct {
 // watchCache is a "sliding window" (with a limited capacity) of objects
 // observed from a watch.
 type watchCache struct {
+	t interface{}
+
 	sync.RWMutex
 
 	// Condition on which lists are waiting for the fresh enough
@@ -136,10 +140,12 @@ type watchCache struct {
 }
 
 func newWatchCache(
+	t interface{},
 	capacity int,
 	keyFunc func(runtime.Object) (string, error),
 	getAttrsFunc func(runtime.Object) (labels.Set, fields.Set, bool, error)) *watchCache {
 	wc := &watchCache{
+		t:               t,
 		capacity:        capacity,
 		keyFunc:         keyFunc,
 		getAttrsFunc:    getAttrsFunc,
@@ -410,6 +416,8 @@ func (w *watchCache) SetOnEvent(onEvent func(*watchCacheEvent)) {
 	w.onEvent = onEvent
 }
 
+var Debug = &atomic.Value{}
+
 func (w *watchCache) GetAllEventsSinceThreadUnsafe(resourceVersion uint64) ([]*watchCacheEvent, error) {
 	size := w.endIndex - w.startIndex
 	// if we have no watch events in our cache, the oldest one we can successfully deliver to a watcher
@@ -450,6 +458,14 @@ func (w *watchCache) GetAllEventsSinceThreadUnsafe(resourceVersion uint64) ([]*w
 	}
 	if resourceVersion < oldest-1 {
 		return nil, errors.NewGone(fmt.Sprintf("too old resource version: %d (%d)", resourceVersion, oldest-1))
+	}
+
+	// Trigger watch establishment failing with "too old" error
+	if _, ok := w.t.(*core.ReplicationController); ok {
+		if block, _ := Debug.Load().(bool); block {
+			Debug.Store(false)
+			return nil, errors.NewGone(fmt.Sprintf("debug fake too old resource version: %d (%d)", resourceVersion, oldest-1))
+		}
 	}
 
 	// Binary search the smallest index at which resourceVersion is greater than the given one.

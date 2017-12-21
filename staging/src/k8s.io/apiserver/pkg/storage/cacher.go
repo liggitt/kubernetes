@@ -192,7 +192,7 @@ type Cacher struct {
 // its internal cache and updating its cache in the background based on the
 // given configuration.
 func NewCacherFromConfig(config CacherConfig) *Cacher {
-	watchCache := newWatchCache(config.CacheCapacity, config.KeyFunc, config.GetAttrsFunc)
+	watchCache := newWatchCache(config.Type, config.CacheCapacity, config.KeyFunc, config.GetAttrsFunc)
 	listerWatcher := newCacherListerWatcher(config.Storage, config.ResourcePrefix, config.NewListFunc)
 	reflectorName := "storage/cacher.go:" + config.ResourcePrefix
 
