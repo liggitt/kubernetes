@@ -1,0 +1,6 @@
+imagePolicy:
+  kubeConfigFile: /Users/jliggitt/go/src/k8s.io/kubernetes/_output/certs/admin.kubeconfig
+  allowTTL: 50
+  denyTTL: 50 
+  retryBackoff: 500
+  defaultAllow: true

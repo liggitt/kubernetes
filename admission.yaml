@@ -1,0 +1,9 @@
+kind: AdmissionConfiguration
+apiVersion: apiserver.k8s.io/v1alpha1
+plugins:
+- name: ImagePolicyWebhook
+  path: imagepolicy.yaml
+- name: MutatingAdmissionWebhook
+  path: webhook.yaml
+- name: EventRateLimit
+  path: event.yaml
