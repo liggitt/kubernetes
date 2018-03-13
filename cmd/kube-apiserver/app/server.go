@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -480,7 +479,7 @@ func BuildGenericConfig(s *options.ServerRunOptions, proxyTransport *http.Transp
 		)
 	}
 
-	genericConfig.Authentication.Authenticator, genericConfig.OpenAPIConfig.SecurityDefinitions, err = BuildAuthenticator(s, storageFactory, client, clientgoExternalClient, sharedInformers)
+	genericConfig.Authentication.Authenticator, genericConfig.OpenAPIConfig.SecurityDefinitions, err = BuildAuthenticator(s, storageFactory, clientgoExternalClient, sharedInformers)
 	if err != nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("invalid authentication config: %v", err)
 	}
@@ -564,15 +563,12 @@ func BuildAdmissionPluginInitializers(s *options.ServerRunOptions, client intern
 }
 
 // BuildAuthenticator constructs the authenticator
-func BuildAuthenticator(s *options.ServerRunOptions, storageFactory serverstorage.StorageFactory, client internalclientset.Interface, extclient clientgoclientset.Interface, sharedInformers informers.SharedInformerFactory) (authenticator.Request, *spec.SecurityDefinitions, error) {
+func BuildAuthenticator(s *options.ServerRunOptions, storageFactory serverstorage.StorageFactory, extclient clientgoclientset.Interface, sharedInformers informers.SharedInformerFactory) (authenticator.Request, *spec.SecurityDefinitions, error) {
 	authenticatorConfig := s.Authentication.ToAuthenticationConfig()
-	if s.Authentication.ServiceAccounts.Lookup {
+	if s.Authentication.ServiceAccounts != nil && s.Authentication.ServiceAccounts.Lookup {
 		authenticatorConfig.ServiceAccountTokenGetter = serviceaccountcontroller.NewGetterFromClient(extclient)
 	}
-	if client == nil || reflect.ValueOf(client).IsNil() {
-		// TODO: Remove check once client can never be nil.
-		glog.Errorf("Failed to setup bootstrap token authenticator because the loopback clientset was not setup properly.")
-	} else {
+	if s.Authentication.BootstrapToken != nil && s.Authentication.BootstrapToken.Enable {
 		authenticatorConfig.BootstrapTokenAuthenticator = bootstrap.NewTokenAuthenticator(
 			sharedInformers.Core().InternalVersion().Secrets().Lister().Secrets(v1.NamespaceSystem),
 		)
