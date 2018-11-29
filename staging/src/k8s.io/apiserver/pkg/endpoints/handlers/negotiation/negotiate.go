@@ -56,15 +56,9 @@ func NegotiateOutputMediaType(req *http.Request, ns runtime.NegotiatedSerializer
 	return mediaType, info, nil
 }
 
-// NegotiateOutputSerializer returns a serializer for the output.
-func NegotiateOutputSerializer(req *http.Request, ns runtime.NegotiatedSerializer) (runtime.SerializerInfo, error) {
-	_, info, err := NegotiateOutputMediaType(req, ns, DefaultEndpointRestrictions)
-	return info, err
-}
-
-// NegotiateOutputStreamSerializer returns a stream serializer for the given request.
-func NegotiateOutputStreamSerializer(req *http.Request, ns runtime.NegotiatedSerializer) (runtime.SerializerInfo, error) {
-	mediaType, ok := NegotiateMediaTypeOptions(req.Header.Get("Accept"), AcceptedMediaTypesForEndpoint(ns), DefaultEndpointRestrictions)
+// NegotiateOutputMediaTypeStream returns a stream serializer for the given request.
+func NegotiateOutputMediaTypeStream(req *http.Request, ns runtime.NegotiatedSerializer, restrictions EndpointRestrictions) (runtime.SerializerInfo, error) {
+	mediaType, ok := NegotiateMediaTypeOptions(req.Header.Get("Accept"), AcceptedMediaTypesForEndpoint(ns), restrictions)
 	if !ok || mediaType.Accepted.Serializer.StreamSerializer == nil {
 		_, supported := MediaTypesForSerializer(ns)
 		return runtime.SerializerInfo{}, NewNotAcceptableError(supported)
