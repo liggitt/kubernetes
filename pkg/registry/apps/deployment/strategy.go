@@ -34,6 +34,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/pod"
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/apps/validation"
+	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 )
 
 // deploymentStrategy implements behavior for Deployments.
@@ -79,7 +80,9 @@ func (deploymentStrategy) PrepareForCreate(ctx context.Context, obj runtime.Obje
 // Validate validates a new deployment.
 func (deploymentStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	deployment := obj.(*apps.Deployment)
-	return validation.ValidateDeployment(deployment)
+	errs := validation.ValidateDeployment(deployment)
+	errs = append(errs, corevalidation.ValidatePodSpecCreate(&deployment.Spec.Template.Spec, field.NewPath("spec.template.spec"))...)
+	return errs
 }
 
 // Canonicalize normalizes the object after validation.

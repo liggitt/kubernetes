@@ -32,6 +32,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/pod"
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/apps/validation"
+	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 )
 
 // statefulSetStrategy implements verification logic for Replication StatefulSets.
@@ -96,7 +97,9 @@ func (statefulSetStrategy) PrepareForUpdate(ctx context.Context, obj, old runtim
 // Validate validates a new StatefulSet.
 func (statefulSetStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	statefulSet := obj.(*apps.StatefulSet)
-	return validation.ValidateStatefulSet(statefulSet)
+	errs := validation.ValidateStatefulSet(statefulSet)
+	errs = append(errs, corevalidation.ValidatePodSpecCreate(&statefulSet.Spec.Template.Spec, field.NewPath("spec.template.spec"))...)
+	return errs
 }
 
 // Canonicalize normalizes the object after validation.

@@ -2969,6 +2969,14 @@ func ValidatePod(pod *core.Pod) field.ErrorList {
 	return allErrs
 }
 
+// ValidatePodSpecCreate performs any creation-specific tests on the specified PodSpec.
+// Validation which applies to both create and update should go in ValidatePodSpec.
+func ValidatePodSpecCreate(spec *core.PodSpec, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	// TODO: prevent creation of things the prior version of the apiserver would consider invalid
+	return allErrs
+}
+
 // ValidatePodSpec tests that the specified PodSpec has valid data.
 // This includes checking formatting and uniqueness.  It also canonicalizes the
 // structure by setting default values and implementing any backwards-compatibility

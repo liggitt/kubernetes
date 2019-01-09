@@ -88,7 +88,9 @@ func (podStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object
 // Validate validates a new pod.
 func (podStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	pod := obj.(*api.Pod)
-	return validation.ValidatePod(pod)
+	errs := validation.ValidatePod(pod)
+	errs = append(errs, validation.ValidatePodSpecCreate(&pod.Spec, field.NewPath("spec"))...)
+	return errs
 }
 
 // Canonicalize normalizes the object after validation.

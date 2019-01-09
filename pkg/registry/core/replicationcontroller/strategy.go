@@ -108,7 +108,11 @@ func (rcStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object)
 // Validate validates a new replication controller.
 func (rcStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	controller := obj.(*api.ReplicationController)
-	return validation.ValidateReplicationController(controller)
+	errs := validation.ValidateReplicationController(controller)
+	if controller.Spec.Template != nil {
+		errs = append(errs, validation.ValidatePodSpecCreate(&controller.Spec.Template.Spec, field.NewPath("spec.template.spec"))...)
+	}
+	return errs
 }
 
 // Canonicalize normalizes the object after validation.

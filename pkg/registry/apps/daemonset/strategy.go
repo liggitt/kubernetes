@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/api/pod"
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/apps/validation"
+	corevalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 )
 
 // daemonSetStrategy implements verification logic for daemon sets.
@@ -115,7 +116,9 @@ func (daemonSetStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.
 // Validate validates a new daemon set.
 func (daemonSetStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	daemonSet := obj.(*apps.DaemonSet)
-	return validation.ValidateDaemonSet(daemonSet)
+	errs := validation.ValidateDaemonSet(daemonSet)
+	errs = append(errs, corevalidation.ValidatePodSpecCreate(&daemonSet.Spec.Template.Spec, field.NewPath("spec.template.spec"))...)
+	return errs
 }
 
 // Canonicalize normalizes the object after validation.

@@ -53,7 +53,9 @@ func (podTemplateStrategy) PrepareForCreate(ctx context.Context, obj runtime.Obj
 // Validate validates a new pod template.
 func (podTemplateStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	pod := obj.(*api.PodTemplate)
-	return validation.ValidatePodTemplate(pod)
+	errs := validation.ValidatePodTemplate(pod)
+	errs = append(errs, validation.ValidatePodSpecCreate(&pod.Template.Spec, field.NewPath("template.spec"))...)
+	return errs
 }
 
 // Canonicalize normalizes the object after validation.
