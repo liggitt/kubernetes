@@ -118,7 +118,7 @@ func isPrettyPrint(req *http.Request) bool {
 type EndpointRestrictions interface {
 	// AllowsConversion should return true if the specified group version kind
 	// is an allowed target object.
-	AllowsConversion(schema.GroupVersionKind) bool
+	AllowsConversion(target schema.GroupVersionKind, mimeType, mimeSubType string) bool
 	// AllowsServerVersion should return true if the specified version is valid
 	// for the server group.
 	AllowsServerVersion(version string) bool
@@ -133,9 +133,11 @@ var DefaultEndpointRestrictions = emptyEndpointRestrictions{}
 
 type emptyEndpointRestrictions struct{}
 
-func (emptyEndpointRestrictions) AllowsConversion(schema.GroupVersionKind) bool { return false }
-func (emptyEndpointRestrictions) AllowsServerVersion(string) bool               { return false }
-func (emptyEndpointRestrictions) AllowsStreamSchema(s string) bool              { return s == "watch" }
+func (emptyEndpointRestrictions) AllowsConversion(schema.GroupVersionKind, string, string) bool {
+	return false
+}
+func (emptyEndpointRestrictions) AllowsServerVersion(string) bool  { return false }
+func (emptyEndpointRestrictions) AllowsStreamSchema(s string) bool { return s == "watch" }
 
 // AcceptedMediaType contains information about a valid media type that the
 // server can serialize.
@@ -234,7 +236,7 @@ func acceptMediaTypeOptions(params map[string]string, accepts *AcceptedMediaType
 		}
 	}
 
-	if options.Convert != nil && !endpoint.AllowsConversion(*options.Convert) {
+	if options.Convert != nil && !endpoint.AllowsConversion(*options.Convert, accepts.Type, accepts.SubType) {
 		return MediaTypeOptions{}, false
 	}
 
