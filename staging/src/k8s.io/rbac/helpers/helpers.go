@@ -113,7 +113,7 @@ func NewClusterBinding(clusterRoleName string) *ClusterRoleBindingBuilder {
 		ClusterRoleBinding: rbacv1.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{Name: clusterRoleName},
 			RoleRef: rbacv1.RoleRef{
-				APIGroup: GroupName,
+				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
 				Name:     clusterRoleName,
 			},
@@ -178,7 +178,7 @@ func NewRoleBinding(roleName, namespace string) *RoleBindingBuilder {
 				Namespace: namespace,
 			},
 			RoleRef: rbacv1.RoleRef{
-				APIGroup: GroupName,
+				APIGroup: rbacv1.GroupName,
 				Kind:     "Role",
 				Name:     roleName,
 			},
@@ -194,7 +194,7 @@ func NewRoleBindingForClusterRole(roleName, namespace string) *RoleBindingBuilde
 				Namespace: namespace,
 			},
 			RoleRef: rbacv1.RoleRef{
-				APIGroup: GroupName,
+				APIGroup: rbacv1.GroupName,
 				Kind:     "ClusterRole",
 				Name:     roleName,
 			},
@@ -205,7 +205,7 @@ func NewRoleBindingForClusterRole(roleName, namespace string) *RoleBindingBuilde
 // Groups adds the specified groups as the subjects of the RoleBinding.
 func (r *RoleBindingBuilder) Groups(groups ...string) *RoleBindingBuilder {
 	for _, group := range groups {
-		r.RoleBinding.Subjects = append(r.RoleBinding.Subjects, rbacv1.Subject{Kind: rbacv1.GroupKind, APIGroup: GroupName, Name: group})
+		r.RoleBinding.Subjects = append(r.RoleBinding.Subjects, rbacv1.Subject{Kind: rbacv1.GroupKind, APIGroup: rbacv1.GroupName, Name: group})
 	}
 	return r
 }
@@ -213,7 +213,7 @@ func (r *RoleBindingBuilder) Groups(groups ...string) *RoleBindingBuilder {
 // Users adds the specified users as the subjects of the RoleBinding.
 func (r *RoleBindingBuilder) Users(users ...string) *RoleBindingBuilder {
 	for _, user := range users {
-		r.RoleBinding.Subjects = append(r.RoleBinding.Subjects, rbacv1.Subject{Kind: rbacv1.UserKind, APIGroup: GroupName, Name: user})
+		r.RoleBinding.Subjects = append(r.RoleBinding.Subjects, rbacv1.Subject{Kind: rbacv1.UserKind, APIGroup: rbacv1.GroupName, Name: user})
 	}
 	return r
 }
