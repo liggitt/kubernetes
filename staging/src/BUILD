@@ -34,6 +34,7 @@ filegroup(
         "//staging/src/k8s.io/kubelet:all-srcs",
         "//staging/src/k8s.io/metrics:all-srcs",
         "//staging/src/k8s.io/node-api:all-srcs",
+        "//staging/src/k8s.io/rbac:all-srcs",
         "//staging/src/k8s.io/sample-apiserver:all-srcs",
         "//staging/src/k8s.io/sample-cli-plugin:all-srcs",
         "//staging/src/k8s.io/sample-controller:all-srcs",

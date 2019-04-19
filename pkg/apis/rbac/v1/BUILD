@@ -10,8 +10,6 @@ go_library(
     srcs = [
         "defaults.go",
         "doc.go",
-        "evaluation_helpers.go",
-        "helpers.go",
         "register.go",
         "zz_generated.conversion.go",
         "zz_generated.deepcopy.go",
