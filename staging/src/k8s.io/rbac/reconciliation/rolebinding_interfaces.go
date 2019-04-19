@@ -25,9 +25,6 @@ import (
 	rbacv1client "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
 
-// +k8s:deepcopy-gen=true
-// +k8s:deepcopy-gen:interfaces=k8s.io/kubernetes/pkg/registry/rbac/reconciliation.RoleBinding
-// +k8s:deepcopy-gen:nonpointer-interfaces=true
 type RoleBindingAdapter struct {
 	RoleBinding *rbacv1.RoleBinding
 }
@@ -74,6 +71,10 @@ func (o RoleBindingAdapter) GetSubjects() []rbacv1.Subject {
 
 func (o RoleBindingAdapter) SetSubjects(in []rbacv1.Subject) {
 	o.RoleBinding.Subjects = in
+}
+
+func (o RoleBindingAdapter) DeepCopyRoleBinding() RoleBinding {
+	return RoleBindingAdapter{o.RoleBinding.DeepCopy()}
 }
 
 type RoleBindingClientAdapter struct {

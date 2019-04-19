@@ -23,9 +23,6 @@ import (
 	rbacv1client "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
 
-// +k8s:deepcopy-gen=true
-// +k8s:deepcopy-gen:interfaces=k8s.io/kubernetes/pkg/registry/rbac/reconciliation.RuleOwner
-// +k8s:deepcopy-gen:nonpointer-interfaces=true
 type ClusterRoleRuleOwner struct {
 	ClusterRole *rbacv1.ClusterRole
 }
@@ -72,6 +69,10 @@ func (o ClusterRoleRuleOwner) GetAggregationRule() *rbacv1.AggregationRule {
 
 func (o ClusterRoleRuleOwner) SetAggregationRule(in *rbacv1.AggregationRule) {
 	o.ClusterRole.AggregationRule = in
+}
+
+func (o ClusterRoleRuleOwner) DeepCopyRuleOwner() RuleOwner {
+	return ClusterRoleRuleOwner{o.ClusterRole.DeepCopy()}
 }
 
 type ClusterRoleModifier struct {
