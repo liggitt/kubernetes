@@ -61,8 +61,8 @@ import (
 	rolestore "k8s.io/kubernetes/pkg/registry/rbac/role/storage"
 	"k8s.io/kubernetes/pkg/registry/rbac/rolebinding"
 	rolebindingstore "k8s.io/kubernetes/pkg/registry/rbac/rolebinding/storage"
-	"k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac"
 	"k8s.io/kubernetes/test/integration/framework"
+	rbac "k8s.io/rbac/authorizer"
 )
 
 func clientForToken(user string) *http.Client {

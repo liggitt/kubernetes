@@ -14,8 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package rbac implements the authorizer.Authorizer interface using roles base access control.
-package rbac
+// Package authorizer implements the authorizer.Authorizer interface using roles base access control.
+package authorizer
 
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
