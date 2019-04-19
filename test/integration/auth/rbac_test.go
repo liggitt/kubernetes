@@ -51,7 +51,6 @@ import (
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/api/testapi"
-	rbachelper "k8s.io/kubernetes/pkg/apis/rbac/v1"
 	"k8s.io/kubernetes/pkg/master"
 	"k8s.io/kubernetes/pkg/registry/rbac/clusterrole"
 	clusterrolestore "k8s.io/kubernetes/pkg/registry/rbac/clusterrole/storage"
@@ -63,6 +62,7 @@ import (
 	rolebindingstore "k8s.io/kubernetes/pkg/registry/rbac/rolebinding/storage"
 	"k8s.io/kubernetes/test/integration/framework"
 	rbac "k8s.io/rbac/authorizer"
+	rbachelper "k8s.io/rbac/helpers"
 )
 
 func clientForToken(user string) *http.Client {

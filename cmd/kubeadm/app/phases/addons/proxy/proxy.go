@@ -34,7 +34,7 @@ import (
 	"k8s.io/kubernetes/cmd/kubeadm/app/images"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient"
-	rbachelper "k8s.io/kubernetes/pkg/apis/rbac/v1"
+	rbachelper "k8s.io/rbac/helpers"
 )
 
 const (

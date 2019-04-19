@@ -28,7 +28,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 	"k8s.io/kubernetes/pkg/apis/rbac"
-	rbacv1helpers "k8s.io/kubernetes/pkg/apis/rbac/v1"
+	rbacv1conversion "k8s.io/kubernetes/pkg/apis/rbac/v1"
 	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
 	rbacregistryvalidation "k8s.io/rbac/validation"
 )
@@ -72,7 +72,7 @@ func (s *Storage) Create(ctx context.Context, obj runtime.Object, createValidati
 	}
 
 	v1RoleRef := rbacv1.RoleRef{}
-	err := rbacv1helpers.Convert_rbac_RoleRef_To_v1_RoleRef(&clusterRoleBinding.RoleRef, &v1RoleRef, nil)
+	err := rbacv1conversion.Convert_rbac_RoleRef_To_v1_RoleRef(&clusterRoleBinding.RoleRef, &v1RoleRef, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (s *Storage) Update(ctx context.Context, name string, obj rest.UpdatedObjec
 
 		// Otherwise, see if we already have all the permissions contained in the referenced clusterrole
 		v1RoleRef := rbacv1.RoleRef{}
-		err := rbacv1helpers.Convert_rbac_RoleRef_To_v1_RoleRef(&clusterRoleBinding.RoleRef, &v1RoleRef, nil)
+		err := rbacv1conversion.Convert_rbac_RoleRef_To_v1_RoleRef(&clusterRoleBinding.RoleRef, &v1RoleRef, nil)
 		if err != nil {
 			return nil, err
 		}

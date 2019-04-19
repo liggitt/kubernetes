@@ -30,7 +30,7 @@ import (
 	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient"
-	rbachelper "k8s.io/kubernetes/pkg/apis/rbac/v1"
+	rbachelper "k8s.io/rbac/helpers"
 )
 
 const (

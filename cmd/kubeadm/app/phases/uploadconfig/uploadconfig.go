@@ -29,7 +29,7 @@ import (
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient"
 	configutil "k8s.io/kubernetes/cmd/kubeadm/app/util/config"
-	rbachelper "k8s.io/kubernetes/pkg/apis/rbac/v1"
+	rbachelper "k8s.io/rbac/helpers"
 )
 
 const (

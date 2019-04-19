@@ -41,7 +41,7 @@ import (
 	nodebootstraptokenphase "k8s.io/kubernetes/cmd/kubeadm/app/phases/bootstraptoken/node"
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient"
 	cryptoutil "k8s.io/kubernetes/cmd/kubeadm/app/util/crypto"
-	rbachelper "k8s.io/kubernetes/pkg/apis/rbac/v1"
+	rbachelper "k8s.io/rbac/helpers"
 )
 
 const (

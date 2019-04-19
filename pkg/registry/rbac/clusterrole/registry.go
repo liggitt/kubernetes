@@ -24,7 +24,7 @@ import (
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/kubernetes/pkg/apis/rbac"
-	rbacv1helpers "k8s.io/kubernetes/pkg/apis/rbac/v1"
+	rbacv1conversion "k8s.io/kubernetes/pkg/apis/rbac/v1"
 )
 
 // Registry is an interface for things that know how to store ClusterRoles.
@@ -50,7 +50,7 @@ func (s *storage) GetClusterRole(ctx context.Context, name string, options *meta
 	}
 
 	ret := &rbacv1.ClusterRole{}
-	if err := rbacv1helpers.Convert_rbac_ClusterRole_To_v1_ClusterRole(obj.(*rbac.ClusterRole), ret, nil); err != nil {
+	if err := rbacv1conversion.Convert_rbac_ClusterRole_To_v1_ClusterRole(obj.(*rbac.ClusterRole), ret, nil); err != nil {
 		return nil, err
 	}
 	return ret, nil
