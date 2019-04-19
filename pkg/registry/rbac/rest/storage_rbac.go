@@ -46,7 +46,6 @@ import (
 	"k8s.io/kubernetes/pkg/registry/rbac/clusterrolebinding"
 	clusterrolebindingpolicybased "k8s.io/kubernetes/pkg/registry/rbac/clusterrolebinding/policybased"
 	clusterrolebindingstore "k8s.io/kubernetes/pkg/registry/rbac/clusterrolebinding/storage"
-	"k8s.io/kubernetes/pkg/registry/rbac/reconciliation"
 	"k8s.io/kubernetes/pkg/registry/rbac/role"
 	rolepolicybased "k8s.io/kubernetes/pkg/registry/rbac/role/policybased"
 	rolestore "k8s.io/kubernetes/pkg/registry/rbac/role/storage"
@@ -55,6 +54,7 @@ import (
 	rolebindingstore "k8s.io/kubernetes/pkg/registry/rbac/rolebinding/storage"
 	rbacregistryvalidation "k8s.io/kubernetes/pkg/registry/rbac/validation"
 	"k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac/bootstrappolicy"
+	"k8s.io/rbac/reconciliation"
 )
 
 const PostStartHookName = "rbac/bootstrap-roles"
