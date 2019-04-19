@@ -30,7 +30,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	_ "k8s.io/kubernetes/pkg/apis/rbac/install"
-	"k8s.io/kubernetes/pkg/registry/rbac/validation"
+	"k8s.io/rbac/validation"
 )
 
 func TestEscalation(t *testing.T) {

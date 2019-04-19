@@ -52,7 +52,7 @@ import (
 	"k8s.io/kubernetes/pkg/registry/rbac/rolebinding"
 	rolebindingpolicybased "k8s.io/kubernetes/pkg/registry/rbac/rolebinding/policybased"
 	rolebindingstore "k8s.io/kubernetes/pkg/registry/rbac/rolebinding/storage"
-	rbacregistryvalidation "k8s.io/kubernetes/pkg/registry/rbac/validation"
+	rbacregistryvalidation "k8s.io/rbac/validation"
 	"k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac/bootstrappolicy"
 	"k8s.io/rbac/reconciliation"
 )

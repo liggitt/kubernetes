@@ -28,7 +28,8 @@ import (
 	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
-	rbacregistryvalidation "k8s.io/kubernetes/pkg/registry/rbac/validation"
+	rbacregistryvalidationinternal "k8s.io/kubernetes/pkg/registry/rbac/validation"
+	rbacregistryvalidation "k8s.io/rbac/validation"
 )
 
 var groupResource = rbac.Resource("roles")
@@ -66,7 +67,7 @@ func (s *Storage) Create(ctx context.Context, obj runtime.Object, createValidati
 
 	role := obj.(*rbac.Role)
 	rules := role.Rules
-	if err := rbacregistryvalidation.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
+	if err := rbacregistryvalidationinternal.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
 		return nil, errors.NewForbidden(groupResource, role.Name, err)
 	}
 	return s.StandardStorage.Create(ctx, obj, createValidation, options)
@@ -86,7 +87,7 @@ func (s *Storage) Update(ctx context.Context, name string, obj rest.UpdatedObjec
 		}
 
 		rules := role.Rules
-		if err := rbacregistryvalidation.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
+		if err := rbacregistryvalidationinternal.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
 			return nil, errors.NewForbidden(groupResource, role.Name, err)
 		}
 		return obj, nil

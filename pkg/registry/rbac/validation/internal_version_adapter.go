@@ -22,6 +22,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	rbacv1helpers "k8s.io/kubernetes/pkg/apis/rbac/v1"
+	"k8s.io/rbac/validation"
 )
 
 func ConfirmNoEscalationInternal(ctx context.Context, ruleResolver AuthorizationRuleResolver, inRules []rbac.PolicyRule) error {
@@ -35,5 +36,5 @@ func ConfirmNoEscalationInternal(ctx context.Context, ruleResolver Authorization
 		rules = append(rules, v1Rule)
 	}
 
-	return ConfirmNoEscalation(ctx, ruleResolver, rules)
+	return validation.ConfirmNoEscalation(ctx, ruleResolver, rules)
 }

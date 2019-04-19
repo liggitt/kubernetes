@@ -29,7 +29,8 @@ import (
 	kapihelper "k8s.io/kubernetes/pkg/apis/core/helper"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
-	rbacregistryvalidation "k8s.io/kubernetes/pkg/registry/rbac/validation"
+	rbacregistryvalidationinternal "k8s.io/kubernetes/pkg/registry/rbac/validation"
+	rbacregistryvalidation "k8s.io/rbac/validation"
 )
 
 var groupResource = rbac.Resource("clusterroles")
@@ -72,12 +73,12 @@ func (s *Storage) Create(ctx context.Context, obj runtime.Object, createValidati
 
 	clusterRole := obj.(*rbac.ClusterRole)
 	rules := clusterRole.Rules
-	if err := rbacregistryvalidation.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
+	if err := rbacregistryvalidationinternal.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
 		return nil, apierrors.NewForbidden(groupResource, clusterRole.Name, err)
 	}
 	// to set the aggregation rule, since it can gather anything, requires * on *.*
 	if hasAggregationRule(clusterRole) {
-		if err := rbacregistryvalidation.ConfirmNoEscalationInternal(ctx, s.ruleResolver, fullAuthority); err != nil {
+		if err := rbacregistryvalidationinternal.ConfirmNoEscalationInternal(ctx, s.ruleResolver, fullAuthority); err != nil {
 			return nil, apierrors.NewForbidden(groupResource, clusterRole.Name, errors.New("must have cluster-admin privileges to use the aggregationRule"))
 		}
 	}
@@ -100,12 +101,12 @@ func (s *Storage) Update(ctx context.Context, name string, obj rest.UpdatedObjec
 		}
 
 		rules := clusterRole.Rules
-		if err := rbacregistryvalidation.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
+		if err := rbacregistryvalidationinternal.ConfirmNoEscalationInternal(ctx, s.ruleResolver, rules); err != nil {
 			return nil, apierrors.NewForbidden(groupResource, clusterRole.Name, err)
 		}
 		// to change the aggregation rule, since it can gather anything and prevent tightening, requires * on *.*
 		if hasAggregationRule(clusterRole) || hasAggregationRule(oldClusterRole) {
-			if err := rbacregistryvalidation.ConfirmNoEscalationInternal(ctx, s.ruleResolver, fullAuthority); err != nil {
+			if err := rbacregistryvalidationinternal.ConfirmNoEscalationInternal(ctx, s.ruleResolver, fullAuthority); err != nil {
 				return nil, apierrors.NewForbidden(groupResource, clusterRole.Name, errors.New("must have cluster-admin privileges to use the aggregationRule"))
 			}
 		}
