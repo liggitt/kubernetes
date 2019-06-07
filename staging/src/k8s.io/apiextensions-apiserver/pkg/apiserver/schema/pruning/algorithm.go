@@ -25,10 +25,21 @@ func Prune(obj interface{}, s *structuralschema.Structural) {
 	prune(obj, s)
 }
 
+var skipMetadataFields = map[string]bool{
+	"apiVersion": true,
+	"kind":       true,
+	"metadata":   true,
+}
+
 func prune(x interface{}, s *structuralschema.Structural) {
 	if s != nil && s.XPreserveUnknownFields {
 		skipPrune(x, s)
 		return
+	}
+
+	skip := skipMetadataFields
+	if s == nil || !s.XEmbeddedResource {
+		skip = nil
 	}
 
 	switch x := x.(type) {
@@ -40,6 +51,9 @@ func prune(x interface{}, s *structuralschema.Structural) {
 			return
 		}
 		for k, v := range x {
+			if skip[k] {
+				continue
+			}
 			prop, ok := s.Properties[k]
 			if ok {
 				prune(v, &prop)

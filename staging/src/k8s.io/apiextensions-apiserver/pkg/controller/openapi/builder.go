@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1beta1 "k8s.io/apimachinery/pkg/apis/meta/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/endpoints"
 	"k8s.io/apiserver/pkg/endpoints/openapi"
 	openapibuilder "k8s.io/kube-openapi/pkg/builder"
@@ -310,6 +311,7 @@ func (b *builder) buildKubeNative(schema *structuralschema.Structural, v2 bool) 
 		ret.SetProperty("metadata", *spec.RefSchema(objectMetaSchemaRef).
 			WithDescription(swaggerPartialObjectMetadataDescriptions["metadata"]))
 		addTypeMetaProperties(ret)
+		addEmbeddedProperties(ret)
 	}
 	ret.AddExtension(endpoints.ROUTE_META_GVK, []interface{}{
 		map[string]interface{}{
@@ -320,6 +322,42 @@ func (b *builder) buildKubeNative(schema *structuralschema.Structural, v2 bool) 
 	})
 
 	return ret
+}
+
+func addEmbeddedProperties(s *spec.Schema) {
+	if s == nil {
+		return
+	}
+	for k := range s.Properties {
+		v := s.Properties[k]
+		addEmbeddedProperties(&v)
+		s.Properties[k] = v
+	}
+	if s.Items != nil {
+		addEmbeddedProperties(s.Items.Schema)
+	}
+	if isTrue, ok := s.VendorExtensible.Extensions.GetBool("x-kubernetes-embedded-resource"); ok && isTrue {
+		addTypeMetaProperties(s)
+
+		req := sets.NewString(s.Required...)
+
+		if !req.Has("kind") {
+			s.Required = append(s.Required, "kind")
+		}
+		kindProp := s.Properties["kind"]
+		kindProp.Description = "kind is a string value representing the type of this object. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds"
+		s.Properties["kind"] = kindProp
+
+		if !req.Has("kind") {
+			s.Required = append(s.Required, "apiVersion")
+		}
+		apiVersionProp := s.Properties["apiVersion"]
+		apiVersionProp.Description = "apiVersion defines the versioned schema of this representation of an object. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources"
+		s.Properties["apiVersion"] = apiVersionProp
+
+		// metadata is not required
+		s.SetProperty("metadata", *spec.RefSchema(objectMetaSchemaRef).WithDescription(swaggerPartialObjectMetadataDescriptions["metadata"]))
+	}
 }
 
 // getDefinition gets definition for given Kubernetes type. This function is extracted from
