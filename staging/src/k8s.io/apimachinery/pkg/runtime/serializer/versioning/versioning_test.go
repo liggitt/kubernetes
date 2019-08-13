@@ -129,7 +129,6 @@ func TestDecode(t *testing.T) {
 	decodable1 := &testDecodable{}
 	decodable2 := &testDecodable{}
 	decodable3 := &testDecodable{}
-	versionedDecodable1 := &runtime.VersionedObjects{Objects: []runtime.Object{decodable1}}
 
 	testCases := []struct {
 		serializer runtime.Serializer
@@ -202,17 +201,6 @@ func TestDecode(t *testing.T) {
 			sameObject:  versionedDecodable1,
 		},
 
-		// runtime.VersionedObjects are decoded
-		{
-			into: &runtime.VersionedObjects{Objects: []runtime.Object{}},
-
-			serializer:     &mockSerializer{actual: gvk1, obj: decodable1},
-			convertor:      &checkConvertor{in: decodable1, obj: decodable2, groupVersion: schema.GroupVersion{Group: "other", Version: runtime.APIVersionInternal}},
-			expectedGVK:    gvk1,
-			expectedObject: &runtime.VersionedObjects{Objects: []runtime.Object{decodable1, decodable2}},
-			decodes:        schema.GroupVersion{Group: "other", Version: runtime.APIVersionInternal},
-		},
-
 		// decode into the same version as the serialized object
 		{
 			decodes: schema.GroupVersions{gvk1.GroupVersion()},
@@ -221,15 +209,6 @@ func TestDecode(t *testing.T) {
 			convertor:      &checkConvertor{in: decodable1, obj: decodable1, groupVersion: schema.GroupVersions{{Group: "other", Version: "blah"}}},
 			expectedGVK:    gvk1,
 			expectedObject: decodable1,
-		},
-		{
-			into:    &runtime.VersionedObjects{Objects: []runtime.Object{}},
-			decodes: schema.GroupVersions{gvk1.GroupVersion()},
-
-			serializer:     &mockSerializer{actual: gvk1, obj: decodable1},
-			convertor:      &checkConvertor{in: decodable1, obj: decodable1, groupVersion: schema.GroupVersions{{Group: "other", Version: "blah"}}},
-			expectedGVK:    gvk1,
-			expectedObject: &runtime.VersionedObjects{Objects: []runtime.Object{decodable1}},
 		},
 
 		// codec with non matching version skips conversion altogether
@@ -240,15 +219,6 @@ func TestDecode(t *testing.T) {
 			convertor:      &checkConvertor{in: decodable1, obj: decodable1, groupVersion: schema.GroupVersions{{Group: "something", Version: "else"}}},
 			expectedGVK:    gvk1,
 			expectedObject: decodable1,
-		},
-		{
-			into:    &runtime.VersionedObjects{Objects: []runtime.Object{}},
-			decodes: schema.GroupVersions{{Group: "something", Version: "else"}},
-
-			serializer:     &mockSerializer{actual: gvk1, obj: decodable1},
-			convertor:      &checkConvertor{in: decodable1, obj: decodable1, groupVersion: schema.GroupVersions{{Group: "something", Version: "else"}}},
-			expectedGVK:    gvk1,
-			expectedObject: &runtime.VersionedObjects{Objects: []runtime.Object{decodable1}},
 		},
 	}
 
