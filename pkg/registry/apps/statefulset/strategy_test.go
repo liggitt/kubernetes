@@ -17,11 +17,12 @@ limitations under the License.
 package statefulset
 
 import (
-	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/diff"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
@@ -353,11 +354,33 @@ func generateStatefulSetWithMinReadySeconds(minReadySeconds int32) *apps.Statefu
 	}
 }
 
+func makeStatefulSetWithMaxUnavailable(maxUnavailable *int) *apps.StatefulSet {
+	rollingUpdate := apps.RollingUpdateStatefulSetStrategy{}
+	if maxUnavailable != nil {
+		maxUnavailableIntStr := intstr.FromInt(*maxUnavailable)
+		rollingUpdate = apps.RollingUpdateStatefulSetStrategy{
+			MaxUnavailable: &maxUnavailableIntStr,
+		}
+	}
+
+	return &apps.StatefulSet{
+		Spec: apps.StatefulSetSpec{
+			UpdateStrategy: apps.StatefulSetUpdateStrategy{
+				Type:          apps.RollingUpdateStatefulSetStrategyType,
+				RollingUpdate: &rollingUpdate,
+			},
+		},
+	}
+}
+
 // TestDropStatefulSetDisabledFields tests if the drop functionality is working fine or not
 func TestDropStatefulSetDisabledFields(t *testing.T) {
+	maxUnavailable := 3
+	defaultMaxUnavailable := 1
 	testCases := []struct {
 		name                  string
 		enableMinReadySeconds bool
+		enableMaxUnavailable  bool
 		ss                    *apps.StatefulSet
 		oldSS                 *apps.StatefulSet
 		expectedSS            *apps.StatefulSet
@@ -418,21 +441,57 @@ func TestDropStatefulSetDisabledFields(t *testing.T) {
 			oldSS:                 generateStatefulSetWithMinReadySeconds(0),
 			expectedSS:            generateStatefulSetWithMinReadySeconds(10),
 		},
+		{
+			name:                 "MaxUnavailable not enabled, field not used",
+			enableMaxUnavailable: false,
+			ss:                   makeStatefulSetWithMaxUnavailable(nil),
+			oldSS:                nil,
+			expectedSS:           makeStatefulSetWithMaxUnavailable(nil),
+		},
+		{
+			name:                 "MaxUnavailable not enabled, field used in new, not in old",
+			enableMaxUnavailable: false,
+			ss:                   makeStatefulSetWithMaxUnavailable(&maxUnavailable),
+			oldSS:                nil,
+			expectedSS:           makeStatefulSetWithMaxUnavailable(nil),
+		},
+		{
+			name:                 "MaxUnavailable not enabled, field used in old and new",
+			enableMaxUnavailable: false,
+			ss:                   makeStatefulSetWithMaxUnavailable(&maxUnavailable),
+			oldSS:                makeStatefulSetWithMaxUnavailable(&maxUnavailable),
+			expectedSS:           makeStatefulSetWithMaxUnavailable(&maxUnavailable),
+		},
+		{
+			name:                 "MaxUnavailable enabled, field used in new only",
+			enableMaxUnavailable: true,
+			ss:                   makeStatefulSetWithMaxUnavailable(&maxUnavailable),
+			oldSS:                nil,
+			expectedSS:           makeStatefulSetWithMaxUnavailable(&maxUnavailable),
+		},
+		{
+			name:                 "MaxUnavailable enabled, field used in both old and new",
+			enableMaxUnavailable: true,
+			ss:                   makeStatefulSetWithMaxUnavailable(&defaultMaxUnavailable),
+			oldSS:                makeStatefulSetWithMaxUnavailable(&maxUnavailable),
+			expectedSS:           makeStatefulSetWithMaxUnavailable(&defaultMaxUnavailable),
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MaxUnavailableStatefulSet, tc.enableMaxUnavailable)()
 			defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StatefulSetMinReadySeconds, tc.enableMinReadySeconds)()
 			old := tc.oldSS.DeepCopy()
 
 			dropStatefulSetDisabledFields(tc.ss, tc.oldSS)
 
 			// old obj should never be changed
-			if !reflect.DeepEqual(tc.oldSS, old) {
-				t.Fatalf("old ds changed: %v", diff.ObjectReflectDiff(tc.oldSS, old))
+			if diff := cmp.Diff(tc.oldSS, old); diff != "" {
+				t.Fatalf("%v: old statefulSet changed: %v", tc.name, diff)
 			}
 
-			if !reflect.DeepEqual(tc.ss, tc.expectedSS) {
-				t.Fatalf("unexpected ds spec: %v", diff.ObjectReflectDiff(tc.expectedSS, tc.ss))
+			if diff := cmp.Diff(tc.ss, tc.expectedSS); diff != "" {
+				t.Fatalf("%v: unexpected statefulSet spec: %v", tc.name, diff)
 			}
 		})
 	}

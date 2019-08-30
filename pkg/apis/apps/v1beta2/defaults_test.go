@@ -27,10 +27,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	_ "k8s.io/kubernetes/pkg/apis/apps/install"
 	. "k8s.io/kubernetes/pkg/apis/apps/v1beta2"
 	_ "k8s.io/kubernetes/pkg/apis/core/install"
+	"k8s.io/kubernetes/pkg/features"
 	utilpointer "k8s.io/utils/pointer"
 )
 
@@ -173,7 +176,9 @@ func TestSetDefaultDaemonSetSpec(t *testing.T) {
 }
 
 func TestSetDefaultStatefulSet(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MaxUnavailableStatefulSet, true)()
 	defaultLabels := map[string]string{"foo": "bar"}
+	defaultMaxUnavailable := intstr.FromInt(1)
 	var defaultPartition int32 = 0
 	var defaultReplicas int32 = 1
 
@@ -213,7 +218,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1beta2.StatefulSetUpdateStrategy{
 						Type: appsv1beta2.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1beta2.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					RevisionHistoryLimit: utilpointer.Int32Ptr(10),
@@ -264,7 +270,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1beta2.StatefulSetUpdateStrategy{
 						Type: appsv1beta2.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1beta2.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					RevisionHistoryLimit: utilpointer.Int32Ptr(10),

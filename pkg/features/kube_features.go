@@ -817,6 +817,12 @@ const (
 	//
 	// Enables GRPC probe method for {Liveness,Readiness,Startup}Probe.
 	GRPCContainerProbe featuregate.Feature = "GRPCContainerProbe"
+
+	// owner: @krmayankk
+	// alpha: v1.24
+	//
+	// Enables maxUnavailable for StatefulSet
+	MaxUnavailableStatefulSet featuregate.Feature = "MaxUnavailableStatefulSet"
 )
 
 func init() {
@@ -937,6 +943,7 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 	HonorPVReclaimPolicy:                           {Default: false, PreRelease: featuregate.Alpha},
 	RecoverVolumeExpansionFailure:                  {Default: false, PreRelease: featuregate.Alpha},
 	GRPCContainerProbe:                             {Default: false, PreRelease: featuregate.Alpha},
+	MaxUnavailableStatefulSet:                      {Default: false, PreRelease: featuregate.Alpha},
 
 	// inherited features from generic apiserver, relisted here to get a conflict if it is changed
 	// unintentionally on either side:

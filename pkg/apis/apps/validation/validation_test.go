@@ -36,6 +36,7 @@ import (
 
 func TestValidateStatefulSet(t *testing.T) {
 	validLabels := map[string]string{"a": "b"}
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MaxUnavailableStatefulSet, true)()
 	validPodTemplate := api.PodTemplate{
 		Template: api.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
@@ -78,6 +79,7 @@ func TestValidateStatefulSet(t *testing.T) {
 
 	const enableStatefulSetAutoDeletePVC = "[enable StatefulSetAutoDeletePVC]"
 
+	numberTwo := intstr.FromInt(2)
 	successCases := map[string]apps.StatefulSet{
 		"alpha name": {
 			ObjectMeta: metav1.ObjectMeta{Name: "abc", Namespace: metav1.NamespaceDefault},
@@ -140,6 +142,35 @@ func TestValidateStatefulSet(t *testing.T) {
 					WhenDeleted: apps.DeletePersistentVolumeClaimRetentionPolicyType,
 					WhenScaled:  apps.RetainPersistentVolumeClaimRetentionPolicyType,
 				},
+			},
+		},
+		"maxUnavailable with parallel pod management": {
+			ObjectMeta: metav1.ObjectMeta{Name: "abc-123", Namespace: metav1.NamespaceDefault},
+			Spec: apps.StatefulSetSpec{
+				PodManagementPolicy: apps.ParallelPodManagement,
+				Selector:            &metav1.LabelSelector{MatchLabels: validLabels},
+				Template:            validPodTemplate.Template,
+				Replicas:            3,
+				UpdateStrategy: apps.StatefulSetUpdateStrategy{
+					Type: apps.RollingUpdateStatefulSetStrategyType,
+					RollingUpdate: &apps.RollingUpdateStatefulSetStrategy{Partition: 2, MaxUnavailable: func() *intstr.IntOrString {
+						return &numberTwo
+					}()},
+				},
+			},
+		},
+		"parallel pod management with no maxUnavailable": {
+			ObjectMeta: metav1.ObjectMeta{Name: "abc-123", Namespace: metav1.NamespaceDefault},
+			Spec: apps.StatefulSetSpec{
+				PodManagementPolicy: apps.ParallelPodManagement,
+				Selector:            &metav1.LabelSelector{MatchLabels: validLabels},
+				Template:            validPodTemplate.Template,
+				Replicas:            3,
+				UpdateStrategy: apps.StatefulSetUpdateStrategy{
+					Type: apps.RollingUpdateStatefulSetStrategyType,
+					RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+						return &apps.RollingUpdateStatefulSetStrategy{Partition: 2}
+					}()},
 			},
 		},
 	}
@@ -394,6 +425,57 @@ func TestValidateStatefulSet(t *testing.T) {
 				UpdateStrategy:      apps.StatefulSetUpdateStrategy{Type: apps.RollingUpdateStatefulSetStrategyType},
 			},
 		},
+		"zero maxUnavailable": {
+			ObjectMeta: metav1.ObjectMeta{Name: "abc-123", Namespace: metav1.NamespaceDefault},
+			Spec: apps.StatefulSetSpec{
+				PodManagementPolicy: apps.OrderedReadyPodManagement,
+				Selector:            &metav1.LabelSelector{MatchLabels: validLabels},
+				Template:            validPodTemplate.Template,
+				Replicas:            3,
+				UpdateStrategy: apps.StatefulSetUpdateStrategy{Type: apps.RollingUpdateStatefulSetStrategyType,
+					RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+						return &apps.RollingUpdateStatefulSetStrategy{MaxUnavailable: func() *intstr.IntOrString {
+							zeroNum := intstr.FromInt(0)
+							return &zeroNum
+						}()}
+
+					}()},
+			},
+		},
+		"zero percent maxUnavailable": {
+			ObjectMeta: metav1.ObjectMeta{Name: "abc-123", Namespace: metav1.NamespaceDefault},
+			Spec: apps.StatefulSetSpec{
+				PodManagementPolicy: apps.ParallelPodManagement,
+				Selector:            &metav1.LabelSelector{MatchLabels: validLabels},
+				Template:            validPodTemplate.Template,
+				Replicas:            3,
+				UpdateStrategy: apps.StatefulSetUpdateStrategy{Type: apps.RollingUpdateStatefulSetStrategyType,
+					RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+						return &apps.RollingUpdateStatefulSetStrategy{MaxUnavailable: func() *intstr.IntOrString {
+							zeroNum := intstr.FromString("0%")
+							return &zeroNum
+						}()}
+
+					}()},
+			},
+		},
+		"greater than 100 percent maxUnavailable": {
+			ObjectMeta: metav1.ObjectMeta{Name: "abc-123", Namespace: metav1.NamespaceDefault},
+			Spec: apps.StatefulSetSpec{
+				PodManagementPolicy: apps.ParallelPodManagement,
+				Selector:            &metav1.LabelSelector{MatchLabels: validLabels},
+				Template:            validPodTemplate.Template,
+				Replicas:            3,
+				UpdateStrategy: apps.StatefulSetUpdateStrategy{Type: apps.RollingUpdateStatefulSetStrategyType,
+					RollingUpdate: func() *apps.RollingUpdateStatefulSetStrategy {
+						return &apps.RollingUpdateStatefulSetStrategy{MaxUnavailable: func() *intstr.IntOrString {
+							hundredOneNum := intstr.FromString("101%")
+							return &hundredOneNum
+						}()}
+
+					}()},
+			},
+		},
 	}
 
 	for k, v := range errorCases {
@@ -426,6 +508,7 @@ func TestValidateStatefulSet(t *testing.T) {
 					field != "spec.persistentVolumeClaimRetentionPolicy" &&
 					field != "spec.persistentVolumeClaimRetentionPolicy.whenDeleted" &&
 					field != "spec.persistentVolumeClaimRetentionPolicy.whenScaled" &&
+					field != "spec.updateStrategy.rollingUpdate.maxUnavailable" &&
 					field != "spec.template.spec.activeDeadlineSeconds" {
 					t.Errorf("%s: missing prefix for: %v", k, errs[i])
 				}

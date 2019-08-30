@@ -176,7 +176,10 @@ func TestSetDefaultDaemonSetSpec(t *testing.T) {
 }
 
 func TestSetDefaultStatefulSet(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MaxUnavailableStatefulSet, true)()
 	defaultLabels := map[string]string{"foo": "bar"}
+	defaultMaxUnavailable := intstr.FromInt(1)
+	notTheDefaultMaxUnavailable := intstr.FromInt(3)
 	var defaultPartition int32 = 0
 	var defaultReplicas int32 = 1
 	var notTheDefaultPartition int32 = 42
@@ -220,7 +223,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						Type: appsv1.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					RevisionHistoryLimit: utilpointer.Int32Ptr(10),
@@ -273,7 +277,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						Type: appsv1.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					RevisionHistoryLimit: utilpointer.Int32Ptr(10),
@@ -287,7 +292,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					Template: defaultTemplate,
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &notTheDefaultPartition,
+							Partition:      &notTheDefaultPartition,
+							MaxUnavailable: &notTheDefaultMaxUnavailable,
 						},
 					},
 				},
@@ -304,7 +310,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						Type: appsv1.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &notTheDefaultPartition,
+							Partition:      &notTheDefaultPartition,
+							MaxUnavailable: &notTheDefaultMaxUnavailable,
 						},
 					},
 					RevisionHistoryLimit: utilpointer.Int32Ptr(10),
@@ -329,7 +336,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						Type: appsv1.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					PersistentVolumeClaimRetentionPolicy: &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
@@ -362,7 +370,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						Type: appsv1.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					PersistentVolumeClaimRetentionPolicy: &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
@@ -395,7 +404,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						Type: appsv1.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					PersistentVolumeClaimRetentionPolicy: &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
@@ -428,7 +438,8 @@ func TestSetDefaultStatefulSet(t *testing.T) {
 					UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
 						Type: appsv1.RollingUpdateStatefulSetStrategyType,
 						RollingUpdate: &appsv1.RollingUpdateStatefulSetStrategy{
-							Partition: &defaultPartition,
+							Partition:      &defaultPartition,
+							MaxUnavailable: &defaultMaxUnavailable,
 						},
 					},
 					PersistentVolumeClaimRetentionPolicy: &appsv1.StatefulSetPersistentVolumeClaimRetentionPolicy{
