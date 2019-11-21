@@ -634,6 +634,15 @@ func yaml_parser_fetch_more_tokens(parser *yaml_parser_t) bool {
 			need_more_tokens = true
 		} else {
 			// Check if any potential simple key may occupy the head position.
+			for i := parser.first_possible_simple_key; i < len(parser.simple_keys); i++ {
+				simple_key := &parser.simple_keys[i]
+				valid, ok := yaml_simple_key_is_valid(parser, simple_key)
+				if !ok {
+					return false
+				}
+
+			}
+
 			for i := len(parser.simple_keys) - 1; i >= 0; i-- {
 				simple_key := &parser.simple_keys[i]
 				if simple_key.token_number < parser.tokens_parsed {

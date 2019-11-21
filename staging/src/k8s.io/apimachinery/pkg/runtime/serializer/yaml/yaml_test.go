@@ -297,6 +297,11 @@ b: &b [*a]`),
 			benchmark: true,
 		},
 		{
+			name:      "3MB of 10000-nested lines",
+			data:      []byte(strings.Repeat(`- `+strings.Repeat(`[`, 10000)+strings.Repeat(`]`, 10000)+"\n", 3*1024*1024/20000)),
+			benchmark: true,
+		},
+		{
 			name:      "3MB of empty slices",
 			data:      []byte(`[` + strings.Repeat(`[],`, 3*1024*1024/3-2) + `[]]`),
 			benchmark: true,
