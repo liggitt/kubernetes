@@ -106,6 +106,17 @@ func TestAggregatedAPIServer(t *testing.T) {
 	testAPIGroup(t, wardleClient.Discovery().RESTClient())
 	testAPIResourceList(t, wardleClient.Discovery().RESTClient())
 
+	flunder := `{"apiVersion":"wardle.k8s.io/v1alpha1","kind":"Flunder","metadata":{"labels":{"sample-label":"true"},"name":"abc","namespace":"default"}}`
+	result := wardleClient.Discovery().RESTClient().Post().
+		AbsPath("/apis/wardle.k8s.io/v1alpha1/namespaces/default/flunders").
+		Body([]byte(flunder)).
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Accept", "application/vnd.kubernetes.protobuf,application/json").
+		Do()
+	if err := result.Error(); err != nil {
+		t.Fatal(err)
+	}
+
 	wardleCA, err := ioutil.ReadFile(directWardleClientConfig.CAFile)
 	if err != nil {
 		t.Fatal(err)
