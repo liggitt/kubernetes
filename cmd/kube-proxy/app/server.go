@@ -19,11 +19,13 @@ limitations under the License.
 package app
 
 import (
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	goruntime "runtime"
 	"strings"
 	"time"
@@ -115,6 +117,8 @@ type Options struct {
 	WindowsService bool
 	// config is the proxy server's configuration object.
 	config *kubeproxyconfig.KubeProxyConfiguration
+	// configFileMd5sum is the md5sum of the proxy server configuration file's content.
+	configFileMd5sum string
 	// watcher is used to watch on the update change of ConfigFile
 	watcher filesystem.FSWatcher
 	// proxyServer is the interface to run the proxy server
@@ -251,7 +255,8 @@ func (o *Options) initWatcher() error {
 	if err != nil {
 		return err
 	}
-	err = fswatcher.AddWatch(o.ConfigFile)
+	parentDir := filepath.Dir(o.ConfigFile)
+	err = fswatcher.AddWatch(parentDir)
 	if err != nil {
 		return err
 	}
@@ -263,12 +268,34 @@ func (o *Options) eventHandler(ent fsnotify.Event) {
 	eventOpIs := func(Op fsnotify.Op) bool {
 		return ent.Op&Op == Op
 	}
-	if eventOpIs(fsnotify.Write) || eventOpIs(fsnotify.Rename) {
+
+	if eventOpIs(fsnotify.Create) || eventOpIs(fsnotify.Write) || eventOpIs(fsnotify.Rename) {
+		if _, err := os.Stat(o.ConfigFile); os.IsNotExist(err) {
+			return
+		}
+		data, err := ioutil.ReadFile(o.ConfigFile)
+		if err != nil {
+			klog.Warningf("fs watcher failed to read content from %s: %v", o.ConfigFile, err)
+			return
+		}
+		// ignore this event if the file has not changed
+		if fmt.Sprintf("%x", md5.Sum(data)) == o.configFileMd5sum {
+			return
+		}
+
+		cfg, err := NewOptions().loadConfig(data)
+		if err != nil {
+			klog.Warningf("a change of %s was detected, but failed to reload it: %v", o.ConfigFile, err)
+			return
+		}
+		if errs := validation.Validate(cfg); len(errs) != 0 {
+			klog.Warningf("a change of %s was detected, but found invalid configuration: %v", o.ConfigFile, errs.ToAggregate())
+			return
+		}
+
 		// error out when ConfigFile is updated
 		o.errCh <- fmt.Errorf("content of the proxy server's configuration file was updated")
-		return
 	}
-	o.errCh <- nil
 }
 
 func (o *Options) errorHandler(err error) {
@@ -405,6 +432,7 @@ func (o *Options) loadConfigFromFile(file string) (*kubeproxyconfig.KubeProxyCon
 		return nil, err
 	}
 
+	o.configFileMd5sum = fmt.Sprintf("%x", md5.Sum(data))
 	return o.loadConfig(data)
 }
 

@@ -429,18 +429,7 @@ func TestProcessHostnameOverrideFlag(t *testing.T) {
 }
 
 func TestConfigChange(t *testing.T) {
-	setUp := func() (*os.File, string, error) {
-		tempDir, err := ioutil.TempDir("", "kubeproxy-config-change")
-		if err != nil {
-			return nil, "", fmt.Errorf("unable to create temporary directory: %v", err)
-		}
-		fullPath := filepath.Join(tempDir, "kube-proxy-config")
-		file, err := os.Create(fullPath)
-		if err != nil {
-			return nil, "", fmt.Errorf("unexpected error when creating temp file: %v", err)
-		}
-
-		_, err = file.WriteString(`apiVersion: kubeproxy.config.k8s.io/v1alpha1
+	kubeproxyConfigTemplate := `apiVersion: kubeproxy.config.k8s.io/v1alpha1
 bindAddress: 0.0.0.0
 clientConnection:
   acceptContentTypes: ""
@@ -474,12 +463,31 @@ mode: ""
 nodePortAddresses: null
 oomScoreAdj: -999
 portRange: ""
-udpIdleTimeout: 250ms`)
+`
+
+	setUp := func() (*os.File, string, string, string, error) {
+		tempDir, err := ioutil.TempDir("", "kubeproxy-config-change")
 		if err != nil {
-			return nil, "", fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err)
+			return nil, "", "", "", fmt.Errorf("unable to create temporary directory: %v", err)
+		}
+		realPath := filepath.Join(tempDir, "kube-proxy-config")
+		file, err := os.Create(realPath)
+		if err != nil {
+			return nil, "", "", "", fmt.Errorf("unexpected error when creating temp file: %v", err)
 		}
 
-		return file, tempDir, nil
+		_, err = file.WriteString(kubeproxyConfigTemplate)
+		if err != nil {
+			return nil, "", "", "", fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err)
+		}
+
+		symlinkPath := filepath.Join(tempDir, "kube-proxy-config-symlink")
+		err = os.Symlink(realPath, symlinkPath)
+		if err != nil {
+			return nil, "", "", "", fmt.Errorf("unexpected error when creating the symlink for temp kube-proxy config file: %v", err)
+		}
+
+		return file, tempDir, realPath, symlinkPath, nil
 	}
 
 	tearDown := func(file *os.File, tempDir string) {
@@ -490,30 +498,112 @@ udpIdleTimeout: 250ms`)
 	testCases := []struct {
 		name        string
 		proxyServer proxyRun
-		append      bool
-		expectedErr string
+		action      string
+		expectedErr error
 	}{
 		{
-			name:        "update config file",
+			name:        "remove and recreate config file with same content",
 			proxyServer: new(fakeProxyServerLongRun),
-			append:      true,
-			expectedErr: "content of the proxy server's configuration file was updated",
+			action:      "real-recreate-same",
+			expectedErr: nil,
+		},
+		{
+			name:        "remove and recreate config file with different content",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "real-recreate-diff",
+			expectedErr: errors.New("content of the proxy server's configuration file was updated"),
+		},
+		{
+			name:        "rename config file",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "real-rename",
+			expectedErr: nil,
+		},
+		{
+			name:        "remove config file",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "real-remove",
+			expectedErr: nil,
+		},
+		{
+			name:        "rewrite config file with same content",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "real-write-same",
+			expectedErr: nil,
+		},
+		{
+			name:        "change config file with valid content",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "real-write-valid",
+			expectedErr: errors.New("content of the proxy server's configuration file was updated"),
+		},
+		{
+			name:        "change config file with invalid content",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "real-write-invalid",
+			expectedErr: nil,
+		},
+		{
+			name:        "remove and recreate the symlink with same target config file",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "symlink-recreate-same",
+			expectedErr: nil,
+		},
+		{
+			name:        "remove and recreate the symlink with different target config file",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "symlink-recreate-diff",
+			expectedErr: errors.New("content of the proxy server's configuration file was updated"),
+		},
+		{
+			name:        "rename the symlink",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "symlink-rename",
+			expectedErr: nil,
+		},
+		{
+			name:        "remove the symlink",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "symlink-remove",
+			expectedErr: nil,
+		},
+		{
+			name:        "change the target config file of the symlink with same content",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "symlink-replace-same",
+			expectedErr: nil,
+		},
+		{
+			name:        "change the target config file of the symlink with valid content",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "symlink-replace-valid",
+			expectedErr: errors.New("content of the proxy server's configuration file was updated"),
+		},
+		{
+			name:        "change the target config file of the symlink with invalid content",
+			proxyServer: new(fakeProxyServerLongRun),
+			action:      "symlink-replace-invalid",
+			expectedErr: nil,
 		},
 		{
 			name:        "fake error",
 			proxyServer: new(fakeProxyServerError),
-			expectedErr: "mocking error from ProxyServer.Run()",
+			expectedErr: errors.New("mocking error from ProxyServer.Run()"),
 		},
 	}
 
 	for _, tc := range testCases {
-		file, tempDir, err := setUp()
+		file, tempDir, realPath, symlinkPath, err := setUp()
 		if err != nil {
 			t.Fatalf("unexpected error when setting up environment: %v", err)
 		}
 
 		opt := NewOptions()
-		opt.ConfigFile = file.Name()
+		if strings.Contains(tc.action, "symlink") {
+			opt.ConfigFile = symlinkPath
+		} else {
+			opt.ConfigFile = realPath
+		}
 		err = opt.Complete()
 		if err != nil {
 			t.Fatal(err)
@@ -525,19 +615,118 @@ udpIdleTimeout: 250ms`)
 			errCh <- opt.runLoop()
 		}()
 
-		if tc.append {
-			file.WriteString("append fake content")
+		switch tc.action {
+		case "real-recreate-same", "symlink-replace-same":
+			err := os.Remove(realPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when removing temp kube-proxy config file: %v", err))
+			}
+			file, err := os.Create(realPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when creating temp file: %v", err))
+			}
+			_, err = file.WriteString(kubeproxyConfigTemplate)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+		case "real-recreate-diff":
+			err := os.Remove(realPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when removing temp kube-proxy config file: %v", err))
+			}
+			file, err := os.Create(realPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when creating temp file: %v", err))
+			}
+			_, err = file.WriteString(kubeproxyConfigTemplate)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+			_, err = file.WriteString("udpIdleTimeout: 250ms")
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+		case "real-rename":
+			err := os.Rename(realPath, filepath.Join(tempDir, "new-kube-proxy-config"))
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when renaming temp kube-proxy config file: %v", err))
+			}
+		case "real-remove":
+			err := os.Remove(realPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when removing temp kube-proxy config file: %v", err))
+			}
+		case "real-write-same":
+			file, err := os.OpenFile(realPath, os.O_WRONLY|os.O_TRUNC, 0644)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when open temp file: %v", err))
+			}
+			_, err = file.WriteString(kubeproxyConfigTemplate)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+		case "real-write-valid", "symlink-replace-valid":
+			_, err := file.WriteString("udpIdleTimeout: 250ms")
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+		case "real-write-invalid", "symlink-replace-invalid":
+			_, err := file.WriteString("invalid content")
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+		case "symlink-recreate-same":
+			err := os.Remove(symlinkPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when removing the symlink of temp kube-proxy config file: %v", err))
+			}
+			err = os.Symlink(realPath, symlinkPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when creating the symlink for temp kube-proxy config file: %v", err))
+			}
+		case "symlink-recreate-diff":
+			err := os.Remove(symlinkPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when removing the symlink of temp kube-proxy config file: %v", err))
+			}
+			diffRealPath := filepath.Join(tempDir, "diff-kube-proxy-config")
+			file, err := os.Create(diffRealPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when creating temp file: %v", err))
+			}
+			_, err = file.WriteString(kubeproxyConfigTemplate)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+			_, err = file.WriteString("udpIdleTimeout: 250ms")
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when writing content to temp kube-proxy config file: %v", err))
+			}
+			err = os.Symlink(diffRealPath, symlinkPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when creating the symlink for temp kube-proxy config file: %v", err))
+			}
+		case "symlink-rename":
+			err := os.Rename(symlinkPath, filepath.Join(tempDir, "new-kube-proxy-config-symlink"))
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when renaming the symlink of temp kube-proxy config file: %v", err))
+			}
+		case "symlink-remove":
+			err := os.Remove(symlinkPath)
+			if err != nil {
+				t.Fatal(fmt.Errorf("unexpected error when removing the symlink of temp kube-proxy config file: %v", err))
+			}
 		}
 
 		select {
 		case err := <-errCh:
-			if err != nil {
-				if !strings.Contains(err.Error(), tc.expectedErr) {
-					t.Errorf("[%s] Expected error containing %v, got %v", tc.name, tc.expectedErr, err)
-				}
+			if err.Error() != tc.expectedErr.Error() {
+				t.Errorf("[%s] Expected error containing %v, got %v", tc.name, tc.expectedErr, err)
 			}
-		case <-time.After(10 * time.Second):
-			t.Errorf("[%s] Timeout: unable to get any events or internal timeout.", tc.name)
+		case <-time.After(time.Second):
+			if tc.expectedErr != nil {
+				t.Errorf("[%s] Expected error %v occurring, but got no error", tc.name, tc.expectedErr)
+			}
 		}
 		tearDown(file, tempDir)
 	}
@@ -561,10 +750,7 @@ type fakeProxyServerError struct{}
 
 // Run runs the specified ProxyServer.
 func (s *fakeProxyServerError) Run() error {
-	for {
-		time.Sleep(2 * time.Second)
-		return fmt.Errorf("mocking error from ProxyServer.Run()")
-	}
+	return errors.New("mocking error from ProxyServer.Run()")
 }
 
 // CleanupAndExit runs in the specified ProxyServer.
