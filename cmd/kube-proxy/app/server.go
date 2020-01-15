@@ -255,10 +255,37 @@ func (o *Options) initWatcher() error {
 	if err != nil {
 		return err
 	}
+
+	// watch the parent dir of the config file to observe atomic renames
 	parentDir := filepath.Dir(o.ConfigFile)
 	err = fswatcher.AddWatch(parentDir)
 	if err != nil {
 		return err
+	}
+
+	// watch the config file itself to observe writes
+	err = fswatcher.AddWatch(o.ConfigFile)
+	if err != nil {
+		return err
+	}
+
+	// resolve symlinks to observe the underlying file as well
+	if linkedPath, err := filepath.EvalSymlinks(o.ConfigFile); err == nil && linkedPath != o.ConfigFile {
+
+		// watch the linked file to observe writes
+		err = fswatcher.AddWatch(linkedPath)
+		if err != nil {
+			return err
+		}
+
+		// watch the parent dir of the linked file to observe replaces
+		linkedParentDir := filepath.Dir(linkedPath)
+		if linkedParentDir != parentDir {
+			err = fswatcher.AddWatch(linkedParentDir)
+			if err != nil {
+				return err
+			}
+		}
 	}
 	o.watcher = fswatcher
 	return nil
