@@ -94,3 +94,12 @@ func AuditEventFrom(ctx context.Context) *audit.Event {
 	ev, _ := ctx.Value(auditKey).(*audit.Event)
 	return ev
 }
+
+func AuditAnnotationSetterFrom(ctx context.Context) (func(key,value string), bool) {
+ev,ok:=AuditEventFrom(ctx)
+if ok {
+	return func(key,value string){
+		ev.Annotations[key]=value
+	},true
+}
+}
