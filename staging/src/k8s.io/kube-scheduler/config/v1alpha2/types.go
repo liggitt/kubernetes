@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha2
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
@@ -97,6 +99,20 @@ type KubeSchedulerConfiguration struct {
 	// with the extender. These extenders are shared by all scheduler profiles.
 	// +listType=set
 	Extenders []v1.Extender `json:"extenders"`
+}
+
+// DecodeNestedObjects decodes plugin args for known types.
+func (c *KubeSchedulerConfiguration) DecodeNestedObjects(d runtime.Decoder) error {
+	for i := range c.Profiles {
+		prof := &c.Profiles[i]
+		for j := range prof.PluginConfig {
+			err := prof.PluginConfig[j].decodeNestedObjects(d)
+			if err != nil {
+				return fmt.Errorf("deconding .profiles[%d]: %v", i, err)
+			}
+		}
+	}
+	return nil
 }
 
 // KubeSchedulerProfile is a scheduling profile.
@@ -201,4 +217,21 @@ type PluginConfig struct {
 	Name string `json:"name"`
 	// Args defines the arguments passed to the plugins at the time of initialization. Args can have arbitrary structure.
 	Args runtime.RawExtension `json:"args,omitempty"`
+}
+
+func (c *PluginConfig) decodeNestedObjects(d runtime.Decoder) error {
+	gvk := SchemeGroupVersion.WithKind(c.Name + "Args")
+	obj, parsedGvk, err := d.Decode(c.Args.Raw, &gvk, nil)
+	if err != nil {
+		if runtime.IsNotRegisteredError(err) {
+			// Must be args for out-of-tree plugin.
+			return nil
+		}
+		return err
+	}
+	if parsedGvk.GroupKind() != gvk.GroupKind() {
+		return fmt.Errorf("args for plugin %s were not of type %s", c.Name, gvk.GroupKind())
+	}
+	c.Args.Object = obj
+	return nil
 }
