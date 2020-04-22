@@ -108,7 +108,7 @@ func (c *KubeSchedulerConfiguration) DecodeNestedObjects(d runtime.Decoder) erro
 		for j := range prof.PluginConfig {
 			err := prof.PluginConfig[j].decodeNestedObjects(d)
 			if err != nil {
-				return fmt.Errorf("deconding .profiles[%d]: %v", i, err)
+				return fmt.Errorf("decoding .profiles[%d].pluginConfig[%d]: %w", i, j, err)
 			}
 		}
 	}
@@ -221,16 +221,17 @@ type PluginConfig struct {
 
 func (c *PluginConfig) decodeNestedObjects(d runtime.Decoder) error {
 	gvk := SchemeGroupVersion.WithKind(c.Name + "Args")
+	// dry-run to detect and skip out-of-tree plugin args.
+	if _, _, err := d.Decode(nil, &gvk, nil); runtime.IsNotRegisteredError(err) {
+		return nil
+	}
+
 	obj, parsedGvk, err := d.Decode(c.Args.Raw, &gvk, nil)
 	if err != nil {
-		if runtime.IsNotRegisteredError(err) {
-			// Must be args for out-of-tree plugin.
-			return nil
-		}
-		return err
+		return fmt.Errorf("decoding args for plugin %s: %w", c.Name, err)
 	}
 	if parsedGvk.GroupKind() != gvk.GroupKind() {
-		return fmt.Errorf("args for plugin %s were not of type %s", c.Name, gvk.GroupKind())
+		return fmt.Errorf("args for plugin %s were not of type %s, got %s", c.Name, gvk.GroupKind(), parsedGvk.GroupKind())
 	}
 	c.Args.Object = obj
 	return nil

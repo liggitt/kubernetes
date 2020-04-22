@@ -17,18 +17,23 @@ limitations under the License.
 package scheme
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/kube-scheduler/config/v1alpha2"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
+	"k8s.io/utils/pointer"
 )
 
-func TestCodecsPluginConfig(t *testing.T) {
+func TestCodecsDecodePluginConfig(t *testing.T) {
 	testCases := []struct {
 		name         string
 		data         []byte
+		wantErr      string
 		wantProfiles []config.KubeSchedulerProfile
 	}{
 		{
@@ -102,6 +107,45 @@ profiles:
 			},
 		},
 		{
+			name: "v1alpha2 plugins can include version and kind",
+			data: []byte(`
+apiVersion: kubescheduler.config.k8s.io/v1alpha2
+kind: KubeSchedulerConfiguration
+profiles:
+- pluginConfig:
+  - name: NodeLabel
+    args:
+      apiVersion: kubescheduler.config.k8s.io/v1alpha2
+      kind: NodeLabelArgs
+      presentLabels: ["bars"]
+`),
+			wantProfiles: []config.KubeSchedulerProfile{
+				{
+					SchedulerName: "default-scheduler",
+					PluginConfig: []config.PluginConfig{
+						{
+							Name: "NodeLabel",
+							Args: &config.NodeLabelArgs{PresentLabels: []string{"bars"}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "plugin group and kind should match the type",
+			data: []byte(`
+apiVersion: kubescheduler.config.k8s.io/v1alpha2
+kind: KubeSchedulerConfiguration
+profiles:
+- pluginConfig:
+  - name: NodeLabel
+    args:
+      apiVersion: kubescheduler.config.k8s.io/v1alpha2
+      kind: InterPodAffinityArgs
+`),
+			wantErr: "decoding .profiles[0].pluginConfig[0]: args for plugin NodeLabel were not of type NodeLabelArgs.kubescheduler.config.k8s.io, got InterPodAffinityArgs.kubescheduler.config.k8s.io",
+		},
+		{
 			// TODO: do not replicate this case for v1beta1.
 			name: "v1alpha2 case insensitive RequestedToCapacityRatioArgs",
 			data: []byte(`
@@ -169,13 +213,50 @@ profiles:
 				},
 			},
 		},
+		{
+			name: "empty and no plugin args",
+			data: []byte(`
+apiVersion: kubescheduler.config.k8s.io/v1alpha2
+kind: KubeSchedulerConfiguration
+profiles:
+- pluginConfig:
+  - name: InterPodAffinity
+    args:
+  - name: NodeResourcesFit
+  - name: OutOfTreePlugin
+    args:
+`),
+			wantProfiles: []config.KubeSchedulerProfile{
+				{
+					SchedulerName: "default-scheduler",
+					PluginConfig: []config.PluginConfig{
+						{
+							Name: "InterPodAffinity",
+							// TODO(acondor): Set default values.
+							Args: &config.InterPodAffinityArgs{},
+						},
+						{
+							Name: "NodeResourcesFit",
+							Args: &config.NodeResourcesFitArgs{},
+						},
+						{Name: "OutOfTreePlugin"},
+					},
+				},
+			},
+		},
 	}
 	decoder := Codecs.UniversalDecoder()
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			obj, gvk, err := decoder.Decode(tt.data, nil, nil)
 			if err != nil {
-				t.Fatal(err)
+				if tt.wantErr != err.Error() {
+					t.Fatalf("got err %w, want %w", err, tt.wantErr)
+				}
+				return
+			}
+			if len(tt.wantErr) != 0 {
+				t.Fatal("no error produced, wanted %w", tt.wantErr)
 			}
 			got, ok := obj.(*config.KubeSchedulerConfiguration)
 			if !ok {
@@ -183,6 +264,88 @@ profiles:
 			}
 			if diff := cmp.Diff(tt.wantProfiles, got.Profiles); diff != "" {
 				t.Errorf("unexpected configuration (-want,+got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCodecsEncodePluginConfig(t *testing.T) {
+	testCases := []struct {
+		name    string
+		obj     runtime.Object
+		version schema.GroupVersion
+		want    string
+	}{
+		{
+			name:    "v1alpha2 in-tree and out-of-tree plugins",
+			version: v1alpha2.SchemeGroupVersion,
+			obj: &v1alpha2.KubeSchedulerConfiguration{
+				Profiles: []v1alpha2.KubeSchedulerProfile{
+					{
+						PluginConfig: []v1alpha2.PluginConfig{
+							{
+								Name: "InterPodAffinity",
+								Args: runtime.RawExtension{
+									Object: &v1alpha2.InterPodAffinityArgs{
+										HardPodAffinityWeight: pointer.Int32Ptr(5),
+									},
+								},
+							},
+							{
+								Name: "OutOfTreePlugin",
+								Args: runtime.RawExtension{
+									Raw: []byte(`{"foo":"bar"}`),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: `apiVersion: kubescheduler.config.k8s.io/v1alpha2
+bindTimeoutSeconds: null
+clientConnection:
+  acceptContentTypes: ""
+  burst: 0
+  contentType: ""
+  kubeconfig: ""
+  qps: 0
+extenders: null
+kind: KubeSchedulerConfiguration
+leaderElection:
+  leaderElect: null
+  leaseDuration: 0s
+  renewDeadline: 0s
+  resourceLock: ""
+  resourceName: ""
+  resourceNamespace: ""
+  retryPeriod: 0s
+podInitialBackoffSeconds: null
+podMaxBackoffSeconds: null
+profiles:
+- pluginConfig:
+  - args:
+      hardPodAffinityWeight: 5
+    name: InterPodAffinity
+  - args:
+      foo: bar
+    name: OutOfTreePlugin
+`,
+		},
+		// Encoding from internal is not supported.
+	}
+	info, ok := runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), runtime.ContentTypeYAML)
+	if !ok {
+		t.Fatalf("unable to locate encoder -- %q is not a supported media type", runtime.ContentTypeYAML)
+	}
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			encoder := Codecs.EncoderForVersion(info.Serializer, tt.version)
+			var buf bytes.Buffer
+			if err := encoder.Encode(tt.obj, &buf); err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.want, buf.String()); diff != "" {
+				t.Errorf("unexpected encoded configuration:\n%s", diff)
 			}
 		})
 	}
