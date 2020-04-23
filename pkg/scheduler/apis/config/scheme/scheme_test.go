@@ -27,6 +27,7 @@ import (
 	"k8s.io/kube-scheduler/config/v1alpha2"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/yaml"
 )
 
 func TestCodecsDecodePluginConfig(t *testing.T) {
@@ -292,6 +293,19 @@ func TestCodecsEncodePluginConfig(t *testing.T) {
 								},
 							},
 							{
+								Name: "RequestedToCapacityRatio",
+								Args: runtime.RawExtension{
+									Object: &v1alpha2.RequestedToCapacityRatioArgs{
+										Shape: []v1alpha2.UtilizationShapePoint{
+											{Utilization: 1, Score: 2},
+										},
+										Resources: []v1alpha2.ResourceSpec{
+											{Name: "lower", Weight: 2},
+										},
+									},
+								},
+							},
+							{
 								Name: "OutOfTreePlugin",
 								Args: runtime.RawExtension{
 									Raw: []byte(`{"foo":"bar"}`),
@@ -302,14 +316,12 @@ func TestCodecsEncodePluginConfig(t *testing.T) {
 				},
 			},
 			want: `apiVersion: kubescheduler.config.k8s.io/v1alpha2
-bindTimeoutSeconds: null
 clientConnection:
   acceptContentTypes: ""
   burst: 0
   contentType: ""
   kubeconfig: ""
   qps: 0
-extenders: null
 kind: KubeSchedulerConfiguration
 leaderElection:
   leaderElect: null
@@ -319,32 +331,118 @@ leaderElection:
   resourceName: ""
   resourceNamespace: ""
   retryPeriod: 0s
-podInitialBackoffSeconds: null
-podMaxBackoffSeconds: null
 profiles:
 - pluginConfig:
   - args:
+      apiVersion: kubescheduler.config.k8s.io/v1alpha2
       hardPodAffinityWeight: 5
+      kind: InterPodAffinityArgs
     name: InterPodAffinity
+  - args:
+      apiVersion: kubescheduler.config.k8s.io/v1alpha2
+      kind: RequestedToCapacityRatioArgs
+      resources:
+      - Name: lower
+        Weight: 2
+      shape:
+      - Score: 2
+        Utilization: 1
+    name: RequestedToCapacityRatio
   - args:
       foo: bar
     name: OutOfTreePlugin
 `,
 		},
-		// Encoding from internal is not supported.
+		{
+			name:    "v1alpha2 in-tree and out-of-tree plugins from internal",
+			version: v1alpha2.SchemeGroupVersion,
+			obj: &config.KubeSchedulerConfiguration{
+				Profiles: []config.KubeSchedulerProfile{
+					{
+						PluginConfig: []config.PluginConfig{
+							{
+								Name: "InterPodAffinity",
+								Args: &config.InterPodAffinityArgs{
+									HardPodAffinityWeight: 5,
+								},
+							},
+							{
+								Name: "OutOfTreePlugin",
+								Args: &runtime.Unknown{
+									Raw: []byte(`{"foo":"bar"}`),
+								},
+							},
+						},
+					},
+				},
+			},
+			want: `apiVersion: kubescheduler.config.k8s.io/v1alpha2
+bindTimeoutSeconds: 0
+clientConnection:
+  acceptContentTypes: ""
+  burst: 0
+  contentType: ""
+  kubeconfig: ""
+  qps: 0
+disablePreemption: false
+enableContentionProfiling: false
+enableProfiling: false
+healthzBindAddress: ""
+kind: KubeSchedulerConfiguration
+leaderElection:
+  leaderElect: false
+  leaseDuration: 0s
+  renewDeadline: 0s
+  resourceLock: ""
+  resourceName: ""
+  resourceNamespace: ""
+  retryPeriod: 0s
+metricsBindAddress: ""
+percentageOfNodesToScore: 0
+podInitialBackoffSeconds: 0
+podMaxBackoffSeconds: 0
+profiles:
+- pluginConfig:
+  - args:
+      apiVersion: kubescheduler.config.k8s.io/v1alpha2
+      hardPodAffinityWeight: 5
+      kind: InterPodAffinityArgs
+    name: InterPodAffinity
+  - args:
+      foo: bar
+    name: OutOfTreePlugin
+  schedulerName: ""
+`,
+		},
 	}
-	info, ok := runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), runtime.ContentTypeYAML)
+	yamlInfo, ok := runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), runtime.ContentTypeYAML)
 	if !ok {
 		t.Fatalf("unable to locate encoder -- %q is not a supported media type", runtime.ContentTypeYAML)
 	}
+	jsonInfo, ok := runtime.SerializerInfoForMediaType(Codecs.SupportedMediaTypes(), runtime.ContentTypeJSON)
+	if !ok {
+		t.Fatalf("unable to locate encoder -- %q is not a supported media type", runtime.ContentTypeJSON)
+	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			encoder := Codecs.EncoderForVersion(info.Serializer, tt.version)
+			encoder := Codecs.EncoderForVersion(yamlInfo.Serializer, tt.version)
 			var buf bytes.Buffer
 			if err := encoder.Encode(tt.obj, &buf); err != nil {
 				t.Fatal(err)
 			}
 			if diff := cmp.Diff(tt.want, buf.String()); diff != "" {
+				t.Errorf("unexpected encoded configuration:\n%s", diff)
+			}
+			encoder = Codecs.EncoderForVersion(jsonInfo.Serializer, tt.version)
+			buf = bytes.Buffer{}
+			if err := encoder.Encode(tt.obj, &buf); err != nil {
+				t.Fatal(err)
+			}
+			out, err := yaml.JSONToYAML(buf.Bytes())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.want, string(out)); diff != "" {
 				t.Errorf("unexpected encoded configuration:\n%s", diff)
 			}
 		})

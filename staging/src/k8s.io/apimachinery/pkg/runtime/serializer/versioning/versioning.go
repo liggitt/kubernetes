@@ -220,7 +220,7 @@ func (c *codec) doEncode(obj runtime.Object, w io.Writer) error {
 
 	if c.encodeVersion == nil || isUnversioned {
 		if e, ok := obj.(runtime.NestedObjectEncoder); ok {
-			if err := e.EncodeNestedObjects(runtime.WithVersionEncoder{Encoder: c.encoder, ObjectTyper: c.typer}); err != nil {
+			if err := e.EncodeNestedObjects(runtime.WithVersionEncoder{Encoder: c, ObjectTyper: c.typer}); err != nil {
 				return err
 			}
 		}
@@ -235,7 +235,7 @@ func (c *codec) doEncode(obj runtime.Object, w io.Writer) error {
 	}
 
 	if e, ok := out.(runtime.NestedObjectEncoder); ok {
-		if err := e.EncodeNestedObjects(runtime.WithVersionEncoder{Version: c.encodeVersion, Encoder: c.encoder, ObjectTyper: c.typer}); err != nil {
+		if err := e.EncodeNestedObjects(runtime.WithVersionEncoder{Version: c.encodeVersion, Encoder: c, ObjectTyper: c.typer}); err != nil {
 			return err
 		}
 	}
