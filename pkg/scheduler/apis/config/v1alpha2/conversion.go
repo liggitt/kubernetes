@@ -17,20 +17,85 @@ limitations under the License.
 package v1alpha2
 
 import (
+	"sync"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	v1alpha2 "k8s.io/kube-scheduler/config/v1alpha2"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/utils/pointer"
 )
 
+var (
+	// pluginArgConversionScheme is a scheme with internal and v1alpha2 registered,
+	// used for defaulting/converting typed PluginConfig Args.
+	// Access via getPluginArgConversionScheme()
+	pluginArgConversionScheme     *runtime.Scheme
+	initPluginArgConversionScheme sync.Once
+)
+
+func getPluginArgConversionScheme() *runtime.Scheme {
+	initPluginArgConversionScheme.Do(func() {
+		// set up the scheme used for plugin arg conversion
+		pluginArgConversionScheme = runtime.NewScheme()
+		metav1.AddToGroupVersion(pluginArgConversionScheme, schema.GroupVersion{Version: "v1"})
+		utilruntime.Must(AddToScheme(pluginArgConversionScheme))
+		utilruntime.Must(config.AddToScheme(pluginArgConversionScheme))
+	})
+	return pluginArgConversionScheme
+}
+
 func Convert_v1alpha2_KubeSchedulerConfiguration_To_config_KubeSchedulerConfiguration(in *v1alpha2.KubeSchedulerConfiguration, out *config.KubeSchedulerConfiguration, s conversion.Scope) error {
 	if err := autoConvert_v1alpha2_KubeSchedulerConfiguration_To_config_KubeSchedulerConfiguration(in, out, s); err != nil {
 		return err
+	}
+	// default and convert plugin arg objects to internal version
+	conversionScheme := getPluginArgConversionScheme()
+	for i := range out.Profiles {
+		for j := range out.Profiles[i].PluginConfig {
+			args := out.Profiles[i].PluginConfig[j].Args
+			if args == nil {
+				continue
+			}
+			if _, isUnknown := args.(*runtime.Unknown); isUnknown {
+				continue
+			}
+			conversionScheme.Default(args)
+			internalArgs, err := conversionScheme.ConvertToVersion(args, config.SchemeGroupVersion)
+			if err != nil {
+				return err
+			}
+			out.Profiles[i].PluginConfig[j].Args = internalArgs
+		}
 	}
 	out.AlgorithmSource.Provider = pointer.StringPtr(v1alpha2.SchedulerDefaultProviderName)
 	return nil
 }
 
 func Convert_config_KubeSchedulerConfiguration_To_v1alpha2_KubeSchedulerConfiguration(in *config.KubeSchedulerConfiguration, out *v1alpha2.KubeSchedulerConfiguration, s conversion.Scope) error {
-	return autoConvert_config_KubeSchedulerConfiguration_To_v1alpha2_KubeSchedulerConfiguration(in, out, s)
+	if err := autoConvert_config_KubeSchedulerConfiguration_To_v1alpha2_KubeSchedulerConfiguration(in, out, s); err != nil {
+		return err
+	}
+	// convert plugin arg objects to v1alpha2
+	conversionScheme := getPluginArgConversionScheme()
+	for i := range out.Profiles {
+		for j := range out.Profiles[i].PluginConfig {
+			args := out.Profiles[i].PluginConfig[j].Args.Object
+			if args == nil {
+				continue
+			}
+			if _, isUnknown := args.(*runtime.Unknown); isUnknown {
+				continue
+			}
+			externalArgs, err := conversionScheme.ConvertToVersion(args, SchemeGroupVersion)
+			if err != nil {
+				return err
+			}
+			out.Profiles[i].PluginConfig[j].Args.Object = externalArgs
+		}
+	}
+	return nil
 }
