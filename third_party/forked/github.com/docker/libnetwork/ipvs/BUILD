@@ -7,8 +7,7 @@ go_library(
         "ipvs.go",
         "netlink.go",
     ],
-    importmap = "k8s.io/kubernetes/vendor/github.com/docker/libnetwork/ipvs",
-    importpath = "github.com/docker/libnetwork/ipvs",
+    importpath = "k8s.io/kubernetes/third_party/forked/github.com/docker/libnetwork/ipvs",
     visibility = ["//visibility:public"],
     deps = select({
         "@io_bazel_rules_go//go/platform:android": [

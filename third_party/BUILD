@@ -18,6 +18,7 @@ filegroup(
     name = "all-srcs",
     srcs = [
         ":package-srcs",
+        "//third_party/forked/github.com/docker/libnetwork/ipvs:all-srcs",
         "//third_party/forked/golang/expansion:all-srcs",
         "//third_party/forked/golang/reflect:all-srcs",
         "//third_party/forked/golang/template:all-srcs",
