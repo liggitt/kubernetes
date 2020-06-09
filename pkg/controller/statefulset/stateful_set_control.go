@@ -18,12 +18,15 @@ package statefulset
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	intstrutil "k8s.io/apimachinery/pkg/util/intstr"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
@@ -360,6 +363,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	for i := range replicas {
 		if !isHealthy(replicas[i]) {
 			unhealthy++
+			fmt.Println("haha3 +" + fmt.Sprint(i))
 			if firstUnhealthyPod == nil {
 				firstUnhealthyPod = replicas[i]
 			}
@@ -369,6 +373,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	for i := range condemned {
 		if !isHealthy(condemned[i]) {
 			unhealthy++
+			fmt.Println("haha2")
 			if firstUnhealthyPod == nil {
 				firstUnhealthyPod = condemned[i]
 			}
@@ -376,6 +381,7 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 	}
 
 	if unhealthy > 0 {
+		fmt.Println("haha1")
 		klog.V(4).Infof("StatefulSet %s/%s has %d unhealthy Pods starting with %s",
 			set.Namespace,
 			set.Name,
@@ -574,35 +580,102 @@ func (ssc *defaultStatefulSetControl) updateStatefulSet(
 		return &status, nil
 	}
 
+	return updateStatefulSetAfterInvariantEstablished(ctx,
+		ssc,
+		set,
+		replicas,
+		updateRevision,
+		status,
+	)
+
+}
+
+func updateStatefulSetAfterInvariantEstablished(
+	ctx context.Context,
+	ssc *defaultStatefulSetControl,
+	set *apps.StatefulSet,
+	replicas []*v1.Pod,
+	updateRevision *apps.ControllerRevision,
+	status apps.StatefulSetStatus,
+	//currentRevision *apps.ControllerRevision,
+	//updateRevision *apps.ControllerRevision,
+	//collisionCount int32,
+	//pods []*v1.Pod
+) (*apps.StatefulSetStatus, error) {
+
+	replicaCount := int(*set.Spec.Replicas)
+
 	// we compute the minimum ordinal of the target sequence for a destructive update based on the strategy.
 	updateMin := 0
+	maxUnavailable := 1
+	var err error
 	if set.Spec.UpdateStrategy.RollingUpdate != nil {
 		updateMin = int(*set.Spec.UpdateStrategy.RollingUpdate.Partition)
-	}
-	// we terminate the Pod with the largest ordinal that does not match the update revision.
-	for target := len(replicas) - 1; target >= updateMin; target-- {
 
-		// delete the Pod if it is not already terminating and does not match the update revision.
+		// if the feature was enabled and then later disabled, MaxUnavailable may have a value
+		// other than 1. Ignore the passed in value and Use maxUnavailable as 1 to enforce
+		// expected behavior when feature gate is not enabled.
+		if utilfeature.DefaultFeatureGate.Enabled(features.MaxUnavailableStatefulSet) {
+			maxUnavailable, err = intstrutil.GetValueFromIntOrPercent(intstrutil.ValueOrDefault(set.Spec.UpdateStrategy.RollingUpdate.MaxUnavailable, intstrutil.FromInt(1)), int(replicaCount), false)
+			if err != nil {
+				return &status, err
+			}
+
+		}
+	}
+
+	fmt.Println("reached here1 with maxUnavailable= ", maxUnavailable)
+	// Collect all targets in the range between the partition and Spec.Replicas. Count any targets in that range that are unhealthy
+	// i.e. terminated or not running and ready as unavailable). Select the (MaxUnavailable - Unavailable) Pods, in order with respect
+	// to their ordinal for termination. Delete those pods and count the successful deletions. Update the status with the correct
+	// number of deletions.
+	unavailablePods := 0
+	for target := len(replicas) - 1; target >= updateMin; target-- {
+		if !isHealthy(replicas[target]) {
+			unavailablePods++
+		}
+	}
+
+	fmt.Printf("reached here11 found unavailablePods %d, maxUnavailable=%d\n", unavailablePods, maxUnavailable)
+
+	// Now we need to delete MaxUnavailable- unavailablePods
+	// start deleting one by one starting from the highest ordinal first
+	podsToDelete := maxUnavailable - unavailablePods
+	deletedPods := 0
+	for target := len(replicas) - 1; target >= updateMin && podsToDelete > 0; target-- {
+
+		fmt.Println("reached here2")
+		// delete the Pod if it is healthy and the revision doesnt match the target
 		if getPodRevision(replicas[target]) != updateRevision.Name && !isTerminating(replicas[target]) {
+			fmt.Println("reached here3")
+			// delete the Pod if it is healthy and the revision doesnt match the target
 			klog.V(2).Infof("StatefulSet %s/%s terminating Pod %s for update",
 				set.Namespace,
 				set.Name,
 				replicas[target].Name)
-			err := ssc.podControl.DeleteStatefulPod(set, replicas[target])
+			if err := ssc.podControl.DeleteStatefulPod(set, replicas[target]); err != nil {
+				if !errors.IsNotFound(err) {
+					return nil, err
+				}
+			}
+			deletedPods++
+			fmt.Println("reached here4")
 			status.CurrentReplicas--
-			return &status, err
 		}
 
-		// wait for unhealthy Pods on update
-		if !isHealthy(replicas[target]) {
-			klog.V(4).Infof(
-				"StatefulSet %s/%s is waiting for Pod %s to update",
-				set.Namespace,
-				set.Name,
-				replicas[target].Name)
+		// If at anytime, total number of unavailable Pods exceeds maxUnavailable,
+		// we stop deleting more Pods for Update
+		if deletedPods == podsToDelete {
+			klog.V(4).InfoS(
+				"StatefulSet is waiting for pods to become available",
+				"namespace", set.Namespace,
+				"statefulSet", set.Name,
+				"unavailable", unavailablePods,
+				"maxUnavailable", maxUnavailable,
+			)
 			return &status, nil
-		}
 
+		}
 	}
 	return &status, nil
 }
