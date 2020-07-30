@@ -201,7 +201,7 @@ func (c *collector) verify(plat string) ([]string, error) {
 	}
 
 	for _, pkg := range allList {
-		if len(pkg.GoFiles) > 0 {
+		if len(pkg.GoFiles) > 0 || len(pkg.CompiledGoFiles) > 0 || pkg.IllTyped {
 			if len(pkg.Errors) > 0 {
 				errors = append(errors, pkg.Errors...)
 			}
