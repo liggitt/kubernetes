@@ -40,6 +40,7 @@ go_test(
     name = "go_default_test",
     srcs = [
         "iptables_test.go",
+        "main_test.go",
         "monitor_test.go",
         "save_restore_test.go",
     ],
