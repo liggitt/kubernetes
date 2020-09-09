@@ -119,6 +119,17 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		audit.LogRequestObject(ae, obj, scope.Resource, scope.Subresource, scope.Serializer)
 		admit = admission.WithAudit(admit, ae)
 
+		// ensure namespace on the object is correct, or error if a conflicting namespace was set in the object
+		objectMeta, err := meta.Accessor(obj)
+		if err != nil {
+			scope.err(errors.NewInternalError(err), w, req)
+			return
+		}
+		if err := rest.EnsureObjectNamespaceMatchesRequestNamespace(len(namespace) > 0, namespace, objectMeta); err != nil {
+			scope.err(err, w, req)
+			return
+		}
+
 		if err := checkName(obj, name, namespace, scope.Namer); err != nil {
 			scope.err(err, w, req)
 			return

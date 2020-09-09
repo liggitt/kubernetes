@@ -504,6 +504,15 @@ func (p *patcher) applyPatch(_ context.Context, _, currentObject runtime.Object)
 		return nil, errors.NewConflict(p.resource.GroupResource(), p.name, fmt.Errorf("uid mismatch: the provided object specified uid %s, and no existing object was found", accessor.GetUID()))
 	}
 
+	// ensure namespace on the object is correct, or error if a conflicting namespace was set in the object
+	objectMeta, err := meta.Accessor(objToUpdate)
+	if err != nil {
+		return nil, errors.NewInternalError(err)
+	}
+	if err := rest.EnsureObjectNamespaceMatchesRequestNamespace(len(p.namespace) > 0, p.namespace, objectMeta); err != nil {
+		return nil, err
+	}
+
 	if err := checkName(objToUpdate, p.name, p.namespace, p.namer); err != nil {
 		return nil, err
 	}

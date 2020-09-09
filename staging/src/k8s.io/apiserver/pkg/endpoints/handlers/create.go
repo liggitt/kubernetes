@@ -143,6 +143,22 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 
 		userInfo, _ := request.UserFrom(ctx)
 
+		// ensure namespace on the object is correct, or error if a conflicting namespace was set in the object
+		objectMeta, err := meta.Accessor(obj)
+		if err != nil {
+			scope.err(errors.NewInternalError(err), w, req)
+			return
+		}
+		if err := rest.EnsureObjectNamespaceMatchesRequestNamespace(len(namespace) > 0, namespace, objectMeta); err != nil {
+			scope.err(err, w, req)
+			return
+		}
+
+		// On create, get name from new object if unset
+		if len(name) == 0 {
+			_, name, _ = scope.Namer.ObjectName(obj)
+		}
+
 		trace.Step("About to store object in database")
 		admissionAttributes := admission.NewAttributesRecord(obj, nil, scope.Kind, namespace, name, scope.Resource, scope.Subresource, admission.Create, options, dryrun.IsDryRun(options.DryRun), userInfo)
 		requestFunc := func() (runtime.Object, error) {

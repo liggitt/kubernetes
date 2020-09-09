@@ -54,31 +54,3 @@ func TestHasObjectMetaSystemFieldValues(t *testing.T) {
 		t.Errorf("the resource does have all fields populated, but incorrectly reports it does not")
 	}
 }
-
-// TestValidNamespace validates that namespace rules are enforced on a resource prior to create or update
-func TestValidNamespace(t *testing.T) {
-	ctx := genericapirequest.NewDefaultContext()
-	namespace, _ := genericapirequest.NamespaceFrom(ctx)
-	// TODO: use some genericapiserver type here instead of clientapiv1
-	resource := example.Pod{}
-	if !ValidNamespace(ctx, &resource.ObjectMeta) {
-		t.Fatalf("expected success")
-	}
-	if namespace != resource.Namespace {
-		t.Fatalf("expected resource to have the default namespace assigned during validation")
-	}
-	resource = example.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "other"}}
-	if ValidNamespace(ctx, &resource.ObjectMeta) {
-		t.Fatalf("Expected error that resource and context errors do not match because resource has different namespace")
-	}
-	ctx = genericapirequest.NewContext()
-	if ValidNamespace(ctx, &resource.ObjectMeta) {
-		t.Fatalf("Expected error that resource and context errors do not match since context has no namespace")
-	}
-
-	ctx = genericapirequest.NewContext()
-	ns := genericapirequest.NamespaceValue(ctx)
-	if ns != "" {
-		t.Fatalf("Expected the empty string")
-	}
-}
