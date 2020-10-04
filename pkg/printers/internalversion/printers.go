@@ -1004,12 +1004,23 @@ func printJob(obj *batch.Job, options printers.GenerateOptions) ([]metav1.TableR
 		}
 	}
 	var jobDuration string
+
+	finishedTime := obj.Status.CompletionTime
+	if finishedTime == nil {
+		for _, condition := range obj.Status.Conditions {
+			if (condition.Type == batch.JobFailed || condition.Type == batch.JobComplete) && condition.Status == api.ConditionTrue && !condition.LastTransitionTime.IsZero() {
+				finishedTime = &condition.LastTransitionTime
+				break
+			}
+		}
+	}
+
 	switch {
 	case obj.Status.StartTime == nil:
-	case obj.Status.CompletionTime == nil:
+	case finishedTime == nil:
 		jobDuration = duration.HumanDuration(time.Since(obj.Status.StartTime.Time))
 	default:
-		jobDuration = duration.HumanDuration(obj.Status.CompletionTime.Sub(obj.Status.StartTime.Time))
+		jobDuration = duration.HumanDuration(finishedTime.Sub(obj.Status.StartTime.Time))
 	}
 
 	row.Cells = append(row.Cells, obj.Name, completions, jobDuration, translateTimestampSince(obj.CreationTimestamp))

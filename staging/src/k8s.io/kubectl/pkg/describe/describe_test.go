@@ -1648,6 +1648,76 @@ func TestPersistentVolumeClaimDescriber(t *testing.T) {
 	}
 }
 
+func TestDescribeJob(t *testing.T) {
+	testcases := []struct {
+		name   string
+		job    *batchv1.Job
+		expect []string
+	}{
+		{
+			name: "completed",
+			job: &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bar",
+					Namespace: "foo",
+				},
+				Spec: batchv1.JobSpec{},
+				Status: batchv1.JobStatus{
+					StartTime:      &metav1.Time{Time: time.Now().Add(-time.Hour)},
+					CompletionTime: &metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+				},
+			},
+			expect: []string{"Namespace.*foo", "Name:.*bar", "Start Time:", "Completed At:", "Duration:.*30m"},
+		},
+		{
+			name: "failed",
+			job: &batchv1.Job{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "bar",
+					Namespace: "foo",
+				},
+				Spec: batchv1.JobSpec{},
+				Status: batchv1.JobStatus{
+					StartTime: &metav1.Time{Time: time.Now().Add(-time.Hour)},
+					Conditions: []batchv1.JobCondition{{
+						Type:               batchv1.JobFailed,
+						Status:             corev1.ConditionTrue,
+						LastTransitionTime: metav1.Time{Time: time.Now().Add(-30 * time.Minute)},
+					}},
+				},
+			},
+			expect: []string{"Namespace.*foo", "Name:.*bar", "Start Time:", "Finished At:", "Duration:.*30m"},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			fakeClient := fake.NewSimpleClientset(tc.job)
+			d := JobDescriber{fakeClient}
+			out, err := d.Describe("foo", "bar", DescriberSettings{ShowEvents: true})
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			logged := false
+			for _, expect := range tc.expect {
+				r, err := regexp.Compile(expect)
+				if err != nil {
+					t.Error(err)
+					continue
+				}
+				if !r.MatchString(out) {
+					if !logged {
+						t.Log(out)
+						logged = true
+					}
+					t.Errorf("expected match for '%q'", expect)
+				}
+			}
+		})
+	}
+
+}
+
 func TestDescribeDeployment(t *testing.T) {
 	fakeClient := fake.NewSimpleClientset(&appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{

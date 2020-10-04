@@ -2177,11 +2177,25 @@ func describeJob(job *batchv1.Job, events *corev1.EventList) (string, error) {
 		if job.Status.StartTime != nil {
 			w.Write(LEVEL_0, "Start Time:\t%s\n", job.Status.StartTime.Time.Format(time.RFC1123Z))
 		}
+
+		finishedTime := job.Status.CompletionTime
+		if finishedTime == nil {
+			for _, condition := range job.Status.Conditions {
+				if (condition.Type == batchv1.JobFailed || condition.Type == batchv1.JobComplete) && condition.Status == corev1.ConditionTrue && !condition.LastTransitionTime.IsZero() {
+					finishedTime = &condition.LastTransitionTime
+					break
+				}
+			}
+		}
+
 		if job.Status.CompletionTime != nil {
 			w.Write(LEVEL_0, "Completed At:\t%s\n", job.Status.CompletionTime.Time.Format(time.RFC1123Z))
+		} else if finishedTime != nil {
+			w.Write(LEVEL_0, "Finished At:\t%s\n", finishedTime.Time.Format(time.RFC1123Z))
 		}
-		if job.Status.StartTime != nil && job.Status.CompletionTime != nil {
-			w.Write(LEVEL_0, "Duration:\t%s\n", duration.HumanDuration(job.Status.CompletionTime.Sub(job.Status.StartTime.Time)))
+
+		if job.Status.StartTime != nil && finishedTime != nil {
+			w.Write(LEVEL_0, "Duration:\t%s\n", duration.HumanDuration(finishedTime.Sub(job.Status.StartTime.Time)))
 		}
 		if job.Spec.ActiveDeadlineSeconds != nil {
 			w.Write(LEVEL_0, "Active Deadline Seconds:\t%ds\n", *job.Spec.ActiveDeadlineSeconds)
