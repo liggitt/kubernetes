@@ -164,12 +164,12 @@ func GetScaledValueFromIntOrPercent(intOrPercent *IntOrString, total int, roundU
 // GetValueFromIntOrPercent was deprecated in favor of
 // GetScaledValueFromIntOrPercent. This method was treating all int as a numeric value and all
 // strings with or without a percent symbol as a percentage value.
-// Deprecated
+// Deprecated: use GetScaledValueFromIntOrPercent instead
 func GetValueFromIntOrPercent(intOrPercent *IntOrString, total int, roundUp bool) (int, error) {
 	if intOrPercent == nil {
 		return 0, errors.New("nil value for IntOrString")
 	}
-	value, isPercent, err := getIntOrPercentValue(intOrPercent)
+	value, isPercent, err := getIntOrPercentValueUnsafe(intOrPercent)
 	if err != nil {
 		return 0, fmt.Errorf("invalid value for IntOrString: %v", err)
 	}
@@ -183,9 +183,9 @@ func GetValueFromIntOrPercent(intOrPercent *IntOrString, total int, roundUp bool
 	return value, nil
 }
 
-// getIntOrPercentValue is a legacy function and only meant to be called by GetValueFromIntOrPercent
-// For a more correct implementation call getIntOrPercentSafely
-func getIntOrPercentValue(intOrStr *IntOrString) (int, bool, error) {
+// getIntOrPercentValueUnsafe is a legacy function and only meant to be called by GetValueFromIntOrPercent
+// Deprecated: use getIntOrPercentSafely
+func getIntOrPercentValueUnsafe(intOrStr *IntOrString) (int, bool, error) {
 	switch intOrStr.Type {
 	case Int:
 		return intOrStr.IntValue(), false, nil
