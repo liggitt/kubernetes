@@ -62,6 +62,11 @@ var (
 //  latest-1    (latest release in 1.x, including alpha/beta)
 //  latest-1.0  (and similarly 1.1, 1.2, 1.3, ...)
 func KubernetesReleaseVersion(version string) (string, error) {
+	start := time.Now()
+	defer func(){
+		delay:=time.Now().Sub(start)
+		fmt.Println("delay KubernetesReleaseVersion %v",delay)
+	}()
 	return kubernetesReleaseVersion(version, fetchFromURL)
 }
 

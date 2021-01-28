@@ -17,6 +17,8 @@ limitations under the License.
 package util
 
 import (
+	"fmt"
+	"time"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -46,7 +48,9 @@ func GetCgroupDriverDocker(execer utilsexec.Interface) (string, error) {
 }
 
 func callDockerInfo(execer utilsexec.Interface) (string, error) {
+	start:=time.Now()
 	out, err := execer.Command("docker", "info", "-f", "{{.CgroupDriver}}").Output()
+	fmt.Println("delay callDockerInfo",time.Now().Sub(start))
 	if err != nil {
 		return "", errors.Wrap(err, "cannot execute 'docker info -f {{.CgroupDriver}}'")
 	}

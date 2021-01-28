@@ -17,6 +17,8 @@ limitations under the License.
 package componentconfigs
 
 import (
+	"fmt"
+	"time"
 	"path/filepath"
 
 	"k8s.io/apimachinery/pkg/util/version"
@@ -225,6 +227,10 @@ func (kc *kubeletConfig) Default(cfg *kubeadmapi.ClusterConfiguration, _ *kubead
 
 // isServiceActive checks whether the given service exists and is running
 func isServiceActive(name string) (bool, error) {
+	start :=time.Now()
+	defer func(){
+		fmt.Println("delay isServiceActive",time.Now().Sub(start))
+	}()
 	initSystem, err := initsystem.GetInitSystem()
 	if err != nil {
 		return false, err
