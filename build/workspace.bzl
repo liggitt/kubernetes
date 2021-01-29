@@ -102,15 +102,15 @@ _DEBIAN_IPTABLES_DIGEST = {
 # Use skopeo to find these values: https://github.com/containers/skopeo
 #
 # Example
-# Manifest: skopeo inspect docker://gcr.io/k8s-staging-build-image/go-runner:buster-v2.2.4
-# Arches: skopeo inspect --raw docker://gcr.io/k8s-staging-build-image/go-runner:buster-v2.3.1
+# Manifest: skopeo inspect docker://gcr.io/k8s-staging-build-image/go-runner:v2.3.1-go1.16-buster.0
+# Arches: skopeo inspect --raw docker://gcr.io/k8s-staging-build-image/go-runner:v2.3.1-go1.16-buster.0
 _GO_RUNNER_DIGEST = {
-    "manifest": "sha256:cd45714e4824eeff6f107d9e3b4f79be9ee0cf5071dc46caf755d3f324a36089",
-    "amd64": "sha256:309379049147b749d2bc63cd8bb2d6c46a68f45fd7fc5fd391d221b42e2c7196",
-    "arm": "sha256:81ad4220d42a19e5e11ccb4b385b404ab287d6417f9b51077ea15df5196d6e75",
-    "arm64": "sha256:93ccd74b2a434e21cd150cf89b10c6fc5e0bf66691ee5c8f22bf1241d168c445",
-    "ppc64le": "sha256:4a7f8dce0f4505e43790fb660b67f4cebad91fae1835c79d0132ba6ecf480701",
-    "s390x": "sha256:e6fa60bd53c8f3706c4d1cd6cd6bc3e95d01b4a924daab004fca9bf403b03e41",
+    "manifest": "sha256:004c18fbd8ca3fd431d60654edd0c19eed7e805385afac40d2b5b6b45cbd9e8e",
+    "amd64": "sha256:fa873454cc66cb44e815303538183f5a2c4a615912dbce8e5293913fe0b87059",
+    "arm": "sha256:1dfaa2f26b13a8b81b91dbf52761a03dcd0dc0f4261b351704fdbb5450211e65",
+    "arm64": "sha256:93fee1e3e75d2e8c961b455ac9f271406cd170edf8d31216cb7090e427eab105",
+    "ppc64le": "sha256:f5dc9a53450ccf1e9133a56a353ff6c2a9478917f97b3df8a4a4b70a41ed9406",
+    "s390x": "sha256:8a17e8a0e77ae31100a15f999e9db3e2ace49cb0762eb68291e50c7ba9a706d5",
 }
 
 def _digest(d, arch):
@@ -127,7 +127,7 @@ def image_dependencies():
             digest = _digest(_GO_RUNNER_DIGEST, arch),
             registry = "k8s.gcr.io/build-image",
             repository = "go-runner",
-            tag = "buster-v2.3.1",  # ignored, but kept here for documentation
+            tag = "v2.3.1-go1.16-buster.0",  # ignored, but kept here for documentation
         )
 
         container_pull(
