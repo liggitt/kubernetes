@@ -45,6 +45,7 @@ import (
 	podpriority "k8s.io/kubernetes/plugin/pkg/admission/priority"
 	"k8s.io/kubernetes/plugin/pkg/admission/runtimeclass"
 	"k8s.io/kubernetes/plugin/pkg/admission/security/podsecuritypolicy"
+	"k8s.io/kubernetes/plugin/pkg/admission/security/podsecuritystandards"
 	"k8s.io/kubernetes/plugin/pkg/admission/securitycontext/scdeny"
 	"k8s.io/kubernetes/plugin/pkg/admission/serviceaccount"
 	"k8s.io/kubernetes/plugin/pkg/admission/storage/persistentvolume/label"
@@ -75,6 +76,7 @@ var AllOrderedPlugins = []string{
 	alwayspullimages.PluginName,             // AlwaysPullImages
 	imagepolicy.PluginName,                  // ImagePolicyWebhook
 	podsecuritypolicy.PluginName,            // PodSecurityPolicy
+	podsecuritystandards.PluginName,         // PodSecurityStandards
 	podnodeselector.PluginName,              // PodNodeSelector
 	podpriority.PluginName,                  // Priority
 	defaulttolerationseconds.PluginName,     // DefaultTolerationSeconds
@@ -127,6 +129,7 @@ func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
 	runtimeclass.Register(plugins)
 	resourcequota.Register(plugins)
 	podsecuritypolicy.Register(plugins)
+	podsecuritystandards.Register(plugins)
 	podpriority.Register(plugins)
 	scdeny.Register(plugins)
 	serviceaccount.Register(plugins)
@@ -158,6 +161,7 @@ func DefaultOffAdmissionPlugins() sets.String {
 		certsigning.PluginName,                  // CertificateSigning
 		certsubjectrestriction.PluginName,       // CertificateSubjectRestriction
 		defaultingressclass.PluginName,          // DefaultIngressClass
+		podsecuritystandards.PluginName,         // PodSecurityStandards
 	)
 
 	return sets.NewString(AllOrderedPlugins...).Difference(defaultOnPlugins)
