@@ -206,7 +206,7 @@ $(PRERELEASE_LIFECYCLE_FILES): $(PRERELEASE_LIFECYCLE_GEN)
 # newer than the binary, and try to "rebuild" it over and over.  So we touch
 # it, and make is happy.
 $(PRERELEASE_LIFECYCLE_GEN): $(GODEPS_k8s.io/kubernetes/vendor/k8s.io/code-generator/cmd/prerelease-lifecycle-gen)
-	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh ./vendor/k8s.io/code-generator/cmd/prerelease-lifecycle-gen
+	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh k8s.io/code-generator/cmd/prerelease-lifecycle-gen
 	touch $@
 
 
@@ -300,7 +300,7 @@ $(DEEPCOPY_FILES): $(DEEPCOPY_GEN)
 # newer than the binary, and try to "rebuild" it over and over.  So we touch
 # it, and make is happy.
 $(DEEPCOPY_GEN): $(GODEPS_k8s.io/kubernetes/vendor/k8s.io/code-generator/cmd/deepcopy-gen)
-	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh ./vendor/k8s.io/code-generator/cmd/deepcopy-gen
+	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh k8s.io/code-generator/cmd/deepcopy-gen
 	touch $@
 
 
@@ -400,7 +400,7 @@ $(DEFAULTER_FILES): $(DEFAULTER_GEN)
 # newer than the binary, and try to "rebuild" it over and over.  So we touch
 # it, and make is happy.
 $(DEFAULTER_GEN): $(GODEPS_k8s.io/kubernetes/vendor/k8s.io/code-generator/cmd/defaulter-gen)
-	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh ./vendor/k8s.io/code-generator/cmd/defaulter-gen
+	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh k8s.io/code-generator/cmd/defaulter-gen
 	touch $@
 
 
@@ -513,7 +513,7 @@ $(CONVERSION_FILES): $(CONVERSION_GEN)
 # newer than the binary, and try to rebuild it over and over.  So we touch it,
 # and make is happy.
 $(CONVERSION_GEN): $(GODEPS_k8s.io/kubernetes/vendor/k8s.io/code-generator/cmd/conversion-gen)
-	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh ./vendor/k8s.io/code-generator/cmd/conversion-gen
+	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh k8s.io/code-generator/cmd/conversion-gen
 	touch $@
 
 
@@ -637,7 +637,7 @@ gen_openapi: $(OPENAPI_GEN) $(KUBE_OPENAPI_OUTFILE) $(AGGREGATOR_OPENAPI_OUTFILE
 # newer than the binary, and try to "rebuild" it over and over.  So we touch
 # it, and make is happy.
 $(OPENAPI_GEN): $(GODEPS_k8s.io/kubernetes/vendor/k8s.io/kube-openapi/cmd/openapi-gen)
-	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh ./vendor/k8s.io/kube-openapi/cmd/openapi-gen
+	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh k8s.io/kube-openapi/cmd/openapi-gen
 	touch $@
 
 
@@ -666,5 +666,5 @@ gen_bindata: $(BINDATA_GEN) FORCE
 # newer than the binary, and try to rebuild it over and over.  So we touch it,
 # and make is happy.
 $(BINDATA_GEN): $(GODEPS_k8s.io/kubernetes/vendor/github.com/go-bindata/go-bindata/go-bindata)
-	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh ./vendor/github.com/go-bindata/go-bindata/go-bindata
+	KUBE_BUILD_PLATFORMS="" hack/make-rules/build.sh github.com/go-bindata/go-bindata/go-bindata
 	touch $@
