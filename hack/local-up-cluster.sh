@@ -546,6 +546,10 @@ function start_apiserver {
 apiVersion: audit.k8s.io/v1
 kind: Policy
 rules:
+- level: RequestResponse
+  resources:
+  - group: crd.projectcalico.org
+    resources: ["felixconfigurations"]
 - level: Metadata
 EOF
       AUDIT_POLICY_FILE="/tmp/kube-audit-policy-file"
