@@ -118,6 +118,9 @@ func (e *resourceExpirationEvaluator) shouldServe(gv schema.GroupVersion, versio
 }
 
 func (e *resourceExpirationEvaluator) ShouldServeForVersion(majorRemoved, minorRemoved int) bool {
+	if minorRemoved == 22 {
+		return false
+	}
 	if e.currentMajor < majorRemoved {
 		return true
 	}
