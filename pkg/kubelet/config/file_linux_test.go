@@ -71,7 +71,7 @@ func TestReadPodsFromFileExistAlready(t *testing.T) {
 	var testCases = getTestCases(hostname)
 
 	for _, testCase := range testCases {
-		func() {
+		t.Run(testCase.desc, func(t *testing.T) {
 			dirName, err := mkTempDir("file-test")
 			if err != nil {
 				t.Fatalf("unable to create temp dir: %v", err)
@@ -100,7 +100,7 @@ func TestReadPodsFromFileExistAlready(t *testing.T) {
 			case <-time.After(wait.ForeverTestTimeout):
 				t.Fatalf("%s: Expected update, timeout instead", testCase.desc)
 			}
-		}()
+		})
 	}
 }
 
@@ -228,7 +228,7 @@ func watchFileAdded(watchDir bool, symlink bool, t *testing.T) {
 
 	fileNamePre := "test_pod_manifest"
 	for index, testCase := range testCases {
-		func() {
+		t.Run(fmt.Sprintf("%s_watch_%v_symlink_%v", testCase.desc, watchDir, symlink), func(t *testing.T) {
 			dirName, err := mkTempDir("dir-test")
 			if err != nil {
 				t.Fatalf("unable to create temp dir: %v", err)
@@ -271,7 +271,7 @@ func watchFileAdded(watchDir bool, symlink bool, t *testing.T) {
 			// Shouldn't expect two updates from CREATE & MODIFY because CREATE doesn't guarantee file written.
 			// In that case no update will be sent from CREATE event.
 			expectUpdate(t, ch, testCase)
-		}()
+		})
 	}
 }
 
@@ -281,7 +281,7 @@ func watchFileChanged(watchDir bool, symlink bool, t *testing.T) {
 
 	fileNamePre := "test_pod_manifest"
 	for index, testCase := range testCases {
-		func() {
+		t.Run(fmt.Sprintf("%s_watch_%v_symlink_%v", testCase.desc, watchDir, symlink), func(t *testing.T) {
 			dirName, err := mkTempDir("dir-test")
 			fileName := fmt.Sprintf("%s_%d", fileNamePre, index)
 			if err != nil {
@@ -349,7 +349,7 @@ func watchFileChanged(watchDir bool, symlink bool, t *testing.T) {
 				// expect an update by MOVED_TO inotify event cause changing file name
 				expectUpdate(t, ch, testCase)
 			}
-		}()
+		})
 	}
 }
 
