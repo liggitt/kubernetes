@@ -72,6 +72,10 @@ func (podTemplateStrategy) PrepareForUpdate(ctx context.Context, obj, old runtim
 	oldTemplate := old.(*api.PodTemplate)
 
 	pod.DropDisabledTemplateFields(&newTemplate.Template, &oldTemplate.Template)
+
+	if !apiequality.Semantic.DeepEqual(newTemplate.Template, oldTemplate.Template) {
+		newTemplate.Generation = oldTemplate.Generation + 1
+	}
 }
 
 // ValidateUpdate is the default update validation for an end user.
