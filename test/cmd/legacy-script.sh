@@ -850,7 +850,7 @@ runTests() {
     kube::test::get_object_assert 'clusterroles -l test-cmd=auth' "{{range.items}}{{$id_field}}:{{end}}" 'testing-CR:'
 
     failure_message=$(! kubectl auth reconcile "${kube_flags[@]}" -f test/fixtures/pkg/kubectl/cmd/auth/rbac-v1beta1.yaml 2>&1 )
-    kube::test::if_has_string "${failure_message}" 'only rbac.authorization.k8s.io/v1 is supported'
+    kube::test::if_has_string "${failure_message}" 'no matches for kind "ClusterRole" in version "rbac.authorization.k8s.io/v1beta1"'
 
     kubectl delete "${kube_flags[@]}" rolebindings,role,clusterroles,clusterrolebindings -n some-other-random -l test-cmd=auth
   fi
