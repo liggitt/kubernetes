@@ -20,6 +20,7 @@ package openidmetadata
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -33,6 +34,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"gopkg.in/square/go-jose.v2/jwt"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 )
@@ -164,10 +166,37 @@ func withOAuth2Client(context.Context) (context.Context, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// combine the system roots with the in-cluster roots so we can verify the in-cluster endpoints and public issuer endpoints
+		rootCAs, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("error reading system roots: %w", err)
+		}
+		if len(cfg.CAData) > 0 {
+			if !rootCAs.AppendCertsFromPEM(cfg.CAData) {
+				log.Printf("no in-cluster roots read from CAData")
+			}
+		} else if len(cfg.CAFile) > 0 {
+			inClusterRoots, err := ioutil.ReadFile(cfg.CAFile)
+			if err != nil {
+				return nil, fmt.Errorf("error reading in-cluster roots: %w", err)
+			}
+			if len(inClusterRoots) > 0 {
+				if !rootCAs.AppendCertsFromPEM(cfg.CAData) {
+					log.Printf("no in-cluster roots read from CAFile")
+				}
+			}
+		}
+
 		rt, err = rest.TransportFor(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not get roundtripper: %v", err)
 		}
+		tlsConfig, err := utilnet.TLSClientConfig(rt)
+		if err != nil {
+			return nil, fmt.Errorf("could not get TLS config: %v", err)
+		}
+		tlsConfig.RootCAs = rootCAs
 	}
 
 	ctx := context.WithValue(context.Background(),
