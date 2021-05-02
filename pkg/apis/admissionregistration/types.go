@@ -287,6 +287,8 @@ type ValidatingWebhook struct {
 	// does not understand, calls to the webhook will fail and be subject to the failure policy.
 	// +optional
 	AdmissionReviewVersions []string
+
+	Expression *InlineExpression
 }
 
 // MutatingWebhook describes an admission webhook and the resources and operations it applies to.
@@ -429,6 +431,8 @@ type MutatingWebhook struct {
 	// Defaults to "Never".
 	// +optional
 	ReinvocationPolicy *ReinvocationPolicyType
+
+	Expression *InlineExpression
 }
 
 // ReinvocationPolicyType specifies what type of policy the admission hook uses.
@@ -468,6 +472,10 @@ const (
 	Delete       OperationType = "DELETE"
 	Connect      OperationType = "CONNECT"
 )
+
+type InlineExpression struct {
+	CEL *string
+}
 
 // WebhookClientConfig contains the information to make a TLS
 // connection with the webhook

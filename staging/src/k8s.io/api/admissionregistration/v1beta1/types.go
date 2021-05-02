@@ -321,6 +321,8 @@ type ValidatingWebhook struct {
 	// Default to `['v1beta1']`.
 	// +optional
 	AdmissionReviewVersions []string `json:"admissionReviewVersions,omitempty" protobuf:"bytes,8,rep,name=admissionReviewVersions"`
+
+	Expression *InlineExpression `json:"expression,omitempty" protobuf:"bytes,11,opt,name=expression"`
 }
 
 // MutatingWebhook describes an admission webhook and the resources and operations it applies to.
@@ -471,6 +473,8 @@ type MutatingWebhook struct {
 	// Defaults to "Never".
 	// +optional
 	ReinvocationPolicy *ReinvocationPolicyType `json:"reinvocationPolicy,omitempty" protobuf:"bytes,10,opt,name=reinvocationPolicy,casttype=ReinvocationPolicyType"`
+
+	Expression *InlineExpression `json:"expression,omitempty" protobuf:"bytes,12,opt,name=expression"`
 }
 
 // ReinvocationPolicyType specifies what type of policy the admission hook uses.
@@ -510,6 +514,10 @@ const (
 	Delete       OperationType = "DELETE"
 	Connect      OperationType = "CONNECT"
 )
+
+type InlineExpression struct {
+	CEL *string `json:"cel,omitempty" protobuf:"bytes,1,opt,name=cel"`
+}
 
 // WebhookClientConfig contains the information to make a TLS
 // connection with the webhook
