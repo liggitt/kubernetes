@@ -192,46 +192,50 @@ func (d *validatingDispatcher) callHook(ctx context.Context, h *v1.ValidatingWeb
 	if err != nil {
 		return &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: err}
 	}
-	// Make the webhook request
-	client, err := invocation.Webhook.GetRESTClient(d.cm)
-	if err != nil {
-		return &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: err}
-	}
-	trace := utiltrace.New("Call validating webhook",
-		utiltrace.Field{"configuration", invocation.Webhook.GetConfigurationName()},
-		utiltrace.Field{"webhook", h.Name},
-		utiltrace.Field{"resource", attr.GetResource()},
-		utiltrace.Field{"subresource", attr.GetSubresource()},
-		utiltrace.Field{"operation", attr.GetOperation()},
-		utiltrace.Field{"UID", uid})
-	defer trace.LogIfLong(500 * time.Millisecond)
-
-	// if the webhook has a specific timeout, wrap the context to apply it
-	if h.TimeoutSeconds != nil {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(*h.TimeoutSeconds)*time.Second)
-		defer cancel()
-	}
-
-	r := client.Post().Body(request)
-
-	// if the context has a deadline, set it as a parameter to inform the backend
-	if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
-		// compute the timeout
-		if timeout := time.Until(deadline); timeout > 0 {
-			// if it's not an even number of seconds, round up to the nearest second
-			if truncated := timeout.Truncate(time.Second); truncated != timeout {
-				timeout = truncated + time.Second
-			}
-			// set the timeout
-			r.Timeout(timeout)
+	if h.Expression != nil && h.Expression.CEL != nil {
+		// TODO: evaluate expression(request) --> response
+	} else {
+		// Make the webhook request
+		client, err := invocation.Webhook.GetRESTClient(d.cm)
+		if err != nil {
+			return &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: err}
 		}
-	}
+		trace := utiltrace.New("Call validating webhook",
+			utiltrace.Field{"configuration", invocation.Webhook.GetConfigurationName()},
+			utiltrace.Field{"webhook", h.Name},
+			utiltrace.Field{"resource", attr.GetResource()},
+			utiltrace.Field{"subresource", attr.GetSubresource()},
+			utiltrace.Field{"operation", attr.GetOperation()},
+			utiltrace.Field{"UID", uid})
+		defer trace.LogIfLong(500 * time.Millisecond)
 
-	if err := r.Do(ctx).Into(response); err != nil {
-		return &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: err}
+		// if the webhook has a specific timeout, wrap the context to apply it
+		if h.TimeoutSeconds != nil {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, time.Duration(*h.TimeoutSeconds)*time.Second)
+			defer cancel()
+		}
+
+		r := client.Post().Body(request)
+
+		// if the context has a deadline, set it as a parameter to inform the backend
+		if deadline, hasDeadline := ctx.Deadline(); hasDeadline {
+			// compute the timeout
+			if timeout := time.Until(deadline); timeout > 0 {
+				// if it's not an even number of seconds, round up to the nearest second
+				if truncated := timeout.Truncate(time.Second); truncated != timeout {
+					timeout = truncated + time.Second
+				}
+				// set the timeout
+				r.Timeout(timeout)
+			}
+		}
+
+		if err := r.Do(ctx).Into(response); err != nil {
+			return &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: err}
+		}
+		trace.Step("Request completed")
 	}
-	trace.Step("Request completed")
 
 	result, err := webhookrequest.VerifyAdmissionResponse(uid, false, response)
 	if err != nil {

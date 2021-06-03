@@ -19,6 +19,9 @@ package webhook
 import (
 	"sync"
 
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/checker/decls"
+
 	"k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -33,6 +36,9 @@ type WebhookAccessor interface {
 
 	// GetConfigurationName gets the name of the webhook configuration that owns this webhook.
 	GetConfigurationName() string
+
+	GetCELProgram() (cel.Program, error)
+	GetExpression() *v1.InlineExpression
 
 	// GetRESTClient gets the webhook client
 	GetRESTClient(clientManager *webhookutil.ClientManager) (*rest.RESTClient, error)
@@ -91,6 +97,10 @@ type mutatingWebhookAccessor struct {
 	initClient sync.Once
 	client     *rest.RESTClient
 	clientErr  error
+
+	initCELProgram sync.Once
+	cel            cel.Program
+	celErr         error
 }
 
 func (m *mutatingWebhookAccessor) GetUID() string {
@@ -99,6 +109,40 @@ func (m *mutatingWebhookAccessor) GetUID() string {
 
 func (m *mutatingWebhookAccessor) GetConfigurationName() string {
 	return m.configurationName
+}
+
+func (m *mutatingWebhookAccessor) GetCELProgram() (cel.Program, error) {
+	m.initCELProgram.Do(func() {
+		if m.Expression != nil && m.Expression.CEL != nil {
+			env, err := cel.NewEnv(
+				cel.Declarations(
+					decls.NewVar("request", decls.String), // TODO: typed v1.AdmissionRequest?
+				),
+			)
+			if err != nil {
+				m.celErr = err
+				return
+			}
+
+			ast, issues := env.Compile(*m.Expression.CEL)
+			if issues != nil && issues.Err() != nil {
+				m.celErr = issues.Err()
+				return
+			}
+
+			prg, err := env.Program(ast)
+			if err != nil {
+				m.celErr = issues.Err()
+				return
+			}
+
+			m.cel = prg
+		}
+	})
+	return m.cel, m.celErr
+}
+func (m *mutatingWebhookAccessor) GetExpression() *v1.InlineExpression {
+	return m.Expression
 }
 
 func (m *mutatingWebhookAccessor) GetRESTClient(clientManager *webhookutil.ClientManager) (*rest.RESTClient, error) {
@@ -191,6 +235,10 @@ type validatingWebhookAccessor struct {
 	initClient sync.Once
 	client     *rest.RESTClient
 	clientErr  error
+
+	initCELProgram sync.Once
+	cel            cel.Program
+	celErr         error
 }
 
 func (v *validatingWebhookAccessor) GetUID() string {
@@ -199,6 +247,18 @@ func (v *validatingWebhookAccessor) GetUID() string {
 
 func (v *validatingWebhookAccessor) GetConfigurationName() string {
 	return v.configurationName
+}
+
+func (v *validatingWebhookAccessor) GetCELProgram() (cel.Program, error) {
+	v.initCELProgram.Do(func() {
+		if v.Expression != nil && v.Expression.CEL != nil {
+			// TODO(match mutating webhook construction)
+		}
+	})
+	return v.cel, v.celErr
+}
+func (v *validatingWebhookAccessor) GetExpression() *v1.InlineExpression {
+	return v.Expression
 }
 
 func (v *validatingWebhookAccessor) GetRESTClient(clientManager *webhookutil.ClientManager) (*rest.RESTClient, error) {

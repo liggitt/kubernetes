@@ -53,6 +53,7 @@ func TestMutatingWebhookAccessor(t *testing.T) {
 			}
 			copy := &v1.MutatingWebhook{
 				Name:                    accessor.GetName(),
+				Expression:              accessor.GetExpression(),
 				ClientConfig:            accessor.GetClientConfig(),
 				Rules:                   accessor.GetRules(),
 				FailurePolicy:           accessor.GetFailurePolicy(),
@@ -93,6 +94,7 @@ func TestValidatingWebhookAccessor(t *testing.T) {
 			}
 			copy := &v1.ValidatingWebhook{
 				Name:                    accessor.GetName(),
+				Expression:              accessor.GetExpression(),
 				ClientConfig:            accessor.GetClientConfig(),
 				Rules:                   accessor.GetRules(),
 				FailurePolicy:           accessor.GetFailurePolicy(),
