@@ -1,0 +1,79 @@
+/*
+Copyright 2021 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package policy
+
+import (
+	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/pod-security-admission/api"
+)
+
+func init() {
+	registerCheck(
+		checkSpec{
+			id:   "allowPrivilegeEscalation",
+			name: "Privilege Escalation",
+			containerFields: []string{
+				`securityContext.allowPrivilegeEscalation`,
+			},
+		},
+		api.LevelRestricted,
+		map[string]Check{
+			// Field added in 1.8:
+			// https://github.com/kubernetes/kubernetes/blob/v1.8.0/staging/src/k8s.io/api/core/v1/types.go#L4797-L4804
+			"v1.8": &check{
+				doc: doc{
+					description: allowPrivilegeEscalation_description_1_8,
+				},
+				checkPod: allowPrivilegeEscalation_1_8,
+			},
+		})
+}
+
+const (
+	allowPrivilegeEscalation_description_1_8 = `
+Privilege escalation (such as via set-user-ID or set-group-ID file mode) should not be allowed.
+
+**Restricted Fields:**
+
+spec.containers[*].securityContext.allowPrivilegeEscalation
+spec.initContainers[*].securityContext.allowPrivilegeEscalation
+	
+**Allowed Values:** false
+`
+)
+
+func allowPrivilegeEscalation_1_8(podMetadata *metav1.ObjectMeta, podSpec *corev1.PodSpec) CheckResult {
+	var forbiddenPaths []string
+	visitContainersWithPath(podSpec, field.NewPath("spec"), func(container *corev1.Container, path *field.Path) {
+		if container.SecurityContext == nil || container.SecurityContext.AllowPrivilegeEscalation == nil || *container.SecurityContext.AllowPrivilegeEscalation {
+			forbiddenPaths = append(forbiddenPaths, path.Child("securityContext", "allowPrivilegeEscalation").String())
+		}
+	})
+
+	if len(forbiddenPaths) > 0 {
+		return CheckResult{
+			Allowed:         false,
+			ForbiddenReason: "allowPrivilegeEscalation != false",
+			ForbiddenDetail: strings.Join(forbiddenPaths, ", "),
+		}
+	}
+	return CheckResult{Allowed: true}
+}
