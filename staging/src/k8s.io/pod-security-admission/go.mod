@@ -4,4 +4,23 @@ module k8s.io/pod-security-admission
 
 go 1.16
 
-replace k8s.io/pod-security-admission => ../pod-security-admission
+require (
+	github.com/google/go-cmp v0.5.4
+	github.com/stretchr/testify v1.7.0
+	k8s.io/api v0.0.0
+	k8s.io/apimachinery v0.0.0
+	k8s.io/apiserver v0.0.0
+	k8s.io/client-go v0.0.0
+	k8s.io/klog/v2 v2.8.0
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
+	sigs.k8s.io/yaml v1.2.0
+)
+
+replace (
+	k8s.io/api => ../api
+	k8s.io/apimachinery => ../apimachinery
+	k8s.io/apiserver => ../apiserver
+	k8s.io/client-go => ../client-go
+	k8s.io/component-base => ../component-base
+	k8s.io/pod-security-admission => ../pod-security-admission
+)
