@@ -120,8 +120,9 @@ func RunCustomEtcd(dataDir string, customFlags []string) (url string, stopFn fun
 		customURL,
 		"--listen-peer-urls",
 		"http://127.0.0.1:0",
-		"--log-package-levels",
-		"*=NOTICE", // set to INFO or DEBUG for more logs
+		"--logger=zap",
+		"--log-level=error",
+		"--log-outputs=stderr",
 	}
 	args = append(args, customFlags...)
 	cmd := exec.CommandContext(ctx, etcdPath, args...)
