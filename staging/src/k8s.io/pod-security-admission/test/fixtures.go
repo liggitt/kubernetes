@@ -56,6 +56,14 @@ func init() {
 		p.Spec.InitContainers[0].SecurityContext = &corev1.SecurityContext{AllowPrivilegeEscalation: pointer.BoolPtr(false)}
 	})
 	minimalValidPods[api.LevelRestricted][api.MajorMinorVersion(1, 8)] = restricted_1_8
+
+	// 1.22+: drop NET_RAW
+	restricted_1_22 := tweak(restricted_1_8, func(p *corev1.Pod) {
+		p.Spec.Containers[0].SecurityContext.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{"NET_RAW"}}
+		p.Spec.InitContainers[0].SecurityContext.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{"NET_RAW"}}
+	})
+	minimalValidPods[api.LevelRestricted][api.MajorMinorVersion(1, 22)] = restricted_1_22
+
 }
 
 // getValidPod returns a minimal valid pod for the specified level and version.
