@@ -8,9 +8,15 @@ spec:
     name: container1
     securityContext:
       allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - NET_RAW
   initContainers:
   - image: k8s.gcr.io/pause
     name: initcontainer1
     securityContext:
       allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - NET_RAW
   securityContext: {}

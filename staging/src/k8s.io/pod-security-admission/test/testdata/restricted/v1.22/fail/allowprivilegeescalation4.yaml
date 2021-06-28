@@ -11,5 +11,8 @@ spec:
     name: initcontainer1
     securityContext:
       allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+        - NET_RAW
   securityContext:
     runAsNonRoot: true

@@ -11,11 +11,15 @@ spec:
       capabilities:
         add:
         - NET_RAW
+        drop:
+        - NET_RAW
   initContainers:
   - image: k8s.gcr.io/pause
     name: initcontainer1
     securityContext:
       allowPrivilegeEscalation: false
-      capabilities: {}
+      capabilities:
+        drop:
+        - NET_RAW
   securityContext:
     runAsNonRoot: true

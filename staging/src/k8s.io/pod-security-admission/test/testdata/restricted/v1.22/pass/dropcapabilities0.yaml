@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: selinux15
+  name: dropcapabilities0
 spec:
   containers:
   - image: k8s.gcr.io/pause
@@ -11,7 +11,6 @@ spec:
       capabilities:
         drop:
         - NET_RAW
-      seLinuxOptions: {}
   initContainers:
   - image: k8s.gcr.io/pause
     name: initcontainer1
@@ -20,7 +19,5 @@ spec:
       capabilities:
         drop:
         - NET_RAW
-      seLinuxOptions: {}
   securityContext:
     runAsNonRoot: true
-    seLinuxOptions: {}
