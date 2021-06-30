@@ -19,6 +19,7 @@ package test
 import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/pod-security-admission/api"
 )
 
@@ -42,6 +43,7 @@ func init() {
 				}),
 			}
 		},
+		failRequiresFeatures: []featuregate.Feature{"ProcMountType"},
 		generateFail: func(p *v1.Pod) []*v1.Pod {
 			p = ensureSecurityContext(p)
 			return []*corev1.Pod{
