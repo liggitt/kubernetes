@@ -28,6 +28,9 @@ import (
 )
 
 func TestPodSecurity(t *testing.T) {
+	// Enable all feature gates needed to allow all fields to be exercised
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ProcMountType, true)()
+	// Ensure the PodSecurity feature is enabled
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.PodSecurity, true)()
 	server := kubeapiservertesting.StartTestServerOrDie(t, kubeapiservertesting.NewDefaultTestServerOptions(), []string{
 		"--anonymous-auth=false",
@@ -39,10 +42,33 @@ func TestPodSecurity(t *testing.T) {
 	opts := podsecuritytest.Options{
 		ClientConfig: server.ClientConfig,
 
+		// Don't pass in feature-gate info, so all testcases run
+
 		// TODO
 		ExemptClient:         nil,
 		ExemptNamespaces:     []string{},
 		ExemptRuntimeClasses: []string{},
+	}
+	podsecuritytest.Run(t, opts)
+}
+
+// TestPodSecurityGAOnly ensures policies pass with only GA features enabled
+func TestPodSecurityGAOnly(t *testing.T) {
+	// Disable all alpha and beta features
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, "AllAlpha", false)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, "AllBeta", false)()
+	// Ensure PodSecurity feature is enabled
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.PodSecurity, true)()
+	server := kubeapiservertesting.StartTestServerOrDie(t, kubeapiservertesting.NewDefaultTestServerOptions(), []string{
+		"--anonymous-auth=false",
+		"--enable-admission-plugins=PodSecurity",
+	}, framework.SharedEtcd())
+	defer server.TearDownFn()
+
+	opts := podsecuritytest.Options{
+		ClientConfig: server.ClientConfig,
+		// Pass in feature gate info so negative test cases depending on alpha or beta features can be skipped
+		Features: utilfeature.DefaultFeatureGate,
 	}
 	podsecuritytest.Run(t, opts)
 }
