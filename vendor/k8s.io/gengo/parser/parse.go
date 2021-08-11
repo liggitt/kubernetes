@@ -32,6 +32,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"k8s.io/gengo/types"
 	"k8s.io/klog/v2"
@@ -614,7 +615,9 @@ func (b *Builder) importWithMode(dir string, mode build.ImportMode) (*build.Pack
 	// normalize to drop /vendor/ if present
 	dir = string(canonicalizeImportPath(dir))
 
+	start := time.Now()
 	buildPkg, err := b.context.Import(filepath.ToSlash(dir), cwd, mode)
+	fmt.Println("JTL", time.Now().Sub(start), "b.context.Import", filepath.ToSlash(dir), err)
 	if err != nil {
 		return nil, err
 	}
