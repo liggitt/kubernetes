@@ -817,7 +817,8 @@ kube::golang::build_binaries() {
         # Assume arguments starting with a dash are flags to pass to go.
         goflags+=("${arg}")
       else
-        targets+=("${arg}")
+        # Strip vendor/ prefix if needed, since we're building in gomodule mode.
+        targets+=("${arg#"vendor/"}")
       fi
     done
 
