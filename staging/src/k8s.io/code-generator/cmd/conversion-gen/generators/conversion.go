@@ -279,7 +279,7 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 			externalTypes := externalTypesValues[0]
 			klog.V(5).Infof("  external types tags: %q", externalTypes)
 			var err error
-			typesPkg, err = context.AddDirectory(externalTypes)
+			typesPkg, err = context.AddPackage(externalTypes)
 			if err != nil {
 				klog.Fatalf("cannot import package %s", externalTypes)
 			}
@@ -304,7 +304,7 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 
 		// Make sure our peer-packages are added and fully parsed.
 		for _, pp := range append(peerPkgs, extraDirs...) {
-			context.AddDir(pp)
+			context.AddPackage(pp)
 			p := context.Universe[pp]
 			if nil == p {
 				klog.Fatalf("failed to find pkg: %s", pp)

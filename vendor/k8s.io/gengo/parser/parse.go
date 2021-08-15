@@ -214,18 +214,34 @@ func (b *Builder) addFile(pkgPath importPathString, path string, src []byte, use
 	return nil
 }
 
-// AddDir adds an entire directory, scanning it for go files. 'dir' should have
-// a single go package in it. GOPATH, GOROOT, and the location of your go
-// binary (`which go`) will all be searched if dir doesn't literally resolve.
-func (b *Builder) AddDir(dir string) error {
-	_, err := b.importPackage(dir, true)
+// AddPackagePatterns adds the specified patterns,
+// which may be individual import paths as used in import directives,
+// or recursive paths like `example.com/...`.
+func (b *Builder) AddPackagePatterns(patterns ...string) error {
+	for _, d := range patterns {
+		var err error
+		if strings.HasSuffix(d, "/...") {
+			err = b.addPackageRecursive(strings.TrimSuffix(d, "/..."))
+		} else {
+			err = b.addPackage(d)
+		}
+		if err != nil {
+			return fmt.Errorf("unable to add directory %q: %v", d, err)
+		}
+	}
+	return nil
+}
+
+// addPackage adds an entire package, scanning it for go files.
+func (b *Builder) addPackage(importPackage string) error {
+	_, err := b.importPackage(importPackage, true)
 	return err
 }
 
-// AddDirRecursive is just like AddDir, but it also recursively adds
-// subdirectories; it returns an error only if the path couldn't be resolved;
+// addPackageRecursive is just like addPackage, but it also recursively adds
+// subpackages; it returns an error only if the path couldn't be resolved;
 // any directories recursed into without go source are ignored.
-func (b *Builder) AddDirRecursive(dir string) error {
+func (b *Builder) addPackageRecursive(dir string) error {
 	// Add the root.
 	if _, err := b.importPackage(dir, true); err != nil {
 		klog.Warningf("Ignoring directory %v: %v", dir, err)
@@ -265,25 +281,6 @@ func (b *Builder) AddDirRecursive(dir string) error {
 		return err
 	}
 	return nil
-}
-
-// AddDirTo adds an entire directory to a given Universe. Unlike AddDir, this
-// processes the package immediately, which makes it safe to use from within a
-// generator (rather than just at init time. 'dir' must be a single go package.
-// GOPATH, GOROOT, and the location of your go binary (`which go`) will all be
-// searched if dir doesn't literally resolve.
-// Deprecated. Please use AddDirectoryTo.
-func (b *Builder) AddDirTo(dir string, u *types.Universe) error {
-	// We want all types from this package, as if they were directly added
-	// by the user.  They WERE added by the user, in effect.
-	if _, err := b.importPackage(dir, true); err != nil {
-		return err
-	}
-	buildPkg, ok := b.getLoadedBuildPackage(dir)
-	if !ok {
-		return fmt.Errorf("no loaded build package for %s", dir)
-	}
-	return b.findTypesIn(canonicalizeImportPath(buildPkg.ImportPath), u)
 }
 
 // AddDirectoryTo adds an entire directory to a given Universe. Unlike AddDir,

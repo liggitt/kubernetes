@@ -271,7 +271,7 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 		}
 		// Make sure our peer-packages are added and fully parsed.
 		for _, pp := range peerPkgs {
-			context.AddDir(pp)
+			context.AddPackage(pp)
 			getManualDefaultingFunctions(context, context.Universe[pp], existingDefaulters)
 		}
 
@@ -327,7 +327,7 @@ func Packages(context *generator.Context, arguments *args.GeneratorArgs) generat
 				inputPath = filepath.Join(pkg.Path, inputTags[0])
 			}
 
-			typesPkg, err = context.AddDirectory(inputPath)
+			typesPkg, err = context.AddPackage(inputPath)
 			if err != nil {
 				klog.Fatalf("cannot import package %s", inputPath)
 			}
