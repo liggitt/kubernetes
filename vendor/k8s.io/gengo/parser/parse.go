@@ -34,6 +34,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/tools/go/packages"
+
 	"k8s.io/gengo/types"
 	"k8s.io/klog/v2"
 )
@@ -48,6 +50,8 @@ type Builder struct {
 
 	// If true, include *_test.go
 	IncludeTestFiles bool
+
+	pkgDirs map[string]string
 
 	// Map of package names to more canonical information about the package.
 	// This might hold the same value for multiple names, e.g. if someone
@@ -105,6 +109,7 @@ func New() *Builder {
 	c.CgoEnabled = false
 	return &Builder{
 		context:               &c,
+		pkgDirs:               map[string]string{},
 		buildPackages:         map[importPathString]*build.Package{},
 		typeCheckedPackages:   map[importPathString]*tc.Package{},
 		fset:                  token.NewFileSet(),
@@ -214,10 +219,80 @@ func (b *Builder) addFile(pkgPath importPathString, path string, src []byte, use
 	return nil
 }
 
+// getResolvedPackageDir returns the resolved absolute path to the directory
+// containing the source for the specified package import path.
+// The returned dir is suitable to pass to build.Context#ImportDir.
+func (b *Builder) getResolvedPackageDir(pkgPath string) (string, bool) {
+	if len(pkgPath) == 0 || !strings.Contains(pkgPath, "/") {
+		return "", false
+	}
+	dir, ok := b.pkgDirs[pkgPath]
+	if ok {
+		return dir, len(dir) > 0
+	}
+	parentDir, ok := b.getResolvedPackageDir(path.Dir(pkgPath))
+	if !ok {
+		return "", false
+	}
+	return filepath.Join(parentDir, filepath.FromSlash(path.Base(pkgPath))), true
+}
+
+func (b *Builder) resolvePackageDirs(patterns []string) {
+	// make packages canonical before loading
+	canonicalPatterns := make([]string, 0, len(patterns))
+	for _, p := range patterns {
+		canonicalPattern := string(canonicalizeImportPath(p))
+		if _, ok := b.getResolvedPackageDir(canonicalPattern); ok {
+			// we already had a module dir resolved for this package
+			continue
+		}
+		canonicalPatterns = append(canonicalPatterns, canonicalPattern)
+	}
+
+	// name
+	// module info to get root dir
+	// deps to get downstream dirs to speed up type checking
+	// files to get source location
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedModule | packages.NeedImports | packages.NeedDeps,
+	}
+	if len(b.context.BuildTags) > 0 {
+		cfg.BuildFlags = []string{"-tags", strings.Join(b.context.BuildTags, ",")}
+	}
+	fmt.Println("resolvePackageDirs", canonicalPatterns)
+	pkgs, err := packages.Load(cfg, canonicalPatterns...)
+	if err != nil {
+		klog.Warningf("Error resolving packages: %v", err)
+	}
+	packages.Visit(pkgs, func(pkg *packages.Package) bool {
+		if len(pkg.Errors) > 0 {
+			fmt.Println(pkg.Errors)
+		}
+		if pkg.Module != nil {
+			if len(pkg.Module.Dir) > 0 {
+				b.pkgDirs[pkg.Module.Path] = pkg.Module.Dir
+			}
+			if pkg.Module.Replace != nil && len(pkg.Module.Replace.Dir) > 0 {
+				b.pkgDirs[pkg.Module.Path] = pkg.Module.Replace.Dir
+			}
+			if pkg.Module.Error != nil {
+				fmt.Printf("%#v\n", *pkg.Module.Error)
+			}
+		}
+		if len(pkg.GoFiles) > 0 {
+			b.pkgDirs[pkg.PkgPath] = filepath.Dir(pkg.GoFiles[0])
+		}
+		return true
+	}, nil)
+}
+
 // AddPackagePatterns adds the specified patterns,
 // which may be individual import paths as used in import directives,
 // or recursive paths like `example.com/...`.
 func (b *Builder) AddPackagePatterns(patterns ...string) error {
+	// resolve patterns to speed up load time
+	b.resolvePackageDirs(patterns)
+
 	for _, d := range patterns {
 		var err error
 		if strings.HasSuffix(d, "/...") {
@@ -596,7 +671,7 @@ func (b *Builder) findTypesIn(pkgPath importPathString, u *types.Universe) error
 	return nil
 }
 
-func (b *Builder) importWithMode(dir string, mode build.ImportMode) (*build.Package, error) {
+func (b *Builder) importWithMode(pkgPath string, mode build.ImportMode) (*build.Package, error) {
 	// This is a bit of a hack.  The srcDir argument to Import() should
 	// properly be the dir of the file which depends on the package to be
 	// imported, so that vendoring can work properly and local paths can
@@ -610,11 +685,25 @@ func (b *Builder) importWithMode(dir string, mode build.ImportMode) (*build.Pack
 	}
 
 	// normalize to drop /vendor/ if present
-	dir = string(canonicalizeImportPath(dir))
+	pkgPath = string(canonicalizeImportPath(pkgPath))
 
 	start := time.Now()
-	buildPkg, err := b.context.Import(filepath.ToSlash(dir), cwd, mode)
-	fmt.Println("JTL", time.Now().Sub(start), "b.context.Import", filepath.ToSlash(dir), err)
+
+	if pkgDir, ok := b.getResolvedPackageDir(pkgPath); ok {
+		buildPkg, err := b.context.ImportDir(pkgDir, mode)
+		// fmt.Println("JTL", time.Now().Sub(start), "b.context.ImportDir", pkgDir, err)
+		if err != nil {
+			return nil, err
+		}
+		// ensure the ImportPath is the canonical one
+		buildPkg.ImportPath = pkgPath
+		return buildPkg, nil
+	}
+
+	buildPkg, err := b.context.Import(pkgPath, cwd, mode)
+	if delay := time.Now().Sub(start); delay > 100*time.Millisecond {
+		fmt.Println("JTL", delay, "b.context.Import", pkgPath, err)
+	}
 	if err != nil {
 		return nil, err
 	}
