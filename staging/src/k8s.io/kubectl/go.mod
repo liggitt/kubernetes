@@ -54,6 +54,7 @@ replace (
 	k8s.io/code-generator => ../code-generator
 	k8s.io/component-base => ../component-base
 	k8s.io/component-helpers => ../component-helpers
+	k8s.io/gengo => github.com/liggitt/gengo v0.0.0-20210920145235-9521605b67be
 	k8s.io/kubectl => ../kubectl
 	k8s.io/metrics => ../metrics
 )
