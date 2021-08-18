@@ -102,14 +102,44 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		defaultGVK := scope.Kind
 		original := r.New()
 
-		trace.Step("About to convert to expected version")
-		decoder := scope.Serializer.DecoderToVersion(s.Serializer, scope.HubGroupVersion)
-		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
+		validationDirective, err := fieldValidation(req, s)
 		if err != nil {
-			err = transformDecodeError(scope.Typer, err, original, gvk, body)
 			scope.err(err, w, req)
 			return
 		}
+		decodeSerializer := s.Serializer
+		if validationDirective == metav1.FieldValidationWarn || validationDirective == metav1.FieldValidationStrict {
+			decodeSerializer = s.StrictSerializer
+		}
+
+		decoder := scope.Serializer.DecoderToVersion(decodeSerializer, scope.HubGroupVersion)
+		trace.Step("About to convert to expected version")
+		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
+		if err != nil {
+			if !runtime.IsStrictDecodingError(err) && !runtime.IsPreservedDecodingError(err) {
+				err = transformDecodeError(scope.Typer, err, original, gvk, body)
+				scope.err(err, w, req)
+				return
+			}
+
+			if runtime.IsStrictDecodingError(err) && validationDirective == metav1.FieldValidationStrict {
+				err = transformDecodeError(scope.Typer, err, original, gvk, body)
+				scope.err(err, w, req)
+				return
+			}
+
+			strictErr, ok := err.(runtime.StrictError)
+			if !ok {
+				// unreachable
+				err = errors.NewInternalError(fmt.Errorf("unreachable error is neither strict decoding nor preserved decoding error: %v", err))
+				scope.err(err, w, req)
+				return
+
+			}
+
+			addStrictDecodingWarnings(req.Context(), strictErr)
+		}
+
 		objGV := gvk.GroupVersion()
 		if !scope.AcceptsGroupVersion(objGV) {
 			err = errors.NewBadRequest(fmt.Sprintf("the API version in the data (%s) does not match the expected API version (%s)", objGV, defaultGVK.GroupVersion()))

@@ -66,6 +66,7 @@ func identifier(options SerializerOptions) runtime.Identifier {
 		"name":   "json",
 		"yaml":   strconv.FormatBool(options.Yaml),
 		"pretty": strconv.FormatBool(options.Pretty),
+		"strict": strconv.FormatBool(options.Strict),
 	}
 	identifier, err := json.Marshal(result)
 	if err != nil {
@@ -158,12 +159,42 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 	}
 
 	if into != nil {
-		_, isUnstructured := into.(runtime.Unstructured)
+		u, isUnstructured := into.(runtime.Unstructured)
 		types, _, err := s.typer.ObjectKinds(into)
 		switch {
 		case runtime.IsNotRegisteredError(err), isUnstructured:
-			if err := kjson.UnmarshalCaseSensitivePreserveInts(data, into); err != nil {
+			if !s.options.Strict {
+				if err := kjson.UnmarshalCaseSensitivePreserveInts(data, into); err != nil {
+					return nil, actual, err
+				}
+				return into, actual, nil
+			}
+			var allStrictErrs []error
+			if s.options.Yaml {
+				// In strict mode pass the original data through the YAMLToJSONStrict converter.
+				// This is done to catch duplicate fields in YAML that would have been dropped in the original YAMLToJSON conversion.
+				// TODO: rework YAMLToJSONStrict to return warnings about duplicate fields without terminating so we don't have to do this twice.
+				_, err := yaml.YAMLToJSONStrict(originalData)
+				klog.Warningf("yaml strict err: %v\n", err)
+				if err != nil {
+					allStrictErrs = append(allStrictErrs, err)
+				}
+			}
+			// Unstructed uses a custom unmarshaller so in order
+			// to detect strict errors we need to unmarshal
+			// directly into the objec.
+			m := u.UnstructuredContent()
+			strictJSONErrs, err := kjson.UnmarshalStrict(data, &m)
+			u.SetUnstructuredContent(m)
+			into = u
+			if err != nil {
+				// fatal decoding error, not due to strictness
 				return nil, actual, err
+			}
+			allStrictErrs = append(allStrictErrs, strictJSONErrs...)
+			if len(allStrictErrs) > 0 {
+				// return the successfully decoded object along with the strict errors
+				return into, actual, runtime.NewStrictDecodingError(allStrictErrs)
 			}
 			return into, actual, nil
 		case err != nil:

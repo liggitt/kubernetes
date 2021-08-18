@@ -192,6 +192,13 @@ const (
 	//
 	// Enables kubernetes to publish OpenAPI v3
 	OpenAPIV3 featuregate.Feature = "OpenAPIV3"
+
+	// owner: @kevindelgado
+	// kep: http://kep.k8s.io/2885
+	// alpha: v1.23
+	//
+	// Enables server-side field validation.
+	StrictFieldValidation featuregate.Feature = "StrictFieldValidation"
 )
 
 func init() {
@@ -223,4 +230,5 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 	OpenAPIEnums:                        {Default: false, PreRelease: featuregate.Alpha},
 	CustomResourceValidationExpressions: {Default: false, PreRelease: featuregate.Alpha},
 	OpenAPIV3:                           {Default: false, PreRelease: featuregate.Alpha},
+	StrictFieldValidation:               {Default: false, PreRelease: featuregate.Alpha},
 }

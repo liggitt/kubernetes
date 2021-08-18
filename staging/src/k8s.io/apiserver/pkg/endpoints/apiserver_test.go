@@ -4351,9 +4351,9 @@ func TestUpdateChecksAPIVersion(t *testing.T) {
 	}
 }
 
-// runRequest is used by TestDryRun since it runs the test twice in a
-// row with a slightly different URL (one has ?dryRun, one doesn't).
-func runRequest(t *testing.T, path, verb string, data []byte, contentType string) *http.Response {
+// runRequest is used by TestDryRun and TestFieldValidation since it runs the test
+// twice in a row with a slightly different URL (one has ?dryRun, one doesn't).
+func runRequest(t testing.TB, path, verb string, data []byte, contentType string) *http.Response {
 	request, err := http.NewRequest(verb, path, bytes.NewBuffer(data))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -4386,6 +4386,156 @@ type SimpleRESTStorageWithDeleteCollection struct {
 func (storage *SimpleRESTStorageWithDeleteCollection) DeleteCollection(ctx context.Context, deleteValidation rest.ValidateObjectFunc, options *metav1.DeleteOptions, listOptions *metainternalversion.ListOptions) (runtime.Object, error) {
 	storage.checkContext(ctx)
 	return nil, nil
+}
+
+func TestFieldValidation(t *testing.T) {
+	strictDecoderErr := "strict decoder error for"
+	badRequestErr := "fieldValidation parameter only supports content types"
+	strictFieldValidation := "?fieldValidation=Strict"
+	// TODO: add test cases for yaml validation, multiple fieldValidation values
+	tests := []struct {
+		name        string
+		path        string
+		verb        string
+		data        []byte
+		queryParams string
+		contentType string
+		errContains string
+	}{
+
+		{
+			name:        "post-unknown-strict-validation",
+			path:        "/namespaces/default/simples",
+			verb:        "POST",
+			data:        []byte(`{"kind":"Simple","apiVersion":"test.group/version","metadata":{"creationTimestamp":null},"other":"bar","unknown":"baz"}`),
+			queryParams: strictFieldValidation,
+			errContains: strictDecoderErr,
+		},
+		{
+			name:        "put-unknown-strict-validation",
+			path:        "/namespaces/default/simples/id",
+			verb:        "PUT",
+			data:        []byte(`{"kind": "Simple", "apiVersion": "test.group/version", "metadata": {"name": "id", "creationTimestamp": null}, "other": "bar", "unknown": "baz"}`),
+			queryParams: strictFieldValidation,
+			errContains: strictDecoderErr,
+		},
+		{
+			name: "post-unknown-ignore-validation",
+			path: "/namespaces/default/simples",
+			verb: "POST",
+			data: []byte(`{"kind":"Simple","apiVersion":"test.group/version","metadata":{"creationTimestamp":null},"other":"bar","unknown":"baz"}`),
+		},
+		{
+			name: "put-unknown-ignore-validation",
+			path: "/namespaces/default/simples/id",
+			verb: "PUT",
+			data: []byte(`{"kind": "Simple", "apiVersion": "test.group/version", "metadata": {"name": "id", "creationTimestamp": null}, "other": "bar", "unknown": "baz"}`),
+		},
+		{
+			name:        "post-unknown-strict-vaidation-json",
+			path:        "/namespaces/default/simples",
+			verb:        "POST",
+			data:        []byte(`{"kind":"Simple","apiVersion":"test.group/version","metadata":{"creationTimestamp":null},"other":"bar","unknown":"baz"}`),
+			queryParams: strictFieldValidation,
+			errContains: strictDecoderErr,
+			contentType: runtime.ContentTypeJSON,
+		},
+		{
+			name:        "post-unknown-strict-validation-protobuf",
+			path:        "/namespaces/default/simples",
+			verb:        "POST",
+			data:        []byte(`{"kind":"Simple","apiVersion":"test.group/version","metadata":{"creationTimestamp":null},"other":"bar","unknown":"baz"}`),
+			queryParams: strictFieldValidation,
+			errContains: badRequestErr,
+			contentType: runtime.ContentTypeProtobuf,
+		},
+
+		// TODO: there's a bug currently where query params are being stripped so this test does not pass yet.
+		//{path: "/namespaces/default/simples/id", verb: "PATCH", data: []byte(`{"labels":{"foo":"bar"}}`), contentType: "application/merge-patch+json; charset=UTF-8", errContains: notImplementedErr},
+	}
+
+	server := httptest.NewServer(handle(map[string]rest.Storage{
+		"simples": &SimpleRESTStorageWithDeleteCollection{
+			SimpleRESTStorage{
+				item: genericapitesting.Simple{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "id",
+						Namespace: "",
+						UID:       "uid",
+					},
+					Other: "bar",
+				},
+			},
+		},
+		"simples/subsimple": &SimpleXGSubresourceRESTStorage{
+			item: genericapitesting.SimpleXGSubresource{
+				SubresourceInfo: "foo",
+			},
+			itemGVK: testGroup2Version.WithKind("SimpleXGSubresource"),
+		},
+	}))
+	defer server.Close()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			baseURL := server.URL + "/" + prefix + "/" + testGroupVersion.Group + "/" + testGroupVersion.Version
+			response := runRequest(t, baseURL+test.path+test.queryParams, test.verb, test.data, test.contentType)
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(response.Body)
+			// TODO: better way of doing than string comparison since we are getting a response instead of a regular go error?
+			if response.StatusCode != http.StatusBadRequest && !strings.Contains(buf.String(), test.errContains) {
+				t.Fatalf("unexpected response: %#v, errContains: %#v", response, test.errContains)
+			}
+		})
+	}
+
+}
+
+func BenchmarkFieldValidation(b *testing.B) {
+	benchmarks := []struct {
+		name       string
+		queryParam string
+	}{
+		{"nonstrict simples", ""},
+		{"strict simples", "?fieldValidation=Strict"},
+	}
+	server := httptest.NewServer(handle(map[string]rest.Storage{
+		"simples": &SimpleRESTStorageWithDeleteCollection{
+			SimpleRESTStorage{
+				item: genericapitesting.Simple{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "id",
+						Namespace: "",
+						UID:       "uid",
+					},
+					Other: "bar",
+				},
+			},
+		},
+		"simples/subsimple": &SimpleXGSubresourceRESTStorage{
+			item: genericapitesting.SimpleXGSubresource{
+				SubresourceInfo: "foo",
+			},
+			itemGVK: testGroup2Version.WithKind("SimpleXGSubresource"),
+		},
+	}))
+	defer server.Close()
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			for n := 0; n < b.N; n++ {
+				postPath := "/namespaces/default/simples"
+				postData := []byte(`{"kind":"Simple","apiVersion":"test.group/version","metadata":{"creationTimestamp":null},"other":"bar"}`)
+				basePostURL := server.URL + "/" + prefix + "/" + testGroupVersion.Group + "/" + testGroupVersion.Version
+				_ = runRequest(b, basePostURL+postPath+bm.queryParam, "POST", postData, "")
+
+				putPath := "/namespaces/default/simples/id"
+				putData := []byte(`{"kind": "Simple", "apiVersion": "test.group/version", "metadata": {"name": "id", "creationTimestamp": null}, "other": "bar", "unknown": "baz"}`)
+				basePutURL := server.URL + "/" + prefix + "/" + testGroupVersion.Group + "/" + testGroupVersion.Version
+				_ = runRequest(b, basePutURL+putPath+bm.queryParam, "PUT", putData, "")
+			}
+		})
+
+	}
 }
 
 func TestDryRunDisabled(t *testing.T) {

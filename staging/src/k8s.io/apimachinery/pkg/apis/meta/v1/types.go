@@ -522,6 +522,15 @@ type DeleteOptions struct {
 	DryRun []string `json:"dryRun,omitempty" protobuf:"bytes,5,rep,name=dryRun"`
 }
 
+const (
+	// FieldValidationIgnore ignores unknown/duplicate fields
+	FieldValidationIgnore = "Ignore"
+	// FieldValidationWarn responds with a warning, but successfully serve the request
+	FieldValidationWarn = "Warn"
+	// FieldValidationStrict fails the request on unknown/duplicate fields
+	FieldValidationStrict = "Strict"
+)
+
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -544,6 +553,13 @@ type CreateOptions struct {
 	// as defined by https://golang.org/pkg/unicode/#IsPrint.
 	// +optional
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,3,name=fieldManager"`
+
+	// fieldValidation determines how the server should respond to
+	// unknown/duplicate fields in the object in the request.
+	// Introduced in 1.23, older servers will ignore this param and
+	// not perform any server side field validation.
+	// +optional
+	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,4,name=fieldValidation"`
 }
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
@@ -577,6 +593,13 @@ type PatchOptions struct {
 	// types (JsonPatch, MergePatch, StrategicMergePatch).
 	// +optional
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,3,name=fieldManager"`
+
+	// fieldValidation determines how the server should respond to
+	// unknown/duplicate fields in the patch.
+	// Introduced in 1.23, older servers will ignore this param and
+	// not perform any server side field validation.
+	// +optional
+	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,4,name=fieldValidation"`
 }
 
 // ApplyOptions may be provided when applying an API object.
@@ -632,6 +655,13 @@ type UpdateOptions struct {
 	// as defined by https://golang.org/pkg/unicode/#IsPrint.
 	// +optional
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,2,name=fieldManager"`
+
+	// fieldValidation determines how the server should respond to
+	// unknown/duplicate fields in the object in the update.
+	// Introduced in 1.23, older servers will ignore this param and
+	// not perform any server side field validation.
+	// +optional
+	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,3,name=fieldValidation"`
 }
 
 // Preconditions must be fulfilled before an operation (update, delete, etc.) is carried out.

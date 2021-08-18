@@ -19,6 +19,7 @@ package handlers
 import (
 	"context"
 	"encoding/hex"
+	goerrors "errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -455,6 +456,54 @@ func limitedReadBody(req *http.Request, limit int64) ([]byte, error) {
 
 func isDryRun(url *url.URL) bool {
 	return len(url.Query()["dryRun"]) != 0
+}
+
+// fieldValidation checks that the field validation feature is enabled and if so
+// that the content type is supported.
+func fieldValidation(req *http.Request, s runtime.SerializerInfo) (string, error) {
+	var validationDirective string
+	if fv := req.URL.Query()["fieldValidation"]; len(fv) > 0 {
+		validationDirective = fv[0]
+	}
+	if validationDirective == metav1.FieldValidationWarn || validationDirective == metav1.FieldValidationStrict {
+		if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) {
+			return "", errors.NewBadRequest("the StrictFieldValidation feature is disabled")
+		}
+		if s.StrictSerializer == nil {
+			contentType := req.Header.Get("Content-Type")
+			return "", errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter does not have a strict serializer for content type: %s", contentType))
+		}
+	}
+	return validationDirective, nil
+}
+
+// parseYAMLWarnings takes the strict decoding errors from the yaml decoder's output
+// and parses each individual warnings, or leaves the warning as is if
+// it does not look like a yaml strict decoding error.
+func parseYAMLWarnings(err error) []error {
+	if strings.Contains(err.Error(), "unmarshal errors") {
+		unmarshalErrStrings := strings.Split(err.Error(), "\n")[1:]
+		unmarshalErrs := make([]error, len(unmarshalErrStrings))
+		for i, s := range unmarshalErrStrings {
+			unmarshalErrs[i] = goerrors.New(strings.TrimSpace(s))
+		}
+		return unmarshalErrs
+	} else {
+		return []error{err}
+	}
+}
+
+// addStrictDecodingWarnings confirms that the error is a strict decoding error
+// and if so adds a warning for each strict decoding violation.
+func addStrictDecodingWarnings(requestContext context.Context, err runtime.StrictError) bool {
+	for _, e := range err.StrictErrors() {
+		yamlWarnings := parseYAMLWarnings(e)
+		for _, w := range yamlWarnings {
+			warning.AddWarning(requestContext, "", w.Error())
+		}
+
+	}
+	return true
 }
 
 type etcdError interface {

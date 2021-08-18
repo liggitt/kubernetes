@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -826,12 +827,13 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 
 		// CRDs explicitly do not support protobuf, but some objects returned by the API server do
 		negotiatedSerializer := unstructuredNegotiatedSerializer{
-			typer:                 typer,
-			creator:               creator,
-			converter:             safeConverter,
-			structuralSchemas:     structuralSchemas,
-			structuralSchemaGK:    kind.GroupKind(),
-			preserveUnknownFields: crd.Spec.PreserveUnknownFields,
+			typer:                   typer,
+			creator:                 creator,
+			converter:               safeConverter,
+			structuralSchemas:       structuralSchemas,
+			structuralSchemaGK:      kind.GroupKind(),
+			preserveUnknownFields:   crd.Spec.PreserveUnknownFields,
+			returnUnknownFieldPaths: true,
 		}
 		var standardSerializers []runtime.SerializerInfo
 		for _, s := range negotiatedSerializer.SupportedMediaTypes() {
@@ -1017,9 +1019,10 @@ type unstructuredNegotiatedSerializer struct {
 	creator   runtime.ObjectCreater
 	converter runtime.ObjectConvertor
 
-	structuralSchemas     map[string]*structuralschema.Structural // by version
-	structuralSchemaGK    schema.GroupKind
-	preserveUnknownFields bool
+	structuralSchemas       map[string]*structuralschema.Structural // by version
+	structuralSchemaGK      schema.GroupKind
+	preserveUnknownFields   bool
+	returnUnknownFieldPaths bool
 }
 
 func (s unstructuredNegotiatedSerializer) SupportedMediaTypes() []runtime.SerializerInfo {
@@ -1031,6 +1034,9 @@ func (s unstructuredNegotiatedSerializer) SupportedMediaTypes() []runtime.Serial
 			EncodesAsText:    true,
 			Serializer:       json.NewSerializer(json.DefaultMetaFactory, s.creator, s.typer, false),
 			PrettySerializer: json.NewSerializer(json.DefaultMetaFactory, s.creator, s.typer, true),
+			StrictSerializer: json.NewSerializerWithOptions(json.DefaultMetaFactory, s.creator, s.typer, json.SerializerOptions{
+				Strict: true,
+			}),
 			StreamSerializer: &runtime.StreamSerializerInfo{
 				EncodesAsText: true,
 				Serializer:    json.NewSerializer(json.DefaultMetaFactory, s.creator, s.typer, false),
@@ -1043,6 +1049,10 @@ func (s unstructuredNegotiatedSerializer) SupportedMediaTypes() []runtime.Serial
 			MediaTypeSubType: "yaml",
 			EncodesAsText:    true,
 			Serializer:       json.NewYAMLSerializer(json.DefaultMetaFactory, s.creator, s.typer),
+			StrictSerializer: json.NewSerializerWithOptions(json.DefaultMetaFactory, s.creator, s.typer, json.SerializerOptions{
+				Yaml:   true,
+				Strict: true,
+			}),
 		},
 		{
 			MediaType:        "application/vnd.kubernetes.protobuf",
@@ -1062,7 +1072,7 @@ func (s unstructuredNegotiatedSerializer) EncoderForVersion(encoder runtime.Enco
 }
 
 func (s unstructuredNegotiatedSerializer) DecoderToVersion(decoder runtime.Decoder, gv runtime.GroupVersioner) runtime.Decoder {
-	d := schemaCoercingDecoder{delegate: decoder, validator: unstructuredSchemaCoercer{structuralSchemas: s.structuralSchemas, structuralSchemaGK: s.structuralSchemaGK, preserveUnknownFields: s.preserveUnknownFields}}
+	d := schemaCoercingDecoder{delegate: decoder, validator: unstructuredSchemaCoercer{structuralSchemas: s.structuralSchemas, structuralSchemaGK: s.structuralSchemaGK, preserveUnknownFields: s.preserveUnknownFields, returnUnknownFieldPaths: s.returnUnknownFieldPaths}}
 	return versioning.NewCodec(nil, d, runtime.UnsafeObjectConvertor(Scheme), Scheme, Scheme, unstructuredDefaulter{
 		delegate:           Scheme,
 		structuralSchemas:  s.structuralSchemas,
@@ -1217,12 +1227,40 @@ var _ runtime.Decoder = schemaCoercingDecoder{}
 
 func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
 	obj, gvk, err := d.delegate.Decode(data, defaults, into)
+	var decodingStrictErrs []error
 	if err != nil {
-		return nil, gvk, err
+		if !runtime.IsStrictDecodingError(err) {
+			return nil, gvk, err
+		}
+		decodeStrictJSONErr, ok := runtime.AsStrictDecodingError(err)
+		if !ok {
+			// unreachable
+			return nil, gvk, fmt.Errorf("error both is and is not a strict decoding error: %v", err)
+		}
+		decodingStrictErrs = decodeStrictJSONErr.Errors()
 	}
 	if u, ok := obj.(*unstructured.Unstructured); ok {
-		if err := d.validator.apply(u); err != nil {
+		unknownFields, preserved, err := d.validator.apply(u)
+		if err != nil {
 			return nil, gvk, err
+		}
+		if len(unknownFields) > 0 && d.validator.returnUnknownFieldPaths {
+			applyStrictErrs := make([]error, len(unknownFields))
+			for i, unknownField := range unknownFields {
+				applyStrictErrs[i] = fmt.Errorf(`unknown field "%s"`, unknownField)
+			}
+			// when apply indicates that preserved is true,
+			// we need to return a special type of strict decoding error
+			// (PreservedDecodingError) so that the handler knows
+			// that it should warn instead of error in the strict case
+			// in order to maintain compatibility with how
+			// preserve unknown fields was handled prior to server-side
+			// validation.
+			if preserved {
+				return obj, gvk, runtime.NewPreservedDecodingError(append(decodingStrictErrs, applyStrictErrs...))
+			}
+			return obj, gvk, runtime.NewStrictDecodingError(append(decodingStrictErrs, applyStrictErrs...))
+
 		}
 	}
 
@@ -1244,7 +1282,7 @@ func (v schemaCoercingConverter) Convert(in, out, context interface{}) error {
 	}
 
 	if u, ok := out.(*unstructured.Unstructured); ok {
-		if err := v.validator.apply(u); err != nil {
+		if _, _, err := v.validator.apply(u); err != nil {
 			return err
 		}
 	}
@@ -1259,7 +1297,7 @@ func (v schemaCoercingConverter) ConvertToVersion(in runtime.Object, gv runtime.
 	}
 
 	if u, ok := out.(*unstructured.Unstructured); ok {
-		if err := v.validator.apply(u); err != nil {
+		if _, _, err := v.validator.apply(u); err != nil {
 			return nil, err
 		}
 	}
@@ -1281,39 +1319,64 @@ type unstructuredSchemaCoercer struct {
 	dropInvalidMetadata bool
 	repairGeneration    bool
 
-	structuralSchemas     map[string]*structuralschema.Structural
-	structuralSchemaGK    schema.GroupKind
-	preserveUnknownFields bool
+	structuralSchemas       map[string]*structuralschema.Structural
+	structuralSchemaGK      schema.GroupKind
+	preserveUnknownFields   bool
+	returnUnknownFieldPaths bool
 }
 
-func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
+func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) (unknownFieldPaths []string, preserved bool, err error) {
 	// save implicit meta fields that don't have to be specified in the validation spec
 	kind, foundKind, err := unstructured.NestedString(u.UnstructuredContent(), "kind")
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 	apiVersion, foundApiVersion, err := unstructured.NestedString(u.UnstructuredContent(), "apiVersion")
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 	objectMeta, foundObjectMeta, err := schemaobjectmeta.GetObjectMeta(u.Object, v.dropInvalidMetadata)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 
 	// compare group and kind because also other object like DeleteCollection options pass through here
 	gv, err := schema.ParseGroupVersion(apiVersion)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
+
 	if gv.Group == v.structuralSchemaGK.Group && kind == v.structuralSchemaGK.Kind {
-		if !v.preserveUnknownFields {
-			// TODO: switch over pruning and coercing at the root to  schemaobjectmeta.Coerce too
-			structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
-			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
+		// For strict and warning validations
+		// (i.e. when v.returnUnknwonFIeldPaths is true)
+		// we must prune twice (with and without pruneOnPreserve set)
+		// and compare the pruned fields.
+		//
+		// If the pruned fields are different it means that at least
+		// one sub-object has "x-kubernetes-preserve-unknown-fields"
+		// set to true and we should notify the caller via the `preserved`
+		// field so that they can warn instead of error.
+		if v.returnUnknownFieldPaths {
+			objCopy := u.DeepCopy()
+			unknownFieldPaths = structuralpruning.PruneWithOptions(objCopy.Object, v.structuralSchemas[gv.Version],
+				structuralpruning.PruneOptions{
+					IsResourceRoot:               false,
+					PruneOnPreserveUnknownFields: true,
+				})
+			sort.Strings(unknownFieldPaths)
 		}
+		if !v.preserveUnknownFields {
+			// TODO: switch over pruning and coercing at the root to schemaobjectmeta.Coerce too
+			pruned := structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
+			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
+			sort.Strings(pruned)
+			preserved = !reflect.DeepEqual(pruned, unknownFieldPaths)
+		} else {
+			preserved = true
+		}
+
 		if err := schemaobjectmeta.Coerce(nil, u.Object, v.structuralSchemas[gv.Version], false, v.dropInvalidMetadata); err != nil {
-			return err
+			return nil, false, err
 		}
 		// fixup missing generation in very old CRs
 		if v.repairGeneration && objectMeta.Generation == 0 {
@@ -1330,11 +1393,11 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 	}
 	if foundObjectMeta {
 		if err := schemaobjectmeta.SetObjectMeta(u.Object, objectMeta); err != nil {
-			return err
+			return nil, false, err
 		}
 	}
 
-	return nil
+	return unknownFieldPaths, preserved, nil
 }
 
 // hasServedCRDVersion returns true if the given version is in the list of CRD's versions and the Served flag is set.
