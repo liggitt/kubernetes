@@ -71,7 +71,8 @@ const (
 type RequestScope struct {
 	Namer ScopeNamer
 
-	Serializer runtime.NegotiatedSerializer
+	StrictSerializer runtime.NegotiatedSerializer
+	Serializer       runtime.NegotiatedSerializer
 	runtime.ParameterCodec
 
 	// StandardSerializers, if set, restricts which serializers can be used when
