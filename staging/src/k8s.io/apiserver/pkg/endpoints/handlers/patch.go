@@ -70,16 +70,16 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			return
 		}
 
-		// TODO: put behind feature gate?
-		validationDirective, err := fieldValidation(req)
-		if err != nil {
-			scope.err(err, w, req)
-			return
-		}
-		if validationDirective == strictFieldValidation {
-			scope.err(errors.NewBadRequest("strict validation is not supported yet"), w, req)
-			return
-		}
+		//// TODO: put behind feature gate?
+		//validationDirective, err := fieldValidation(req)
+		//if err != nil {
+		//	scope.err(err, w, req)
+		//	return
+		//}
+		//if validationDirective == strictFieldValidation {
+		//	scope.err(errors.NewBadRequest("strict validation is not supported yet"), w, req)
+		//	return
+		//}
 
 		// Do this first, otherwise name extraction can fail for unrecognized content types
 		// TODO: handle this in negotiation
@@ -152,7 +152,12 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 		gv := scope.Kind.GroupVersion()
 
 		scopeSerializer := scope.Serializer
-		if strictValidation(req.URL) {
+		validationDirective, err := fieldValidation(req)
+		if err != nil {
+			scope.err(err, w, req)
+			return
+		}
+		if validationDirective == strictFieldValidation {
 			scopeSerializer = scope.StrictSerializer
 		}
 
