@@ -2220,6 +2220,45 @@ func TestConflictingData(t *testing.T) {
 				}),
 			},
 		},
+		{
+			// https://github.com/kubernetes/kubernetes/issues/90692
+			name: "delete of object with foreground finalizer",
+			steps: []step{
+				// setup
+				createObjectInClient("", "v1", "pods", "ns1", tweakMetadataObj(makeMetadataObj(pod1ns1), addMetadataObjFinalizers("foregroundDeletion"), setMetadataObjDeletionTimestamp(metav1.Now()))),
+
+				// 1,2: observe child
+				processEvent(tweakEvent(makeAddEvent(pod1ns1))),
+				assertState(state{
+					graphNodes: []*node{makeNode(pod1ns1)},
+				}),
+
+				// 3,4: observe update with deletion timestamp
+				processEvent(tweakEvent(makeUpdateEvent(pod1ns1), addEventFinalizers("foregroundDeletion"), setEventDeletionTimestamp(metav1.Now()))),
+				assertState(state{
+					graphNodes: []*node{makeNode(pod1ns1)},
+					pendingAttemptToDelete: []*node{
+						makeNode(pod1ns1), // object with deletion timestamp and foreground finalizer enqueued
+					},
+				}),
+
+				// 5,6: process delete, remove finalizer
+				processAttemptToDelete(1),
+				assertState(state{
+					graphNodes: []*node{makeNode(pod1ns1)},
+					clientActions: []string{
+						"get /v1, Resource=pods ns=ns1 name=podname1",                                                               // lookup from attemptToDeleteItem
+						"get /v1, Resource=pods ns=ns1 name=podname1",                                                               // lookup from removeFinalizer
+						`patch /v1, Resource=pods ns=ns1 name=podname1 patch={"metadata":{"resourceVersion":"","finalizers":null}}`, // removeFinalizer
+					},
+				}),
+
+				// 7,8,9: simulate server receiving patch
+				deleteObjectFromClient("", "v1", "pods", "ns1", "podname1"),
+				processEvent(tweakEvent(makeDeleteEvent(pod1ns1), setEventDeletionTimestamp(metav1.Now()))),
+				assertState(state{}),
+			},
+		},
 	}
 
 	alwaysStarted := make(chan struct{})
@@ -2348,6 +2387,42 @@ func makeAddEvent(identity objectReference, owners ...objectReference) *event {
 	}
 }
 
+func makeUpdateEvent(identity objectReference, owners ...objectReference) *event {
+	gv, err := schema.ParseGroupVersion(identity.APIVersion)
+	if err != nil {
+		panic(err)
+	}
+	return &event{
+		eventType: updateEvent,
+		gvk:       gv.WithKind(identity.Kind),
+		obj:       makeObj(identity, owners...),
+		oldObj:    makeObj(identity, owners...),
+	}
+}
+
+type eventTweak func(*event) *event
+
+func setEventDeletionTimestamp(timestamp metav1.Time) eventTweak {
+	return func(e *event) *event {
+		e.obj.(*metaonly.MetadataOnlyObject).DeletionTimestamp = &timestamp
+		return e
+	}
+}
+
+func addEventFinalizers(finalizers ...string) eventTweak {
+	return func(e *event) *event {
+		e.obj.(*metaonly.MetadataOnlyObject).Finalizers = append(e.obj.(*metaonly.MetadataOnlyObject).Finalizers, finalizers...)
+		return e
+	}
+}
+
+func tweakEvent(e *event, tweaks ...eventTweak) *event {
+	for _, tweak := range tweaks {
+		e = tweak(e)
+	}
+	return e
+}
+
 func makeVirtualDeleteEvent(identity objectReference, owners ...objectReference) *event {
 	e := makeDeleteEvent(identity, owners...)
 	e.virtual = true
@@ -2384,6 +2459,29 @@ func makeMetadataObj(identity objectReference, owners ...objectReference) *metav
 	}
 	for _, owner := range owners {
 		obj.ObjectMeta.OwnerReferences = append(obj.ObjectMeta.OwnerReferences, owner.OwnerReference)
+	}
+	return obj
+}
+
+type metadataObjTweak func(*metav1.PartialObjectMetadata) *metav1.PartialObjectMetadata
+
+func addMetadataObjFinalizers(finalizers ...string) metadataObjTweak {
+	return func(obj *metav1.PartialObjectMetadata) *metav1.PartialObjectMetadata {
+		obj.Finalizers = append(obj.Finalizers, finalizers...)
+		return obj
+	}
+}
+
+func setMetadataObjDeletionTimestamp(timestamp metav1.Time) metadataObjTweak {
+	return func(obj *metav1.PartialObjectMetadata) *metav1.PartialObjectMetadata {
+		obj.DeletionTimestamp = &timestamp
+		return obj
+	}
+}
+
+func tweakMetadataObj(obj *metav1.PartialObjectMetadata, tweaks ...metadataObjTweak) *metav1.PartialObjectMetadata {
+	for _, tweak := range tweaks {
+		obj = tweak(obj)
 	}
 	return obj
 }
@@ -2510,6 +2608,29 @@ func createObjectInClient(group, version, resource, namespace string, obj *metav
 	}
 }
 
+func updateObjectInClient(group, version, resource, namespace string, obj *metav1.PartialObjectMetadata) step {
+	return step{
+		name: "updateObjectInClient",
+		check: func(ctx stepContext) {
+			ctx.t.Helper()
+			if len(ctx.metadataClient.Actions()) > 0 {
+				ctx.t.Fatal("cannot call updateObjectInClient with pending client actions, call assertClientActions to check and clear first")
+			}
+			gvr := schema.GroupVersionResource{Group: group, Version: version, Resource: resource}
+			var c fakemetadata.MetadataClient
+			if namespace == "" {
+				c = ctx.metadataClient.Resource(gvr).(fakemetadata.MetadataClient)
+			} else {
+				c = ctx.metadataClient.Resource(gvr).Namespace(namespace).(fakemetadata.MetadataClient)
+			}
+			if _, err := c.UpdateFake(obj, metav1.UpdateOptions{}); err != nil {
+				ctx.t.Fatal(err)
+			}
+			ctx.metadataClient.ClearActions()
+		},
+	}
+}
+
 func deleteObjectFromClient(group, version, resource, namespace, name string) step {
 	return step{
 		name: "deleteObjectFromClient",
@@ -2600,7 +2721,10 @@ func assertState(s state) step {
 					if action.GetNamespace() != "" {
 						s += " ns=" + action.GetNamespace()
 					}
-					if get, ok := action.(clientgotesting.GetAction); ok && get.GetName() != "" {
+					if patch, ok := action.(clientgotesting.PatchAction); ok && patch.GetName() != "" {
+						s += " name=" + patch.GetName()
+						s += " patch=" + string(patch.GetPatch())
+					} else if get, ok := action.(clientgotesting.GetAction); ok && get.GetName() != "" {
 						s += " name=" + get.GetName()
 					}
 					actualClientActions = append(actualClientActions, s)
