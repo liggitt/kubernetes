@@ -17,8 +17,10 @@ limitations under the License.
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
@@ -50,6 +52,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -61,6 +64,11 @@ const (
 // PatchResource returns a function that will handle a resource patch.
 func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interface, patchTypes []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		klog.Warningf("handling PatchResource")
+		klog.Warningf("req: %v\n", req)
+		bodyBytes, _ := ioutil.ReadAll(req.Body)
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+		klog.Warningf("body: %v\n", string(bodyBytes))
 		// For performance tracking purposes.
 		trace := utiltrace.New("Patch", traceFields(req)...)
 		defer trace.LogIfLong(500 * time.Millisecond)
@@ -229,6 +237,7 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			updateValidation: rest.AdmissionToValidateObjectUpdateFunc(admit, staticUpdateAttributes, scope),
 			admissionCheck:   mutatingAdmission,
 
+			// TODO: define codec as strict or not-strict based on request
 			codec: codec,
 
 			options: options,
@@ -241,6 +250,8 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 
 			trace: trace,
 		}
+
+		klog.Warningf("patchType: %v", patchType)
 
 		result, wasCreated, err := p.patchResource(ctx, scope)
 		if err != nil {
@@ -292,6 +303,9 @@ type patcher struct {
 	admissionCheck   admission.MutationInterface
 
 	codec runtime.Codec
+	// don't think this is necessary because we construct the patcher on each request
+	// so we can multiplex the codec between/strict non-strict
+	//strictCodec runtime.Codec
 
 	options *metav1.PatchOptions
 
@@ -323,6 +337,7 @@ type jsonPatcher struct {
 }
 
 func (p *jsonPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (runtime.Object, error) {
+	klog.Warningf("jsonPatch aPTCO")
 	// Encode will convert & return a versioned object in JSON.
 	currentObjJS, err := runtime.Encode(p.codec, currentObject)
 	if err != nil {
