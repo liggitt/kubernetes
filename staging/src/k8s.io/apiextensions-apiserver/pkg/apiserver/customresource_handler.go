@@ -235,6 +235,7 @@ var longRunningFilter = genericfilters.BasicLongRunningRequestCheck(sets.NewStri
 var possiblyAcrossAllNamespacesVerbs = sets.NewString("list", "watch")
 
 func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	klog.Warningf("ServeHTTP called on crdHandler")
 	ctx := req.Context()
 	requestInfo, ok := apirequest.RequestInfoFrom(ctx)
 	if !ok {
@@ -387,6 +388,8 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (r *crdHandler) serveResource(w http.ResponseWriter, req *http.Request, requestInfo *apirequest.RequestInfo, crdInfo *crdInfo, crd *apiextensionsv1.CustomResourceDefinition, terminating bool, supportedTypes []string) http.HandlerFunc {
+	klog.Warningf("serveResource called")
+	// TODO should we multiplext requestScope based on the query param?
 	requestScope := crdInfo.requestScopes[requestInfo.APIVersion]
 	storage := crdInfo.storages[requestInfo.APIVersion].CustomResource
 
@@ -417,6 +420,7 @@ func (r *crdHandler) serveResource(w http.ResponseWriter, req *http.Request, req
 	case "update":
 		return handlers.UpdateResource(storage, requestScope, r.admission)
 	case "patch":
+		klog.Warningf("returning handlers.PatchResource")
 		return handlers.PatchResource(storage, requestScope, r.admission, supportedTypes)
 	case "delete":
 		allowsOptions := true
@@ -1339,6 +1343,8 @@ type unstructuredSchemaCoercer struct {
 }
 
 func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
+	klog.Warningf("coercer apply")
+	klog.Warningf("uFD: %v", v.unknownFieldsDirective)
 	// save implicit meta fields that don't have to be specified in the validation spec
 	kind, foundKind, err := unstructured.NestedString(u.UnstructuredContent(), "kind")
 	if err != nil {
@@ -1366,6 +1372,7 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 				return fmt.Errorf("failed with unknown fields: %v", pruned)
 			}
 			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
+			klog.Warningf("u Object post prune, %v", u.Object)
 		}
 		if err := schemaobjectmeta.Coerce(nil, u.Object, v.structuralSchemas[gv.Version], false, v.dropInvalidMetadata); err != nil {
 			return err
