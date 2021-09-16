@@ -118,6 +118,9 @@ func NewTestUnstructuredConverter(comparison conversion.Equalities) Unstructured
 // FromUnstructured converts an object from map[string]interface{} representation into a concrete type.
 // It uses encoding/json/Unmarshaler if object implements it or reflection if not.
 func (c *unstructuredConverter) FromUnstructured(u map[string]interface{}, obj interface{}) error {
+	klog.Warningf("FromUnstructured\n")
+	c.mismatchDetection = true
+	klog.Warningf("mismatchDetection?: %t", c.mismatchDetection)
 	t := reflect.TypeOf(obj)
 	value := reflect.ValueOf(obj)
 	if t.Kind() != reflect.Ptr || value.IsNil() {
@@ -125,8 +128,10 @@ func (c *unstructuredConverter) FromUnstructured(u map[string]interface{}, obj i
 	}
 	err := fromUnstructured(reflect.ValueOf(u), value.Elem())
 	if c.mismatchDetection {
+		klog.Warningf("detecting mismatches")
 		newObj := reflect.New(t.Elem()).Interface()
 		newErr := fromUnstructuredViaJSON(u, newObj)
+		klog.Warningf("newErr: %v", newErr)
 		if (err != nil) != (newErr != nil) {
 			klog.Fatalf("FromUnstructured unexpected error for %v: error: %v", u, err)
 		}
@@ -146,13 +151,20 @@ func fromUnstructuredViaJSON(u map[string]interface{}, obj interface{}) error {
 }
 
 func fromUnstructured(sv, dv reflect.Value) error {
+	klog.Warningf("fromUnstructured\n")
+	klog.Warningf("sv type: %v\n", sv.Type())
+	klog.Warningf("sv: %v\n", sv)
+	klog.Warningf("dv type: %v\n", dv.Type())
+	klog.Warningf("dv: %+v\n", dv)
 	sv = unwrapInterface(sv)
 	if !sv.IsValid() {
 		dv.Set(reflect.Zero(dv.Type()))
+		klog.Warningf("sv not valid returning nil")
 		return nil
 	}
 	st, dt := sv.Type(), dv.Type()
 
+	klog.Warningf("dt kind: %v\n", dt.Kind())
 	switch dt.Kind() {
 	case reflect.Map, reflect.Slice, reflect.Ptr, reflect.Struct, reflect.Interface:
 		// Those require non-trivial conversion.
@@ -213,13 +225,17 @@ func fromUnstructured(sv, dv reflect.Value) error {
 
 	switch dt.Kind() {
 	case reflect.Map:
-		return mapFromUnstructured(sv, dv)
+		err := mapFromUnstructured(sv, dv)
+		klog.Warningf("map final dv: %v\n", dv)
+		return err
 	case reflect.Slice:
 		return sliceFromUnstructured(sv, dv)
 	case reflect.Ptr:
 		return pointerFromUnstructured(sv, dv)
 	case reflect.Struct:
-		return structFromUnstructured(sv, dv)
+		err := structFromUnstructured(sv, dv)
+		klog.Warningf("struct final dv: %v\n", dv)
+		return err
 	case reflect.Interface:
 		return interfaceFromUnstructured(sv, dv)
 	default:
@@ -287,11 +303,15 @@ func mapFromUnstructured(sv, dv reflect.Value) error {
 
 	if sv.IsNil() {
 		dv.Set(reflect.Zero(dt))
+		klog.Warningf("mFU sv is nil, returning nil")
 		return nil
 	}
 	dv.Set(reflect.MakeMap(dt))
 	for _, key := range sv.MapKeys() {
 		value := reflect.New(dt.Elem()).Elem()
+		klog.Warningf("mFU")
+		klog.Warningf("key: %v", key)
+		klog.Warningf("value: %v\n", value)
 		if val := unwrapInterface(sv.MapIndex(key)); val.IsValid() {
 			if err := fromUnstructured(val, value); err != nil {
 				return err
@@ -305,6 +325,7 @@ func mapFromUnstructured(sv, dv reflect.Value) error {
 			dv.SetMapIndex(key.Convert(dt.Key()), value)
 		}
 	}
+	klog.Warningf("mFU done successfully")
 	return nil
 }
 
@@ -365,31 +386,51 @@ func pointerFromUnstructured(sv, dv reflect.Value) error {
 }
 
 func structFromUnstructured(sv, dv reflect.Value) error {
+	klog.Warningf("sFU!")
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore struct from: %v", st.Kind())
 	}
+	svLength := len(sv.MapKeys())
+	klog.Warningf("sv length: %d\n", svLength)
 
+	klog.Warningf("dt.NumField(): %d\n", dt.NumField())
 	for i := 0; i < dt.NumField(); i++ {
 		fieldInfo := fieldInfoFromField(dt, i)
 		fv := dv.Field(i)
+		klog.Warningf("sUF i: %d fieldInfo: %+v\n", i, fieldInfo)
 
 		if len(fieldInfo.name) == 0 {
 			// This field is inlined.
 			if err := fromUnstructured(sv, fv); err != nil {
 				return err
 			}
+			klog.Warningf("pop sv len 0")
+			svLength--
+			// else remove the field from the
 		} else {
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
+			klog.Warningf("sFU value: %v\n", value)
 			if value.IsValid() {
+				klog.Warningf("valid")
 				if err := fromUnstructured(value, fv); err != nil {
 					return err
 				}
+				klog.Warningf("pop sv len 1")
+				svLength--
 			} else {
+				// TODO: this doesn't necessarily mean don't pop,
+				// we need to check if sv actually contains the field (but with a nil value)
+				// see smp-mergemap-4.log search for
+				// sUF i: 7 fieldInfo: &{name:creation (the nil one line 17914)
+				// and
+				// final sv length 1, value: map[creati (line 17959)
+				klog.Warningf("invalid, don't pop")
 				fv.Set(reflect.Zero(fv.Type()))
 			}
 		}
 	}
+	klog.Warningf("final sv length: %d, value: %v\n", svLength, sv)
 	return nil
 }
 

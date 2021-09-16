@@ -89,6 +89,7 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			contentType = contentType[:idx]
 		}
 		patchType := types.PatchType(contentType)
+		klog.Warningf("patchType: %v", patchType)
 
 		// Ensure the patchType is one we support
 		if !sets.NewString(patchTypes...).Has(contentType) {
@@ -413,6 +414,7 @@ type smpPatcher struct {
 }
 
 func (p *smpPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (runtime.Object, error) {
+	klog.Warningf("smpPatch aPTCO")
 	// Since the patch is applied on versioned objects, we need to convert the
 	// current object to versioned representation first.
 	currentVersionedObject, err := p.unsafeConvertor.ConvertToVersion(currentObject, p.kind.GroupVersion())
@@ -488,6 +490,7 @@ func strategicPatchObject(
 	objToUpdate runtime.Object,
 	schemaReferenceObj runtime.Object,
 ) error {
+	klog.Warningf("sPO")
 	originalObjMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(originalObject)
 	if err != nil {
 		return err
@@ -651,19 +654,31 @@ func applyPatchToObject(
 	objToUpdate runtime.Object,
 	schemaReferenceObj runtime.Object,
 ) error {
+	klog.Warningf("aPTO")
+	// Note: objToUpdate always starts out here as an empty deployment
+	// even if it exists (it has to exist for this to be called because it's a PATCH, duh)
+	klog.Warningf("objToUpdate beginning: %v\n", objToUpdate)
 	patchedObjMap, err := strategicpatch.StrategicMergeMapPatch(originalMap, patchMap, schemaReferenceObj)
 	if err != nil {
 		return interpretStrategicMergePatchError(err)
 	}
+	// foo still exists here
+	klog.Warningf("patchedObjMap after SMMP: %v\n", patchedObjMap)
 
 	// Rather than serialize the patched map to JSON, then decode it to an object, we go directly from a map to an object
+	// Note: this is what removes the invalid foo field
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
 		return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 			field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
 		})
 	}
+	// foo still exists here
+	klog.Warningf("patchedObjMap after FU: %v\n", patchedObjMap)
+	// foo GONE HERE
+	klog.Warningf("objToUpdate after FU: %v\n", objToUpdate)
 	// Decoding from JSON to a versioned object would apply defaults, so we do the same here
 	defaulter.Default(objToUpdate)
+	klog.Warningf("objToUpdate after Default: %v\n", objToUpdate)
 
 	return nil
 }
