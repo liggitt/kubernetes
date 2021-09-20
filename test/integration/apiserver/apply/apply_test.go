@@ -45,6 +45,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/controlplane"
 	"k8s.io/kubernetes/test/integration/framework"
 )
@@ -1233,6 +1234,144 @@ func TestClearManagedFieldsWithMergePatch(t *testing.T) {
 	if managedFields := accessor.GetManagedFields(); len(managedFields) != 0 {
 		t.Fatalf("Failed to clear managedFields, got: %v", managedFields)
 	}
+}
+
+func TestSMPValidation(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, genericfeatures.ServerSideApply, true)()
+
+	_, client, closeFn := setup(t)
+	defer closeFn()
+
+	_, err := client.CoreV1().RESTClient().Patch(types.ApplyPatchType).
+		AbsPath("/apis/apps/v1").
+		Namespace("default").
+		Resource("deployments").
+		Name("test-deployment").
+		Param("fieldManager", "apply_test").
+		Body([]byte(`{
+		"apiVersion": "apps/v1",
+		"kind": "Deployment",
+		"metadata": {
+			"name": "test-deployment",
+			"labels": {"app": "nginx"}
+                },
+		"spec": {
+			"selector": {
+				"matchLabels": {
+					 "app": "nginx"
+				}
+			},
+			"template": {
+				"metadata": {
+					"labels": {
+						"app": "nginx"
+					}
+				},
+				"spec": {
+					"containers": [{
+						"name":  "nginx",
+						"image": "nginx:latest"
+					}]
+				}
+			}
+		}
+		}`)).
+		Do(context.TODO()).
+		Get()
+	if err != nil {
+		t.Fatalf("Failed to create object using Apply patch: %v", err)
+	}
+
+	obj, err := client.CoreV1().RESTClient().Patch(types.StrategicMergePatchType).
+		AbsPath("/apis/apps/v1").
+		Namespace("default").
+		Resource("deployments").
+		Name("test-deployment").
+		Body([]byte(`{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`)).Do(context.TODO()).Get()
+	if err != nil {
+		t.Fatalf("Failed to patch object: %v", err)
+	}
+
+	klog.Warningf("final obj: %v\n", obj)
+
+	//object, err := client.CoreV1().RESTClient().Get().Namespace("default").Resource("configmaps").Name("test-cm").Do(context.TODO()).Get()
+	//if err != nil {
+	//	t.Fatalf("Failed to retrieve object: %v", err)
+	//}
+
+	//accessor, err := meta.Accessor(object)
+	//if err != nil {
+	//	t.Fatalf("Failed to get meta accessor: %v", err)
+	//}
+
+	//if managedFields := accessor.GetManagedFields(); len(managedFields) != 0 {
+	//	t.Fatalf("Failed to clear managedFields, got: %v", managedFields)
+	//}
+
+	//if labels := accessor.GetLabels(); len(labels) < 1 {
+	//	t.Fatalf("Expected other fields to stay untouched, got: %v", object)
+	//}
+}
+func TestCMSMPValidationCM(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, genericfeatures.ServerSideApply, true)()
+
+	_, client, closeFn := setup(t)
+	defer closeFn()
+
+	_, err := client.CoreV1().RESTClient().Patch(types.ApplyPatchType).
+		Namespace("default").
+		Resource("configmaps").
+		Name("test-cm").
+		Param("fieldManager", "apply_test").
+		Body([]byte(`{
+			"apiVersion": "v1",
+			"kind": "ConfigMap",
+			"metadata": {
+				"name": "test-cm",
+				"namespace": "default",
+				"labels": {
+					"test-label": "test"
+				}
+			},
+			"data": {
+				"key": "value"
+			}
+		}`)).
+		Do(context.TODO()).
+		Get()
+	if err != nil {
+		t.Fatalf("Failed to create object using Apply patch: %v", err)
+	}
+
+	obj, err := client.CoreV1().RESTClient().Patch(types.StrategicMergePatchType).
+		Namespace("default").
+		Resource("configmaps").
+		Name("test-cm").
+		//Body([]byte(`{"metadata":{"managedFields": [{}]}}`)).Do(context.TODO()).Get()
+		Body([]byte(`{"metadata":{"foo":"bar"},"data":{"key2":"value2"}}`)).Do(context.TODO()).Get()
+	if err != nil {
+		t.Fatalf("Failed to patch object: %v", err)
+	}
+
+	klog.Warningf("final obj: %v\n", obj)
+
+	//object, err := client.CoreV1().RESTClient().Get().Namespace("default").Resource("configmaps").Name("test-cm").Do(context.TODO()).Get()
+	//if err != nil {
+	//	t.Fatalf("Failed to retrieve object: %v", err)
+	//}
+
+	//accessor, err := meta.Accessor(object)
+	//if err != nil {
+	//	t.Fatalf("Failed to get meta accessor: %v", err)
+	//}
+
+	//if managedFields := accessor.GetManagedFields(); len(managedFields) != 0 {
+	//	t.Fatalf("Failed to clear managedFields, got: %v", managedFields)
+	//}
+
+	//if labels := accessor.GetLabels(); len(labels) < 1 {
+	//	t.Fatalf("Expected other fields to stay untouched, got: %v", object)
+	//}
 }
 
 // TestClearManagedFieldsWithStrategicMergePatch verifies it's possible to clear the managedFields
