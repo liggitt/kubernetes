@@ -388,123 +388,84 @@ func pointerFromUnstructured(sv, dv reflect.Value, level int) error {
 }
 
 func structFromUnstructured(sv, dv reflect.Value, level int) error {
-	klog.Warningf("sFU!")
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore struct from: %v", st.Kind())
 	}
+	// DEBUG printing
 	svLength := len(sv.MapKeys())
+	keys := sv.MapKeys()
 	timeCode := time.Now().UnixNano()
 	klog.Warningf("START sv length: %d, tc: %d, value: %v\n", svLength, timeCode, sv)
 	klog.Warningf("dv: %+v", dv)
+	klog.Warningf("dt.NumField(): %d\n", dt.NumField())
 	klog.Warningf("tc: %d\n", timeCode)
-	for i, k := range sv.MapKeys() {
+	for i, k := range keys {
 		klog.Warningf("sv key: %+v at i: %d", k, i)
 	}
 
-	keys := sv.MapKeys()
-	// TODO: check if this is right b/c IDK if this is actually correct
 	inlined := false
 
-	klog.Warningf("dt.NumField(): %d\n", dt.NumField())
 	for i := 0; i < dt.NumField(); i++ {
+		//
+		// flatten field check
+		//
 		fieldInfo := fieldInfoFromField(dt, i)
 		fv := dv.Field(i)
-		klog.Warningf("sUF i: %d fieldInfo: %+v\n", i, fieldInfo)
+		klog.Warningf("dt field i: %d fieldInfo: %+v\n", i, fieldInfo)
 		klog.Warningf("tc: %d\n", timeCode)
 
 		if len(fieldInfo.name) == 0 {
+			// This field is inlined
 			inlined = true
-			// This field is inlined.
-			// TODO: somehow we need to know for inlined fields how many to pop
-			// because it wont always be 1 I think, could be 0,1, or more?
-			// see metadata edge case
-			// Answer: I think we might want to pop based on length of fv, because that tells us
-			klog.Warningf("pop sv len 0")
-			klog.Warningf("fieldInfoNameValue, %+v\n", fieldInfo.nameValue)
-			klog.Warningf("fv len %d", fv.Type().NumField())
-			klog.Warningf("fv: %+v\n", fv)
-			klog.Warningf("sv: %+v\n", sv)
-			svLength -= fv.Type().NumField()
+			// get the name of the field and delete it from the source's keys
 			for i := 0; i < fv.Type().NumField(); i++ {
 				curField := fv.Type().FieldByIndex([]int{i})
-				klog.Warningf("field %d is %+v\n", i, curField)
 				jsonTag := curField.Tag.Get("json")
-				klog.Warningf("jsonTag %s", jsonTag)
-				// TODO: check for string length error if <1
 				jsonName := strings.Split(jsonTag, ",")[0]
-				klog.Warningf("jsonName %s", jsonName)
-				// TODO: factor this out into deleteFromKeys()
-				for i := len(keys) - 1; i >= 0; i-- {
-					if jsonName == keys[i].String() {
-						// Delete from keys
-						klog.Warningf("pop keys inline jsonName: %s", keys[i].String())
-						keys = append(keys[:i], keys[i+1:]...)
-						klog.Warningf("keylength inline is now %d after i %d", len(keys), i)
-						klog.Warningf("tc: %d\n", timeCode)
-						break
-					}
-				}
+				klog.Warningf("deleting jsonName %s from keys at tc: %d", jsonName, timeCode)
+				deleteFromKeys(jsonName, &keys)
+				klog.Warningf("post keylength %d", len(keys))
 			}
-			klog.Warningf("svLenght is now %d after i %d", svLength, i)
-			klog.Warningf("tc: %d\n", timeCode)
+
 			if err := fromUnstructured(sv, fv, level+1); err != nil {
 				return err
 			}
-			klog.Warningf("fv post recurse: %+v\n", fv)
-			klog.Warningf("tc: %d\n", timeCode)
-			// else remove the field from the
 		} else {
-			//for i, k := range keys {
-			//	if fieldInfo.name == k.String() {
-			//		// Delete from keys
-			//		klog.Warningf("pop sv len 2 the field is %s", fieldInfo.name)
-			//		svLength--
-			//		klog.Warningf("svLenght is now %d after i %d", svLength, i)
-			//		klog.Warningf("tc: %d\n", timeCode)
-			//		break
-			//	}
-			//}
+			// delete from the source's keys
+			klog.Warningf("deleting fInV %s from keys at tc: %d", fieldInfo.nameValue, timeCode)
+			deleteFromKeys(fieldInfo.name, &keys)
+			klog.Warningf("post keylength %d", len(keys))
 
-			// TODO: factor this out into deleteFromKeys()
-			for i := len(keys) - 1; i >= 0; i-- {
-				if fieldInfo.name == keys[i].String() {
-					// Delete from keys
-					klog.Warningf("pop keys struct jsonName: %s", keys[i].String())
-					keys = append(keys[:i], keys[i+1:]...)
-					klog.Warningf("keylength struct is now %d after i %d", len(keys), i)
-					klog.Warningf("tc: %d\n", timeCode)
-					break
-				}
-			}
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
-			klog.Warningf("sFU value: %v\n", value)
-			klog.Warningf("tc: %d\n", timeCode)
 			if value.IsValid() {
-				//klog.Warningf("valid")
 				if err := fromUnstructured(value, fv, level+1); err != nil {
 					return err
 				}
-				//klog.Warningf("pop sv len 1")
-				//svLength--
-				//klog.Warningf("svLenght is now %d", svLength)
 			} else {
-				// TODO: this doesn't necessarily mean don't pop,
-				// we need to check if sv actually contains the field (but with a nil value)
-				// see smp-mergemap-4.log search for
-				// sUF i: 7 fieldInfo: &{name:creation (the nil one line 17914)
-				// and
-				// final sv length 1, value: map[creati (line 17959)
-				//klog.Warningf("invalid, don't pop")
 				fv.Set(reflect.Zero(fv.Type()))
 			}
 		}
 	}
-	klog.Warningf("END sv length: %d, value: %+v\n", svLength, sv)
-	klog.Warningf("end keys length: %d inlined: %t, value: %+v\n", len(keys), inlined, keys)
+	// TODO: error here if len(keys) > 0 meaning there is are unknown fields
+	klog.Warningf("END keys length: %d inlined: %t, value: %+v\n", len(keys), inlined, keys)
 	klog.Warningf("end dv length: %d, value: %v\n", dv.Type().NumField(), dv)
 	klog.Warningf("tc: %d\n", timeCode)
 	return nil
+}
+
+func deleteFromKeys(name string, keys *[]reflect.Value) {
+	klog.Warningf("dFK starting keylength: %d", len(*keys))
+	for i := len(*keys) - 1; i >= 0; i-- {
+		if name == (*keys)[i].String() {
+			// Delete from keys
+			klog.Warningf("pop keys struct name: %s", (*keys)[i].String())
+			*keys = append((*keys)[:i], (*keys)[i+1:]...)
+			klog.Warningf("keyslength is now %d after i %d", len(*keys), i)
+			//klog.Warningf("tc: %d\n", timeCode)
+			return
+		}
+	}
 }
 
 func interfaceFromUnstructured(sv, dv reflect.Value) error {
