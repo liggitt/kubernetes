@@ -406,6 +406,21 @@ func structFromUnstructured(sv, dv reflect.Value, level int) error {
 
 	inlined := false
 
+	// flatten fields check
+	// 1. create map of fields (set)
+	// 2. non-inlined fields: add to map
+	// 3. inlined fields: take to lower level add to map, recurse
+	//for i := 0; i < dt.NumField(); i++ {
+	//	fieldInfo := fieldInfoFromField(dt, i)
+	//	fv := dv.Field(i)
+	//	klog.Warningf("dt field i: %d fieldInfo: %+v\n", i, fieldInfo)
+	//	klog.Warningf("tc: %d\n", timeCode)
+	//	if len(fieldInfo.name) == 0 {
+	//		destFieldsSet := getFieldsSet(fv)
+	//	}
+
+	//}
+
 	for i := 0; i < dt.NumField(); i++ {
 		//
 		// flatten field check
@@ -415,6 +430,7 @@ func structFromUnstructured(sv, dv reflect.Value, level int) error {
 		klog.Warningf("dt field i: %d fieldInfo: %+v\n", i, fieldInfo)
 		klog.Warningf("tc: %d\n", timeCode)
 
+		inlinedValues := map[string]interface{}{}
 		if len(fieldInfo.name) == 0 {
 			// This field is inlined
 			inlined = true
@@ -426,9 +442,25 @@ func structFromUnstructured(sv, dv reflect.Value, level int) error {
 				klog.Warningf("deleting jsonName %s from keys at tc: %d", jsonName, timeCode)
 				deleteFromKeys(jsonName, &keys)
 				klog.Warningf("post keylength %d", len(keys))
+				svMap, ok := (sv.Interface()).(map[string]interface{})
+				if !ok {
+					klog.Warningf("couldn't cast sv map: %+v", sv)
+				}
+				if val, ok := svMap[jsonName]; ok {
+					inlinedValues[jsonName] = val
+					klog.Warningf("set inlinedValues of jsonName %s to value %+v", jsonName, val)
+				} else {
+					klog.Warningf("couldn't hydrate inlinedValues for jsonName %s", jsonName)
+				}
 			}
 
-			if err := fromUnstructured(sv, fv, level+1); err != nil {
+			// this is problem is that we pass the whole sv into fromUnstructured, we should just pass the
+			// value
+			//if err := fromUnstructured(sv, fv, level+1); err != nil {
+			//	return err
+			//}
+			klog.Warningf("recursing into from unstructred with subset of sv: %+v", inlinedValues)
+			if err := fromUnstructured(reflect.ValueOf(inlinedValues), fv, level+1); err != nil {
 				return err
 			}
 		} else {
