@@ -1288,8 +1288,9 @@ func TestSMPValidation(t *testing.T) {
 		Resource("deployments").
 		Name("test-deployment").
 		Body([]byte(`{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`)).Do(context.TODO()).Get()
-	if err != nil {
-		t.Fatalf("Failed to patch object: %v", err)
+	if !strings.Contains(err.Error(), "unknown fields when converting from unstructured") {
+		// TODO: use errors.Is or As instead if we can
+		t.Fatalf("unexpected err: %v", err)
 	}
 
 	klog.Warningf("final obj: %v\n", obj)

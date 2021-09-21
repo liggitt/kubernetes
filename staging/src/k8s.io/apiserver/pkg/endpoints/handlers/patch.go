@@ -667,7 +667,8 @@ func applyPatchToObject(
 
 	// Rather than serialize the patched map to JSON, then decode it to an object, we go directly from a map to an object
 	// Note: this is what removes the invalid foo field
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
+	//if err := runtime.DefaultUnstructuredConverter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
+	if err := runtime.StrictUnstructuredConverter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
 		return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 			field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
 		})

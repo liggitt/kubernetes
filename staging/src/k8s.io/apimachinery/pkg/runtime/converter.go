@@ -81,6 +81,16 @@ var (
 			},
 		),
 	}
+
+	StrictUnstructuredConverter = &unstructuredConverter{
+		mismatchDetection: parseBool(os.Getenv("KUBE_PATCH_CONVERSION_DETECTOR")),
+		comparison: conversion.EqualitiesOrDie(
+			func(a, b time.Time) bool {
+				return a.UTC() == b.UTC()
+			},
+		),
+		strictFieldValidation: true,
+	}
 )
 
 func parseBool(key string) bool {
@@ -102,7 +112,8 @@ type unstructuredConverter struct {
 	// This is supposed to be set only in tests.
 	mismatchDetection bool
 	// comparison is the default test logic used to compare
-	comparison conversion.Equalities
+	comparison            conversion.Equalities
+	strictFieldValidation bool
 }
 
 // NewTestUnstructuredConverter creates an UnstructuredConverter that accepts JSON typed maps and translates them
@@ -128,7 +139,7 @@ func (c *unstructuredConverter) FromUnstructured(u map[string]interface{}, obj i
 	if t.Kind() != reflect.Ptr || value.IsNil() {
 		return fmt.Errorf("FromUnstructured requires a non-nil pointer to an object, got %v", t)
 	}
-	err := fromUnstructured(reflect.ValueOf(u), value.Elem(), 0)
+	err := c.fromUnstructured(reflect.ValueOf(u), value.Elem(), 0)
 	if c.mismatchDetection {
 		klog.Warningf("detecting mismatches")
 		newObj := reflect.New(t.Elem()).Interface()
@@ -152,7 +163,7 @@ func fromUnstructuredViaJSON(u map[string]interface{}, obj interface{}) error {
 	return json.Unmarshal(data, obj)
 }
 
-func fromUnstructured(sv, dv reflect.Value, level int) error {
+func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, level int) error {
 	klog.Warningf("fromUnstructured level %d\n", level)
 	klog.Warningf("sv type: %v\n", sv.Type())
 	klog.Warningf("sv: %v\n", sv)
@@ -227,15 +238,15 @@ func fromUnstructured(sv, dv reflect.Value, level int) error {
 
 	switch dt.Kind() {
 	case reflect.Map:
-		err := mapFromUnstructured(sv, dv, level)
+		err := c.mapFromUnstructured(sv, dv, level)
 		klog.Warningf("map final dv: %v\n", dv)
 		return err
 	case reflect.Slice:
-		return sliceFromUnstructured(sv, dv, level)
+		return c.sliceFromUnstructured(sv, dv, level)
 	case reflect.Ptr:
-		return pointerFromUnstructured(sv, dv, level)
+		return c.pointerFromUnstructured(sv, dv, level)
 	case reflect.Struct:
-		err := structFromUnstructured(sv, dv, level)
+		err := c.structFromUnstructured(sv, dv, level)
 		klog.Warningf("struct final dv: %v\n", dv)
 		return err
 	case reflect.Interface:
@@ -293,7 +304,7 @@ func unwrapInterface(v reflect.Value) reflect.Value {
 	return v
 }
 
-func mapFromUnstructured(sv, dv reflect.Value, level int) error {
+func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value, level int) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore map from %v", st.Kind())
@@ -315,7 +326,7 @@ func mapFromUnstructured(sv, dv reflect.Value, level int) error {
 		klog.Warningf("key: %v", key)
 		klog.Warningf("value: %v\n", value)
 		if val := unwrapInterface(sv.MapIndex(key)); val.IsValid() {
-			if err := fromUnstructured(val, value, level+1); err != nil {
+			if err := c.fromUnstructured(val, value, level+1); err != nil {
 				return err
 			}
 		} else {
@@ -331,7 +342,7 @@ func mapFromUnstructured(sv, dv reflect.Value, level int) error {
 	return nil
 }
 
-func sliceFromUnstructured(sv, dv reflect.Value, level int) error {
+func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value, level int) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() == reflect.String && dt.Elem().Kind() == reflect.Uint8 {
 		// We store original []byte representation as string.
@@ -364,14 +375,14 @@ func sliceFromUnstructured(sv, dv reflect.Value, level int) error {
 	}
 	dv.Set(reflect.MakeSlice(dt, sv.Len(), sv.Cap()))
 	for i := 0; i < sv.Len(); i++ {
-		if err := fromUnstructured(sv.Index(i), dv.Index(i), level+1); err != nil {
+		if err := c.fromUnstructured(sv.Index(i), dv.Index(i), level+1); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func pointerFromUnstructured(sv, dv reflect.Value, level int) error {
+func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value, level int) error {
 	st, dt := sv.Type(), dv.Type()
 
 	if st.Kind() == reflect.Ptr && sv.IsNil() {
@@ -381,13 +392,13 @@ func pointerFromUnstructured(sv, dv reflect.Value, level int) error {
 	dv.Set(reflect.New(dt.Elem()))
 	switch st.Kind() {
 	case reflect.Ptr, reflect.Interface:
-		return fromUnstructured(sv.Elem(), dv.Elem(), level+1)
+		return c.fromUnstructured(sv.Elem(), dv.Elem(), level+1)
 	default:
-		return fromUnstructured(sv, dv.Elem(), level+1)
+		return c.fromUnstructured(sv, dv.Elem(), level+1)
 	}
 }
 
-func structFromUnstructured(sv, dv reflect.Value, level int) error {
+func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, level int) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore struct from: %v", st.Kind())
@@ -460,7 +471,7 @@ func structFromUnstructured(sv, dv reflect.Value, level int) error {
 			//	return err
 			//}
 			klog.Warningf("recursing into from unstructred with subset of sv: %+v", inlinedValues)
-			if err := fromUnstructured(reflect.ValueOf(inlinedValues), fv, level+1); err != nil {
+			if err := c.fromUnstructured(reflect.ValueOf(inlinedValues), fv, level+1); err != nil {
 				return err
 			}
 		} else {
@@ -471,7 +482,7 @@ func structFromUnstructured(sv, dv reflect.Value, level int) error {
 
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
 			if value.IsValid() {
-				if err := fromUnstructured(value, fv, level+1); err != nil {
+				if err := c.fromUnstructured(value, fv, level+1); err != nil {
 					return err
 				}
 			} else {
@@ -483,7 +494,20 @@ func structFromUnstructured(sv, dv reflect.Value, level int) error {
 	klog.Warningf("END keys length: %d inlined: %t, value: %+v\n", len(keys), inlined, keys)
 	klog.Warningf("end dv length: %d, value: %v\n", dv.Type().NumField(), dv)
 	klog.Warningf("tc: %d\n", timeCode)
+	if len(keys) > 0 && c.strictFieldValidation {
+		return &UnknownFieldError{
+			invalidFields: keys,
+		}
+	}
 	return nil
+}
+
+type UnknownFieldError struct {
+	invalidFields []reflect.Value
+}
+
+func (fe *UnknownFieldError) Error() string {
+	return fmt.Sprintf("unknown fields when converting from unstructured: %+v", fe.invalidFields)
 }
 
 func deleteFromKeys(name string, keys *[]reflect.Value) {
