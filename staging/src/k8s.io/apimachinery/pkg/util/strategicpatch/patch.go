@@ -25,7 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/mergepatch"
-	"k8s.io/klog/v2"
 )
 
 // An alternate implementation of JSON Merge Patch
@@ -855,7 +854,6 @@ func handleUnmarshal(j []byte) (map[string]interface{}, error) {
 // calling CreateTwoWayMergeMapPatch.
 // Warning: the original and patch JSONMap objects are mutated by this function and should not be reused.
 func StrategicMergeMapPatch(original, patch JSONMap, dataStruct interface{}) (JSONMap, error) {
-	klog.Warningf("SMMP")
 	schema, err := NewPatchMetaFromStruct(dataStruct)
 	if err != nil {
 		return nil, err
@@ -875,14 +873,11 @@ func StrategicMergeMapPatch(original, patch JSONMap, dataStruct interface{}) (JS
 }
 
 func StrategicMergeMapPatchUsingLookupPatchMeta(original, patch JSONMap, schema LookupPatchMeta) (JSONMap, error) {
-	klog.Warningf("SMMPULPM")
 	mergeOptions := MergeOptions{
 		MergeParallelList:    true,
 		IgnoreUnmatchedNulls: true,
 	}
-	JSONMap, err := mergeMap(original, patch, schema, mergeOptions)
-	klog.Warningf("JSONMap: %v\n", JSONMap)
-	return JSONMap, err
+	return mergeMap(original, patch, schema, mergeOptions)
 }
 
 // MergeStrategicMergeMapPatchUsingLookupPatchMeta merges strategic merge
@@ -1283,15 +1278,6 @@ func partitionMapsByPresentInList(original, partitionBy []interface{}, mergeKey 
 // present in original, then to propagate it to the end result use
 // mergeOptions.IgnoreUnmatchedNulls == false.
 func mergeMap(original, patch map[string]interface{}, schema LookupPatchMeta, mergeOptions MergeOptions) (map[string]interface{}, error) {
-	klog.Warningf("================ mergeMap baby!")
-	klog.Warningf("================ original:\n")
-	for k, v := range original {
-		klog.Warningf("k: %s\n v:%v\n", k, v)
-	}
-	klog.Warningf("================ patch:\n")
-	for k, v := range patch {
-		klog.Warningf("k: %s\n v:%v\n", k, v)
-	}
 	if v, ok := patch[directiveMarker]; ok {
 		return handleDirectiveInMergeMap(v, patch)
 	}
@@ -1381,10 +1367,6 @@ func mergeMap(original, patch map[string]interface{}, schema LookupPatchMeta, me
 		if err != nil {
 			return nil, err
 		}
-	}
-	klog.Warningf("================ final original:\n")
-	for k, v := range original {
-		klog.Warningf("k: %s\n v:%v\n", k, v)
 	}
 	return original, nil
 }

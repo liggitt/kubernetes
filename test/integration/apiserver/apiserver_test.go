@@ -2999,6 +2999,64 @@ func BenchmarkFieldValidation(b *testing.B) {
 	}
 }
 
+func TestSMPFieldValidation(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+
+	_, client, closeFn := setup(t)
+	defer closeFn()
+
+	_, err := client.CoreV1().RESTClient().Patch(types.ApplyPatchType).
+		AbsPath("/apis/apps/v1").
+		Namespace("default").
+		Resource("deployments").
+		Name("test-deployment").
+		Param("fieldManager", "apply_test").
+		Body([]byte(`{
+		"apiVersion": "apps/v1",
+		"kind": "Deployment",
+		"metadata": {
+			"name": "test-deployment",
+			"labels": {"app": "nginx"}
+                },
+		"spec": {
+			"selector": {
+				"matchLabels": {
+					 "app": "nginx"
+				}
+			},
+			"template": {
+				"metadata": {
+					"labels": {
+						"app": "nginx"
+					}
+				},
+				"spec": {
+					"containers": [{
+						"name":  "nginx",
+						"image": "nginx:latest"
+					}]
+				}
+			}
+		}
+		}`)).
+		Do(context.TODO()).
+		Get()
+	if err != nil {
+		t.Fatalf("Failed to create object using Apply patch: %v", err)
+	}
+
+	_, err = client.CoreV1().RESTClient().Patch(types.StrategicMergePatchType).
+		AbsPath("/apis/apps/v1").
+		Namespace("default").
+		Resource("deployments").
+		Name("test-deployment").
+		Body([]byte(`{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`)).Do(context.TODO()).Get()
+	if !strings.Contains(err.Error(), "unknown fields when converting from unstructured") {
+		// TODO: use errors.Is or As instead if we can
+		t.Fatalf("unexpected err: %v", err)
+	}
+}
+
 type dependentClient struct {
 	t      *testing.T
 	client dynamic.ResourceInterface
