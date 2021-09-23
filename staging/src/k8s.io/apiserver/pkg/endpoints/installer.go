@@ -46,7 +46,6 @@ import (
 	"k8s.io/apiserver/pkg/storageversion"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	versioninfo "k8s.io/component-base/version"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/structured-merge-diff/v4/fieldpath"
 )
 
@@ -1208,7 +1207,6 @@ func restfulUpdateResource(r rest.Updater, scope handlers.RequestScope, admit ad
 }
 
 func restfulPatchResource(r rest.Patcher, scope handlers.RequestScope, admit admission.Interface, supportedTypes []string) restful.RouteFunction {
-	klog.Warningf("rPR scope: %+v", scope)
 	return func(req *restful.Request, res *restful.Response) {
 		handlers.PatchResource(r, &scope, admit, supportedTypes)(res.ResponseWriter, req.Request)
 	}
