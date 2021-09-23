@@ -81,16 +81,6 @@ var (
 			},
 		),
 	}
-
-	StrictUnstructuredConverter = &unstructuredConverter{
-		mismatchDetection: parseBool(os.Getenv("KUBE_PATCH_CONVERSION_DETECTOR")),
-		comparison: conversion.EqualitiesOrDie(
-			func(a, b time.Time) bool {
-				return a.UTC() == b.UTC()
-			},
-		),
-		strictFieldValidation: true,
-	}
 )
 
 func parseBool(key string) bool {
@@ -124,6 +114,10 @@ func NewTestUnstructuredConverter(comparison conversion.Equalities) Unstructured
 		mismatchDetection: true,
 		comparison:        comparison,
 	}
+}
+
+func (c *unstructuredConverter) SetStrictFieldValidation(strict bool) {
+	c.strictFieldValidation = strict
 }
 
 // FromUnstructured converts an object from map[string]interface{} representation into a concrete type.

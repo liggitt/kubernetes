@@ -3045,15 +3045,39 @@ func TestSMPFieldValidation(t *testing.T) {
 		t.Fatalf("Failed to create object using Apply patch: %v", err)
 	}
 
-	_, err = client.CoreV1().RESTClient().Patch(types.StrategicMergePatchType).
-		AbsPath("/apis/apps/v1").
-		Namespace("default").
-		Resource("deployments").
-		Name("test-deployment").
-		Body([]byte(`{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`)).Do(context.TODO()).Get()
-	if !strings.Contains(err.Error(), "unknown fields when converting from unstructured") {
-		// TODO: use errors.Is or As instead if we can
-		t.Fatalf("unexpected err: %v", err)
+	var testcases = []struct {
+		name        string
+		params      map[string]string
+		errContains string
+	}{
+		{
+			name:        "strategicMergePatchStrictValidation",
+			params:      map[string]string{"validate": "strict"},
+			errContains: "unknown fields when converting from unstructured",
+		},
+		{
+			name:        "strategicMergePatchIgnoreValidation",
+			params:      map[string]string{},
+			errContains: "",
+		},
+	}
+
+	for _, tc := range testcases {
+		req := client.CoreV1().RESTClient().Patch(types.StrategicMergePatchType).
+			AbsPath("/apis/apps/v1").
+			Namespace("default").
+			Resource("deployments").
+			Name("test-deployment")
+		for k, v := range tc.params {
+			req.Param(k, v)
+		}
+		result, err := req.Body([]byte(`{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`)).DoRaw(context.TODO())
+		if err == nil && tc.errContains != "" {
+			t.Fatalf("unexpected patch succeeded")
+		}
+		if err != nil && !strings.Contains(string(result), tc.errContains) {
+			t.Fatalf("unexpected response: %v", string(result))
+		}
 	}
 }
 

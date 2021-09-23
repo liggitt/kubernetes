@@ -62,6 +62,7 @@ const (
 // PatchResource returns a function that will handle a resource patch.
 func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interface, patchTypes []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		// For performance tracking purposes.
 		trace := utiltrace.New("Patch", traceFields(req)...)
 		defer trace.LogIfLong(500 * time.Millisecond)
 
@@ -89,7 +90,6 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			contentType = contentType[:idx]
 		}
 		patchType := types.PatchType(contentType)
-		klog.Warningf("patchType: %v", patchType)
 
 		// Ensure the patchType is one we support
 		if !sets.NewString(patchTypes...).Has(contentType) {
@@ -151,6 +151,7 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			return
 		}
 		gv := scope.Kind.GroupVersion()
+		strictValidation := false
 
 		scopeSerializer := scope.Serializer
 		validationDirective, err := fieldValidation(req)
@@ -160,6 +161,10 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 		}
 		if validationDirective == strictFieldValidation {
 			scopeSerializer = scope.StrictSerializer
+			strictValidation = true
+			klog.Warningf("scpeSerializer %+v", scopeSerializer)
+			klog.Warningf("scope dot Serializer %+v", scope.Serializer)
+			klog.Warningf("sSerializer %+v", s.Serializer)
 		} else {
 			klog.Warningf("nonstrcit serializer")
 		}
@@ -214,15 +219,16 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 		}
 
 		p := patcher{
-			namer:           scope.Namer,
-			creater:         scope.Creater,
-			defaulter:       scope.Defaulter,
-			typer:           scope.Typer,
-			unsafeConvertor: scope.UnsafeConvertor,
-			kind:            scope.Kind,
-			resource:        scope.Resource,
-			subresource:     scope.Subresource,
-			dryRun:          dryrun.IsDryRun(options.DryRun),
+			namer:                 scope.Namer,
+			creater:               scope.Creater,
+			defaulter:             scope.Defaulter,
+			typer:                 scope.Typer,
+			unsafeConvertor:       scope.UnsafeConvertor,
+			kind:                  scope.Kind,
+			resource:              scope.Resource,
+			subresource:           scope.Subresource,
+			dryRun:                dryrun.IsDryRun(options.DryRun),
+			strictFieldValidation: strictValidation,
 
 			objectInterfaces: scope,
 
@@ -276,15 +282,16 @@ type mutateObjectUpdateFunc func(ctx context.Context, obj, old runtime.Object) e
 // moved into this type.
 type patcher struct {
 	// Pieces of RequestScope
-	namer           ScopeNamer
-	creater         runtime.ObjectCreater
-	defaulter       runtime.ObjectDefaulter
-	typer           runtime.ObjectTyper
-	unsafeConvertor runtime.ObjectConvertor
-	resource        schema.GroupVersionResource
-	kind            schema.GroupVersionKind
-	subresource     string
-	dryRun          bool
+	namer                 ScopeNamer
+	creater               runtime.ObjectCreater
+	defaulter             runtime.ObjectDefaulter
+	typer                 runtime.ObjectTyper
+	unsafeConvertor       runtime.ObjectConvertor
+	resource              schema.GroupVersionResource
+	kind                  schema.GroupVersionKind
+	subresource           string
+	dryRun                bool
+	strictFieldValidation bool
 
 	objectInterfaces admission.ObjectInterfaces
 
@@ -296,9 +303,6 @@ type patcher struct {
 	admissionCheck   admission.MutationInterface
 
 	codec runtime.Codec
-	// don't think this is necessary because we construct the patcher on each request
-	// so we can multiplex the codec between/strict non-strict
-	//strictCodec runtime.Codec
 
 	options *metav1.PatchOptions
 
@@ -414,7 +418,6 @@ type smpPatcher struct {
 }
 
 func (p *smpPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (runtime.Object, error) {
-	klog.Warningf("smpPatch aPTCO")
 	// Since the patch is applied on versioned objects, we need to convert the
 	// current object to versioned representation first.
 	currentVersionedObject, err := p.unsafeConvertor.ConvertToVersion(currentObject, p.kind.GroupVersion())
@@ -425,7 +428,7 @@ func (p *smpPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (ru
 	if err != nil {
 		return nil, err
 	}
-	if err := strategicPatchObject(p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj); err != nil {
+	if err := strategicPatchObject(p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj, p.strictFieldValidation); err != nil {
 		return nil, err
 	}
 	// Convert the object back to the hub version
@@ -489,8 +492,8 @@ func strategicPatchObject(
 	patchBytes []byte,
 	objToUpdate runtime.Object,
 	schemaReferenceObj runtime.Object,
+	strictFieldValidation bool,
 ) error {
-	klog.Warningf("sPO")
 	originalObjMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(originalObject)
 	if err != nil {
 		return err
@@ -501,7 +504,7 @@ func strategicPatchObject(
 		return errors.NewBadRequest(err.Error())
 	}
 
-	if err := applyPatchToObject(defaulter, originalObjMap, patchMap, objToUpdate, schemaReferenceObj); err != nil {
+	if err := applyPatchToObject(defaulter, originalObjMap, patchMap, objToUpdate, schemaReferenceObj, strictFieldValidation); err != nil {
 		return err
 	}
 	return nil
@@ -653,33 +656,23 @@ func applyPatchToObject(
 	patchMap map[string]interface{},
 	objToUpdate runtime.Object,
 	schemaReferenceObj runtime.Object,
+	strictFieldValidation bool,
 ) error {
-	klog.Warningf("aPTO")
-	// Note: objToUpdate always starts out here as an empty deployment
-	// even if it exists (it has to exist for this to be called because it's a PATCH, duh)
-	klog.Warningf("objToUpdate beginning: %v\n", objToUpdate)
 	patchedObjMap, err := strategicpatch.StrategicMergeMapPatch(originalMap, patchMap, schemaReferenceObj)
 	if err != nil {
 		return interpretStrategicMergePatchError(err)
 	}
-	// foo still exists here
-	klog.Warningf("patchedObjMap after SMMP: %v\n", patchedObjMap)
 
 	// Rather than serialize the patched map to JSON, then decode it to an object, we go directly from a map to an object
-	// Note: this is what removes the invalid foo field
-	//if err := runtime.DefaultUnstructuredConverter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
-	if err := runtime.StrictUnstructuredConverter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
+	converter := runtime.DefaultUnstructuredConverter
+	converter.SetStrictFieldValidation(strictFieldValidation)
+	if err := converter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
 		return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 			field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
 		})
 	}
-	// foo still exists here
-	klog.Warningf("patchedObjMap after FU: %v\n", patchedObjMap)
-	// foo GONE HERE
-	klog.Warningf("objToUpdate after FU: %v\n", objToUpdate)
 	// Decoding from JSON to a versioned object would apply defaults, so we do the same here
 	defaulter.Default(objToUpdate)
-	klog.Warningf("objToUpdate after Default: %v\n", objToUpdate)
 
 	return nil
 }
