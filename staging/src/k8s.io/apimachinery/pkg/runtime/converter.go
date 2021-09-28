@@ -120,6 +120,14 @@ func (c *unstructuredConverter) SetStrictFieldValidation(strict bool) {
 	c.strictFieldValidation = strict
 }
 
+func makeFields(u map[string]interface{}) map[string]struct{} {
+	fields := make(map[string]struct{}, len(u))
+	for k, _ := range u {
+		fields[k] = struct{}{}
+	}
+	return fields
+}
+
 // FromUnstructured converts an object from map[string]interface{} representation into a concrete type.
 // It uses encoding/json/Unmarshaler if object implements it or reflection if not.
 func (c *unstructuredConverter) FromUnstructured(u map[string]interface{}, obj interface{}) error {
@@ -128,7 +136,8 @@ func (c *unstructuredConverter) FromUnstructured(u map[string]interface{}, obj i
 	if t.Kind() != reflect.Ptr || value.IsNil() {
 		return fmt.Errorf("FromUnstructured requires a non-nil pointer to an object, got %v", t)
 	}
-	err := c.fromUnstructured(reflect.ValueOf(u), value.Elem())
+	fields := makeFields(u)
+	err := c.fromUnstructured(reflect.ValueOf(u), value.Elem(), fields)
 	if c.mismatchDetection {
 		newObj := reflect.New(t.Elem()).Interface()
 		newErr := fromUnstructuredViaJSON(u, newObj)
@@ -150,7 +159,7 @@ func fromUnstructuredViaJSON(u map[string]interface{}, obj interface{}) error {
 	return json.Unmarshal(data, obj)
 }
 
-func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value) error {
+func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
 	sv = unwrapInterface(sv)
 	if !sv.IsValid() {
 		dv.Set(reflect.Zero(dv.Type()))
@@ -218,14 +227,14 @@ func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value) error {
 
 	switch dt.Kind() {
 	case reflect.Map:
-		err := c.mapFromUnstructured(sv, dv)
+		err := c.mapFromUnstructured(sv, dv, fields)
 		return err
 	case reflect.Slice:
-		return c.sliceFromUnstructured(sv, dv)
+		return c.sliceFromUnstructured(sv, dv, fields)
 	case reflect.Ptr:
-		return c.pointerFromUnstructured(sv, dv)
+		return c.pointerFromUnstructured(sv, dv, fields)
 	case reflect.Struct:
-		err := c.structFromUnstructured(sv, dv)
+		err := c.structFromUnstructured(sv, dv, fields)
 		return err
 	case reflect.Interface:
 		return interfaceFromUnstructured(sv, dv)
@@ -282,7 +291,7 @@ func unwrapInterface(v reflect.Value) reflect.Value {
 	return v
 }
 
-func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value) error {
+func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore map from %v", st.Kind())
@@ -300,7 +309,7 @@ func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value) error 
 	for _, key := range sv.MapKeys() {
 		value := reflect.New(dt.Elem()).Elem()
 		if val := unwrapInterface(sv.MapIndex(key)); val.IsValid() {
-			if err := c.fromUnstructured(val, value); err != nil {
+			if err := c.fromUnstructured(val, value, fields); err != nil {
 				return err
 			}
 		} else {
@@ -315,7 +324,7 @@ func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value) error 
 	return nil
 }
 
-func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value) error {
+func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() == reflect.String && dt.Elem().Kind() == reflect.Uint8 {
 		// We store original []byte representation as string.
@@ -348,14 +357,14 @@ func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value) erro
 	}
 	dv.Set(reflect.MakeSlice(dt, sv.Len(), sv.Cap()))
 	for i := 0; i < sv.Len(); i++ {
-		if err := c.fromUnstructured(sv.Index(i), dv.Index(i)); err != nil {
+		if err := c.fromUnstructured(sv.Index(i), dv.Index(i), fields); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value) error {
+func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
 	st, dt := sv.Type(), dv.Type()
 
 	if st.Kind() == reflect.Ptr && sv.IsNil() {
@@ -365,13 +374,13 @@ func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value) er
 	dv.Set(reflect.New(dt.Elem()))
 	switch st.Kind() {
 	case reflect.Ptr, reflect.Interface:
-		return c.fromUnstructured(sv.Elem(), dv.Elem())
+		return c.fromUnstructured(sv.Elem(), dv.Elem(), fields)
 	default:
-		return c.fromUnstructured(sv, dv.Elem())
+		return c.fromUnstructured(sv, dv.Elem(), fields)
 	}
 }
 
-func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value) error {
+func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore struct from: %v", st.Kind())
@@ -385,6 +394,9 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value) err
 	for i, k := range keys {
 		klog.Warningf("sv key: %+v at i: %d", k, i)
 	}
+	for k, v := range fields {
+		klog.Warningf("fields key: %+v is %t\n", k, v)
+	}
 	////
 
 	for i := 0; i < dt.NumField(); i++ {
@@ -392,38 +404,45 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value) err
 		fv := dv.Field(i)
 		klog.Warningf("dt field i: %d fieldInfo: %+v, tc: %d\n", i, fieldInfo, timeCode)
 
-		inlinedValues := map[string]interface{}{}
+		//inlinedValues := map[string]interface{}{}
 		if len(fieldInfo.name) == 0 {
-			// This field is inlined
-			// get the name of the field and delete it from the source's keys
-			for i := 0; i < fv.Type().NumField(); i++ {
-				curField := fv.Type().FieldByIndex([]int{i})
-				jsonTag := curField.Tag.Get("json")
-				jsonName := strings.Split(jsonTag, ",")[0]
-				klog.Warningf("deleting jsonName %s from keys at tc: %d", jsonName, timeCode)
-				deleteFromKeys(jsonName, &keys)
-				svMap, ok := (sv.Interface()).(map[string]interface{})
-				if !ok {
-					klog.Warningf("couldn't cast sv map: %+v", sv)
-				}
-				if val, ok := svMap[jsonName]; ok {
-					inlinedValues[jsonName] = val
-					klog.Warningf("set inlinedValues of jsonName %s to value %+v", jsonName, val)
-				}
-			}
 
-			klog.Warningf("recursing into from unstructred with subset of sv: %+v", inlinedValues)
-			if err := c.fromUnstructured(reflect.ValueOf(inlinedValues), fv); err != nil {
+			//// This field is inlined
+			//// get the name of the field and delete it from the source's keys
+			//for i := 0; i < fv.Type().NumField(); i++ {
+			//	curField := fv.Type().FieldByIndex([]int{i})
+			//	jsonTag := curField.Tag.Get("json")
+			//	jsonName := strings.Split(jsonTag, ",")[0]
+			//	klog.Warningf("deleting jsonName %s from keys at tc: %d", jsonName, timeCode)
+			//	deleteFromKeys(jsonName, &keys)
+			//	svMap, ok := (sv.Interface()).(map[string]interface{})
+			//	if !ok {
+			//		klog.Warningf("couldn't cast sv map: %+v", sv)
+			//	}
+			//	if val, ok := svMap[jsonName]; ok {
+			//		inlinedValues[jsonName] = val
+			//		klog.Warningf("set inlinedValues of jsonName %s to value %+v", jsonName, val)
+			//	}
+			//}
+
+			//klog.Warningf("recursing into from unstructred with subset of sv: %+v", inlinedValues)
+			//if err := c.fromUnstructured(reflect.ValueOf(inlinedValues), fv); err != nil {
+			//	return err
+			//}
+			klog.Warningf("recursing into from unstructred at tc %d, with sv: %+v", timeCode, sv)
+			if err := c.fromUnstructured(sv, fv, fields); err != nil {
 				return err
 			}
 		} else {
 			// delete from the source's keys
 			klog.Warningf("deleting fInV %s from keys at tc: %d", fieldInfo.nameValue, timeCode)
 			deleteFromKeys(fieldInfo.name, &keys)
+			klog.Warningf("from fields %+v", fields)
+			delete(fields, fieldInfo.name)
 
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
 			if value.IsValid() {
-				if err := c.fromUnstructured(value, fv); err != nil {
+				if err := c.fromUnstructured(value, fv, fields); err != nil {
 					return err
 				}
 			} else {
@@ -433,6 +452,7 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value) err
 	}
 	// TODO: error here if len(keys) > 0 meaning there is are unknown fields
 	klog.Warningf("END keys length: %d, value: %+v, tc: %d\n", len(keys), keys, timeCode)
+	klog.Warningf("fields length %d, value: %+v", len(fields), fields)
 	if len(keys) > 0 && c.strictFieldValidation {
 		return &UnknownFieldError{
 			invalidFields: keys,
