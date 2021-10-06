@@ -2711,6 +2711,168 @@ spec:
 	}
 }
 
+func BenchmarkFieldValidationPatchCRD(b *testing.B) {
+	server, err := kubeapiservertesting.StartTestServer(b, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
+	if err != nil {
+		panic(err)
+	}
+	defer server.TearDownFn()
+	config := server.ClientConfig
+
+	apiExtensionClient, err := apiextensionsclient.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+
+	crdSchema := `{
+		"openAPIV3Schema": {
+			"type": "object",
+			"properties": {
+				"spec": {
+					"type": "object",
+					"x-kubernetes-preserve-unknown-fields": true,
+					"properties": {
+						"cronSpec": {
+							"type": "string",
+							"pattern": "^(\\d+|\\*)(/\\d+)?(\\s+(\\d+|\\*)(/\\d+)?){4}$"
+						},
+						"ports": {
+							"type": "array",
+							"x-kubernetes-list-map-keys": [
+								"containerPort",
+								"protocol"
+							],
+							"x-kubernetes-list-type": "map",
+							"items": {
+								"properties": {
+									"containerPort": {
+										"format": "int32",
+										"type": "integer"
+									},
+									"hostIP": {
+										"type": "string"
+									},
+									"hostPort": {
+										"format": "int32",
+										"type": "integer"
+									},
+									"name": {
+										"type": "string"
+									},
+									"protocol": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"containerPort",
+									"protocol"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		}
+	}`
+	// create the CRD
+	noxuDefinition := fixtures.NewNoxuV1CustomResourceDefinition(apiextensionsv1.ClusterScoped)
+	var c apiextensionsv1.CustomResourceValidation
+	err = json.Unmarshal([]byte(crdSchema), &c)
+	if err != nil {
+		panic(err)
+	}
+	// set the CRD schema
+	noxuDefinition.Spec.PreserveUnknownFields = false
+	for i := range noxuDefinition.Spec.Versions {
+		noxuDefinition.Spec.Versions[i].Schema = &c
+		//fmt.Printf("noxuDefiniton.Spec.Versions[i].Schema = %+v\n", noxuDefinition.Spec.Versions[i].Schema)
+	}
+	// install the CRD
+	noxuDefinition, err = fixtures.CreateNewV1CustomResourceDefinition(noxuDefinition, apiExtensionClient, dynamicClient)
+	if err != nil {
+		panic(err)
+	}
+
+	kind := noxuDefinition.Spec.Names.Kind
+	apiVersion := noxuDefinition.Spec.Group + "/" + noxuDefinition.Spec.Versions[0].Name
+	name := "mytest"
+
+	patchYAMLBody := `
+apiVersion: %s
+kind: %s
+metadata:
+  name: %s
+  finalizers:
+  - test-finalizer
+spec:
+  cronSpec: "* * * * */5"
+  replicas: 1
+  ports:
+  - name: x
+    containerPort: 80
+    protocol: TCP`
+	// create a CR
+	rest := apiExtensionClient.Discovery().RESTClient()
+	yamlBody := []byte(fmt.Sprintf(patchYAMLBody, apiVersion, kind, name))
+	result, err := rest.Patch(types.ApplyPatchType).
+		AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
+		Name(name).
+		Param("fieldManager", "apply_test").
+		Body(yamlBody).
+		DoRaw(context.TODO())
+	if err != nil {
+		panic(fmt.Sprintf("failed to create custom resource with apply: %v:\n%v", err, string(result)))
+	}
+
+	benchmarks := []struct {
+		name      string
+		patchType types.PatchType
+		params    map[string]string
+		bodyBase  string
+	}{
+		{
+			name:      "ignore-validation-crd-patch",
+			patchType: types.MergePatchType,
+			params:    map[string]string{},
+			bodyBase:  `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-%d"]}}`,
+		},
+		{
+			name:      "strict-validation-crd-patch",
+			patchType: types.MergePatchType,
+			params:    map[string]string{"fieldValidation": "Strict"},
+			bodyBase:  `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-%d"]}}`,
+		},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for n := 0; n < b.N; n++ {
+				body := fmt.Sprintf(bm.bodyBase, n)
+				//fmt.Printf("!!! body = %+v\n", body)
+				// patch the CR as specified by the test case
+				req := rest.Patch(bm.patchType).
+					AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
+					Name(name)
+				for k, v := range bm.params {
+					req = req.Param(k, v)
+				}
+				result, err = req.
+					Body([]byte(body)).
+					DoRaw(context.TODO())
+				if err != nil {
+					panic(err)
+				}
+			}
+		})
+	}
+}
+
 // Benchmark field validation for strict vs non-strict
 func BenchmarkFieldValidation(b *testing.B) {
 	_, client, closeFn := setup(b)

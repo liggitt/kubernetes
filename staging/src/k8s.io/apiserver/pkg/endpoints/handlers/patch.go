@@ -52,7 +52,6 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -64,11 +63,11 @@ const (
 // PatchResource returns a function that will handle a resource patch.
 func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interface, patchTypes []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		klog.Warningf("handling PatchResource")
-		klog.Warningf("req: %v\n", req)
+		//klog.Warningf("handling PatchResource")
+		//klog.Warningf("req: %v\n", req)
 		bodyBytes, _ := ioutil.ReadAll(req.Body)
 		req.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
-		klog.Warningf("body: %v\n", string(bodyBytes))
+		//klog.Warningf("body: %v\n", string(bodyBytes))
 		// For performance tracking purposes.
 		trace := utiltrace.New("Patch", traceFields(req)...)
 		defer trace.LogIfLong(500 * time.Millisecond)
@@ -251,7 +250,7 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			trace: trace,
 		}
 
-		klog.Warningf("patchType: %v", patchType)
+		//klog.Warningf("patchType: %v", patchType)
 
 		result, wasCreated, err := p.patchResource(ctx, scope)
 		if err != nil {
@@ -337,7 +336,7 @@ type jsonPatcher struct {
 }
 
 func (p *jsonPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (runtime.Object, error) {
-	klog.Warningf("jsonPatch aPTCO")
+	//klog.Warningf("jsonPatch aPTCO")
 	// Encode will convert & return a versioned object in JSON.
 	currentObjJS, err := runtime.Encode(p.codec, currentObject)
 	if err != nil {
