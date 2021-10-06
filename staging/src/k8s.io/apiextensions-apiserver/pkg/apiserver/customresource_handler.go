@@ -1382,9 +1382,9 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 			delete(u.Object, "apiVersion")
 			delete(objCopy.Object, "metadata")
 			delete(u.Object, "metadata")
+			klog.Warningf("directive %v", v.unknownFieldsDirective)
 			klog.Warningf("obj copy post, %v", objCopy.Object)
 			klog.Warningf("u Object, %v", u.Object)
-			klog.Warningf("directive %v", v.unknownFieldsDirective)
 			if v.unknownFieldsDirective == fail && !reflect.DeepEqual(objCopy.Object, u.Object) {
 				klog.Warningf("prune break")
 				return fmt.Errorf("failed with unknown fields: %v", objCopy)

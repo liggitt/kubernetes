@@ -2541,7 +2541,6 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			"properties": {
 				"spec": {
 					"type": "object",
-					"x-kubernetes-preserve-unknown-fields": true,
 					"properties": {
 						"cronSpec": {
 							"type": "string",
