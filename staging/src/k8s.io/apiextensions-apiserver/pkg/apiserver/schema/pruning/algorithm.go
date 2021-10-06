@@ -18,7 +18,6 @@ package pruning
 
 import (
 	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
-	"k8s.io/klog/v2"
 )
 
 // Prune removes object fields in obj which are not specified in s. It skips TypeMeta and ObjectMeta fields
@@ -54,7 +53,6 @@ func prune(x interface{}, s *structuralschema.Structural) map[string]bool {
 	case map[string]interface{}:
 		if s == nil {
 			for k := range x {
-				klog.Warningf("deleting 0 k: %v\n", k)
 				if !metaFields[k] {
 					pruning[k] = true
 				}
@@ -78,7 +76,6 @@ func prune(x interface{}, s *structuralschema.Structural) map[string]bool {
 					pruning[k] = b
 				}
 			} else {
-				klog.Warningf("deleting 1 k: %v\n", k)
 				if !metaFields[k] {
 					pruning[k] = true
 				}
