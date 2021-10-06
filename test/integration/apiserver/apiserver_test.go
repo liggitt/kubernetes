@@ -2532,9 +2532,9 @@ func TestFieldValidationPost(t *testing.T) {
 	}
 }
 
-// TestPatchCRDUnknownFieldValidation tests that server-side schema validation
+// TestFieldValidationPatchCRD tests that server-side schema validation
 // works for jsonpatch and mergepatch requests.
-func TestPatchCRDUnknownFieldValidation(t *testing.T) {
+func TestFieldValidationPatchCRD(t *testing.T) {
 	crdSchema := `{
 		"openAPIV3Schema": {
 			"type": "object",
@@ -2610,7 +2610,7 @@ spec:
 		{
 			name:        "mergePatchStrictValidation",
 			patchType:   types.MergePatchType,
-			params:      map[string]string{"validate": "strict"},
+			params:      map[string]string{"fieldValidation": "Strict"},
 			body:        `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
 			errContains: "failed with unknown fields",
 		},
