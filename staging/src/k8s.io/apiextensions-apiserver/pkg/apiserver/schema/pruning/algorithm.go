@@ -18,12 +18,13 @@ package pruning
 
 import (
 	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
+	"k8s.io/klog/v2"
 )
 
 // Prune removes object fields in obj which are not specified in s. It skips TypeMeta and ObjectMeta fields
 // if XEmbeddedResource is set to true, or for the root if isResourceRoot=true, i.e. it does not
 // prune unknown metadata fields.
-func Prune(obj interface{}, s *structuralschema.Structural, isResourceRoot bool) {
+func Prune(obj interface{}, s *structuralschema.Structural, isResourceRoot bool) map[string]bool {
 	if isResourceRoot {
 		if s == nil {
 			s = &structuralschema.Structural{}
@@ -34,7 +35,7 @@ func Prune(obj interface{}, s *structuralschema.Structural, isResourceRoot bool)
 			s = &clone
 		}
 	}
-	prune(obj, s)
+	return prune(obj, s)
 }
 
 var metaFields = map[string]bool{
@@ -43,19 +44,23 @@ var metaFields = map[string]bool{
 	"metadata":   true,
 }
 
-func prune(x interface{}, s *structuralschema.Structural) {
+func prune(x interface{}, s *structuralschema.Structural) map[string]bool {
 	if s != nil && s.XPreserveUnknownFields {
-		skipPrune(x, s)
-		return
+		return skipPrune(x, s)
 	}
 
+	pruning := map[string]bool{}
 	switch x := x.(type) {
 	case map[string]interface{}:
 		if s == nil {
 			for k := range x {
+				klog.Warningf("deleting 0 k: %v\n", k)
+				if !metaFields[k] {
+					pruning[k] = true
+				}
 				delete(x, k)
 			}
-			return
+			return pruning
 		}
 		for k, v := range x {
 			if s.XEmbeddedResource && metaFields[k] {
@@ -63,31 +68,49 @@ func prune(x interface{}, s *structuralschema.Structural) {
 			}
 			prop, ok := s.Properties[k]
 			if ok {
-				prune(v, &prop)
+				pruned := prune(v, &prop)
+				for k, b := range pruned {
+					pruning[k] = b
+				}
 			} else if s.AdditionalProperties != nil {
-				prune(v, s.AdditionalProperties.Structural)
+				pruned := prune(v, s.AdditionalProperties.Structural)
+				for k, b := range pruned {
+					pruning[k] = b
+				}
 			} else {
+				klog.Warningf("deleting 1 k: %v\n", k)
+				if !metaFields[k] {
+					pruning[k] = true
+				}
 				delete(x, k)
 			}
 		}
 	case []interface{}:
 		if s == nil {
 			for _, v := range x {
-				prune(v, nil)
+				pruned := prune(v, nil)
+				for k, b := range pruned {
+					pruning[k] = b
+				}
 			}
-			return
+			return pruning
 		}
 		for _, v := range x {
-			prune(v, s.Items)
+			pruned := prune(v, s.Items)
+			for k, b := range pruned {
+				pruning[k] = b
+			}
 		}
 	default:
 		// scalars, do nothing
 	}
+	return pruning
 }
 
-func skipPrune(x interface{}, s *structuralschema.Structural) {
+func skipPrune(x interface{}, s *structuralschema.Structural) map[string]bool {
+	pruning := map[string]bool{}
 	if s == nil {
-		return
+		return pruning
 	}
 
 	switch x := x.(type) {
@@ -97,16 +120,26 @@ func skipPrune(x interface{}, s *structuralschema.Structural) {
 				continue
 			}
 			if prop, ok := s.Properties[k]; ok {
-				prune(v, &prop)
+				pruned := prune(v, &prop)
+				for k, b := range pruned {
+					pruning[k] = b
+				}
 			} else if s.AdditionalProperties != nil {
-				prune(v, s.AdditionalProperties.Structural)
+				pruned := prune(v, s.AdditionalProperties.Structural)
+				for k, b := range pruned {
+					pruning[k] = b
+				}
 			}
 		}
 	case []interface{}:
 		for _, v := range x {
-			skipPrune(v, s.Items)
+			skipPruned := skipPrune(v, s.Items)
+			for k, b := range skipPruned {
+				pruning[k] = b
+			}
 		}
 	default:
 		// scalars, do nothing
 	}
+	return pruning
 }

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -1370,24 +1369,25 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 			// TODO: switch over pruning and coercing at the root to  schemaobjectmeta.Coerce too
 			// TODO: this seems like a very error prone way of detecting unknown fields
 			// copy the original object to detect whether any fields are pruned
-			objCopy := (&unstructured.Unstructured{
-				Object: u.Object,
-			}).DeepCopy()
+			//objCopy := (&unstructured.Unstructured{
+			//	Object: u.Object,
+			//}).DeepCopy()
 			//klog.Warningf("obj copy pre, %v", objCopy)
 			//klog.Warningf("schema: %v", v.structuralSchemas[gv.Version])
-			structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
-			delete(objCopy.Object, "kind")
-			delete(u.Object, "kind")
-			delete(objCopy.Object, "apiVersion")
-			delete(u.Object, "apiVersion")
-			delete(objCopy.Object, "metadata")
-			delete(u.Object, "metadata")
-			klog.Warningf("directive %v", v.unknownFieldsDirective)
-			klog.Warningf("obj copy post, %v", objCopy.Object)
-			klog.Warningf("u Object, %v", u.Object)
-			if v.unknownFieldsDirective == fail && !reflect.DeepEqual(objCopy.Object, u.Object) {
-				klog.Warningf("prune break")
-				return fmt.Errorf("failed with unknown fields: %v", objCopy)
+			pruned := structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
+			//klog.Warningf("pruned: %v", pruned)
+			//delete(objCopy.Object, "kind")
+			//delete(u.Object, "kind")
+			//delete(objCopy.Object, "apiVersion")
+			//delete(u.Object, "apiVersion")
+			//delete(objCopy.Object, "metadata")
+			//delete(u.Object, "metadata")
+			//klog.Warningf("directive %v", v.unknownFieldsDirective)
+			//klog.Warningf("obj copy post, %v", objCopy.Object)
+			//klog.Warningf("u Object, %v", u.Object)
+			if v.unknownFieldsDirective == fail && len(pruned) > 0 {
+				//klog.Warningf("prune break")
+				return fmt.Errorf("failed with unknown fields: %v", pruned)
 			}
 			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
 			//klog.Warningf("u Object post prune, %v", u.Object)
