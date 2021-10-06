@@ -2594,7 +2594,6 @@ metadata:
   - test-finalizer
 spec:
   cronSpec: "* * * * */5"
-  replicas: 1
   ports:
   - name: x
     containerPort: 80
