@@ -2664,7 +2664,6 @@ spec:
 			noxuDefinition.Spec.PreserveUnknownFields = false
 			for i := range noxuDefinition.Spec.Versions {
 				noxuDefinition.Spec.Versions[i].Schema = &c
-				fmt.Printf("noxuDefiniton.Spec.Versions[i].Schema = %+v\n", noxuDefinition.Spec.Versions[i].Schema)
 			}
 			// install the CRD
 			noxuDefinition, err = fixtures.CreateNewV1CustomResourceDefinition(noxuDefinition, apiExtensionClient, dynamicClient)
@@ -2700,7 +2699,7 @@ spec:
 				Body([]byte(tc.body)).
 				DoRaw(context.TODO())
 			if err == nil && tc.errContains != "" {
-				t.Fatalf("unexpected patch succeeded")
+				t.Fatalf("unexpected patch succeeded, expected %s", tc.errContains)
 			}
 			if err != nil && !strings.Contains(string(result), tc.errContains) {
 				t.Fatalf("unexpected response: %v", string(result))
@@ -2732,7 +2731,6 @@ func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 			"properties": {
 				"spec": {
 					"type": "object",
-					"x-kubernetes-preserve-unknown-fields": true,
 					"properties": {
 						"cronSpec": {
 							"type": "string",
@@ -2809,7 +2807,6 @@ metadata:
   - test-finalizer
 spec:
   cronSpec: "* * * * */5"
-  replicas: 1
   ports:
   - name: x
     containerPort: 80
@@ -2828,22 +2825,39 @@ spec:
 	}
 
 	benchmarks := []struct {
-		name      string
-		patchType types.PatchType
-		params    map[string]string
-		bodyBase  string
+		name        string
+		patchType   types.PatchType
+		params      map[string]string
+		bodyBase    string
+		errContains string
 	}{
 		{
-			name:      "ignore-validation-crd-patch",
-			patchType: types.MergePatchType,
-			params:    map[string]string{},
-			bodyBase:  `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-%d"]}}`,
+			name:        "ignore-validation-crd-patch",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-%d"]}}`,
+			errContains: "",
 		},
 		{
-			name:      "strict-validation-crd-patch",
-			patchType: types.MergePatchType,
-			params:    map[string]string{"fieldValidation": "Strict"},
-			bodyBase:  `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-%d"]}}`,
+			name:        "strict-validation-crd-patch",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{"fieldValidation": "Strict"},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-%d"]}}`,
+			errContains: "",
+		},
+		{
+			name:        "ignore-validation-crd-patch-unknown-field",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-unknown-%d"]}, "spec":{"foo": "bar"}}`,
+			errContains: "",
+		},
+		{
+			name:        "strict-validation-crd-patch-unknown-field",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{"fieldValidation": "Strict"},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-unknown-%d"]}, "spec":{"foo": "bar"}}`,
+			errContains: "failed with unknown fields",
 		},
 	}
 	for _, bm := range benchmarks {
@@ -2852,7 +2866,6 @@ spec:
 			b.ReportAllocs()
 			for n := 0; n < b.N; n++ {
 				body := fmt.Sprintf(bm.bodyBase, n)
-				//fmt.Printf("!!! body = %+v\n", body)
 				// patch the CR as specified by the test case
 				req := rest.Patch(bm.patchType).
 					AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
@@ -2863,7 +2876,10 @@ spec:
 				result, err = req.
 					Body([]byte(body)).
 					DoRaw(context.TODO())
-				if err != nil {
+				if err == nil && bm.errContains != "" {
+					panic(fmt.Sprintf("unexpected patch succeeded, expected %s", bm.errContains))
+				}
+				if err != nil && !strings.Contains(string(result), bm.errContains) {
 					panic(err)
 				}
 			}
