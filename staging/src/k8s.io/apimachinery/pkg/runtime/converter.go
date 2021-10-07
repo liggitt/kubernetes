@@ -385,59 +385,18 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fie
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore struct from: %v", st.Kind())
 	}
-	//// DEBUG printing
-	svLength := len(sv.MapKeys())
 	keys := sv.MapKeys()
-	timeCode := time.Now().UnixNano()
-	klog.Warningf("START sv length: %d, tc: %d, value: %v\n", svLength, timeCode, sv)
-	klog.Warningf("dt.NumField(): %d value: %+v\n", dt.NumField(), dv)
-	for i, k := range keys {
-		klog.Warningf("sv key: %+v at i: %d", k, i)
-	}
-	for k, v := range fields {
-		klog.Warningf("fields key: %+v is %t\n", k, v)
-	}
-	////
 
 	for i := 0; i < dt.NumField(); i++ {
 		fieldInfo := fieldInfoFromField(dt, i)
 		fv := dv.Field(i)
-		klog.Warningf("dt field i: %d fieldInfo: %+v, tc: %d\n", i, fieldInfo, timeCode)
-
-		//inlinedValues := map[string]interface{}{}
 		if len(fieldInfo.name) == 0 {
-
-			//// This field is inlined
-			//// get the name of the field and delete it from the source's keys
-			//for i := 0; i < fv.Type().NumField(); i++ {
-			//	curField := fv.Type().FieldByIndex([]int{i})
-			//	jsonTag := curField.Tag.Get("json")
-			//	jsonName := strings.Split(jsonTag, ",")[0]
-			//	klog.Warningf("deleting jsonName %s from keys at tc: %d", jsonName, timeCode)
-			//	deleteFromKeys(jsonName, &keys)
-			//	svMap, ok := (sv.Interface()).(map[string]interface{})
-			//	if !ok {
-			//		klog.Warningf("couldn't cast sv map: %+v", sv)
-			//	}
-			//	if val, ok := svMap[jsonName]; ok {
-			//		inlinedValues[jsonName] = val
-			//		klog.Warningf("set inlinedValues of jsonName %s to value %+v", jsonName, val)
-			//	}
-			//}
-
-			//klog.Warningf("recursing into from unstructred with subset of sv: %+v", inlinedValues)
-			//if err := c.fromUnstructured(reflect.ValueOf(inlinedValues), fv); err != nil {
-			//	return err
-			//}
-			klog.Warningf("recursing into from unstructred at tc %d, with sv: %+v", timeCode, sv)
 			if err := c.fromUnstructured(sv, fv, fields); err != nil {
 				return err
 			}
 		} else {
 			// delete from the source's keys
-			klog.Warningf("deleting fInV %s from keys at tc: %d", fieldInfo.nameValue, timeCode)
 			deleteFromKeys(fieldInfo.name, &keys)
-			klog.Warningf("from fields %+v", fields)
 			delete(fields, fieldInfo.name)
 
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
@@ -450,9 +409,6 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fie
 			}
 		}
 	}
-	// TODO: error here if len(keys) > 0 meaning there is are unknown fields
-	klog.Warningf("END keys length: %d, value: %+v, tc: %d\n", len(keys), keys, timeCode)
-	klog.Warningf("fields length %d, value: %+v", len(fields), fields)
 	if len(keys) > 0 && c.strictFieldValidation {
 		return &UnknownFieldError{
 			invalidFields: keys,
