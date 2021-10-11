@@ -2999,7 +2999,7 @@ func BenchmarkFieldValidation(b *testing.B) {
 	}
 }
 
-func TestSMPFieldValidation(t *testing.T) {
+func TestFieldValidationSMP(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
 
 	_, client, closeFn := setup(t)
