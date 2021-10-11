@@ -3052,7 +3052,7 @@ func TestFieldValidationSMP(t *testing.T) {
 	}{
 		{
 			name:        "strategicMergePatchStrictValidation",
-			params:      map[string]string{"validate": "strict"},
+			params:      map[string]string{"fieldValidation": "Strict"},
 			errContains: "unknown fields when converting from unstructured",
 		},
 		{

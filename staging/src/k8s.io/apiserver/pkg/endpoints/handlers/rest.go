@@ -472,7 +472,7 @@ const (
 // media type, because the list of media types that support field validation are a subset of
 // all supported media types (only json and yaml supports field validation).
 func fieldValidation(req *http.Request) (fieldValidationDirective, error) {
-	supportedContentTypes := []string{runtime.ContentTypeJSON, runtime.ContentTypeJSONMergePatch, runtime.ContentTypeYAML}
+	supportedContentTypes := []string{runtime.ContentTypeJSON, runtime.ContentTypeJSONMergePatch, runtime.ContentTypeJSONStrategicMergePatch, runtime.ContentTypeYAML}
 	contentType := req.Header.Get("Content-Type")
 	// TODO: not sure if it is okay to assume empty content type is a valid one
 	supported := true
