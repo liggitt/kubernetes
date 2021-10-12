@@ -429,9 +429,7 @@ func deleteFromKeys(name string, keys *[]reflect.Value) {
 	for i := len(*keys) - 1; i >= 0; i-- {
 		if name == (*keys)[i].String() {
 			// Delete from keys
-			klog.Warningf("pop keys struct name: %s", (*keys)[i].String())
 			*keys = append((*keys)[:i], (*keys)[i+1:]...)
-			klog.Warningf("keyslength is now %d after i %d", len(*keys), i)
 			return
 		}
 	}
