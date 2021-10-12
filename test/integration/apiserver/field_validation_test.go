@@ -18,16 +18,25 @@ package apiserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apiextensions-apiserver/test/integration/fixtures"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	kubeapiservertesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
+
+	"k8s.io/kubernetes/test/integration/framework"
 )
 
 // smpTestSetup applies an object that will later be patched
@@ -117,6 +126,7 @@ func BenchmarkFieldValidationSMP(b *testing.B) {
 
 	smpTestSetup(b, client)
 
+	// TODO: add more benchmarks to test bigger objects
 	var benchmarks = []smpTestCase{
 		{
 			name:        "smp-strict-validation",
@@ -138,6 +148,315 @@ func BenchmarkFieldValidationSMP(b *testing.B) {
 				smpRunTest(b, client, bm)
 			}
 
+		})
+	}
+}
+
+func patchCRDTestSetup(t testing.TB, name string) (restclient.Interface, *apiextensionsv1.CustomResourceDefinition) {
+	server, err := kubeapiservertesting.StartTestServer(t, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.TearDownFn()
+	config := server.ClientConfig
+
+	apiExtensionClient, err := apiextensionsclient.NewForConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	crdSchema, err := os.ReadFile("./testdata/crd-schema.json")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	patchYAMLBody, err := os.ReadFile("./testdata/noxu-cr-shell.yaml")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+
+	// create the CRD
+	noxuDefinition := fixtures.NewNoxuV1CustomResourceDefinition(apiextensionsv1.ClusterScoped)
+	var c apiextensionsv1.CustomResourceValidation
+	err = json.Unmarshal(crdSchema, &c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// set the CRD schema
+	noxuDefinition.Spec.PreserveUnknownFields = false
+	for i := range noxuDefinition.Spec.Versions {
+		noxuDefinition.Spec.Versions[i].Schema = &c
+	}
+	// install the CRD
+	noxuDefinition, err = fixtures.CreateNewV1CustomResourceDefinition(noxuDefinition, apiExtensionClient, dynamicClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kind := noxuDefinition.Spec.Names.Kind
+	apiVersion := noxuDefinition.Spec.Group + "/" + noxuDefinition.Spec.Versions[0].Name
+
+	// create a CR
+	rest := apiExtensionClient.Discovery().RESTClient()
+	yamlBody := []byte(fmt.Sprintf(string(patchYAMLBody), apiVersion, kind, name))
+	result, err := rest.Patch(types.ApplyPatchType).
+		AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
+		Name(name).
+		Param("fieldManager", "apply_test").
+		Body(yamlBody).
+		DoRaw(context.TODO())
+	if err != nil {
+		t.Fatalf("failed to create custom resource with apply: %v:\n%v", err, string(result))
+	}
+
+	return rest, noxuDefinition
+}
+
+// TestFieldValidationPatchCRD tests that server-side schema validation
+// works for jsonpatch and mergepatch requests.
+func TestFieldValidationPatchCRD(t *testing.T) {
+	var testcases = []struct {
+		name        string
+		patchType   types.PatchType
+		params      map[string]string
+		body        string
+		errContains string
+	}{
+		{
+			name:        "merge-patch-strict-validation",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{"fieldValidation": "Strict"},
+			body:        `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
+			errContains: "failed with unknown fields",
+		},
+		{
+			name:        "merge-patch-no-validation",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{},
+			body:        `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
+			errContains: "",
+		},
+		// TODO: figure out how to test JSONPatch
+		//{
+		//	name:        "jsonPatchStrictValidation",
+		//	patchType:   types.JSONPatchType,
+		//	params:      map[string]string{"validate": "strict"},
+		//	body:        // TODO
+		//	errContains: "failed with unknown fields",
+		//},
+		//{
+		//	name:        "jsonPatchNoValidation",
+		//	patchType:   types.JSONPatchType,
+		//	params:      map[string]string{},
+		//	body:        // TODO
+		//	errContains: "",
+		//},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			name := "testname"
+			//rest, noxuDefinition := patchCRDTestSetup(t, name)
+			server, err := kubeapiservertesting.StartTestServer(t, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer server.TearDownFn()
+			config := server.ClientConfig
+
+			apiExtensionClient, err := apiextensionsclient.NewForConfig(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dynamicClient, err := dynamic.NewForConfig(config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			crdSchema, err := os.ReadFile("./testdata/crd-schema.json")
+			if err != nil {
+				t.Fatalf("failed to read file: %v", err)
+			}
+			patchYAMLBody, err := os.ReadFile("./testdata/noxu-cr-shell.yaml")
+			if err != nil {
+				t.Fatalf("failed to read file: %v", err)
+			}
+
+			// create the CRD
+			noxuDefinition := fixtures.NewNoxuV1CustomResourceDefinition(apiextensionsv1.ClusterScoped)
+			var c apiextensionsv1.CustomResourceValidation
+			err = json.Unmarshal(crdSchema, &c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// set the CRD schema
+			noxuDefinition.Spec.PreserveUnknownFields = false
+			for i := range noxuDefinition.Spec.Versions {
+				noxuDefinition.Spec.Versions[i].Schema = &c
+			}
+			// install the CRD
+			noxuDefinition, err = fixtures.CreateNewV1CustomResourceDefinition(noxuDefinition, apiExtensionClient, dynamicClient)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			kind := noxuDefinition.Spec.Names.Kind
+			apiVersion := noxuDefinition.Spec.Group + "/" + noxuDefinition.Spec.Versions[0].Name
+
+			// create a CR
+			rest := apiExtensionClient.Discovery().RESTClient()
+			yamlBody := []byte(fmt.Sprintf(string(patchYAMLBody), apiVersion, kind, name))
+			result, err := rest.Patch(types.ApplyPatchType).
+				AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
+				Name(name).
+				Param("fieldManager", "apply_test").
+				Body(yamlBody).
+				DoRaw(context.TODO())
+			if err != nil {
+				t.Fatalf("failed to create custom resource with apply: %v:\n%v", err, string(result))
+			}
+
+			// patch the CR as specified by the test case
+			req := rest.Patch(tc.patchType).
+				AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
+				Name(name)
+			for k, v := range tc.params {
+				req = req.Param(k, v)
+			}
+			result, err = req.
+				Body([]byte(tc.body)).
+				DoRaw(context.TODO())
+			if err == nil && tc.errContains != "" {
+				t.Fatalf("unexpected patch succeeded, expected %s", tc.errContains)
+			}
+			if err != nil && !strings.Contains(string(result), tc.errContains) {
+				t.Errorf("bad err: %v", err)
+				t.Fatalf("unexpected response: %v", string(result))
+			}
+		})
+	}
+}
+
+func BenchmarkFieldValidationPatchCRD(b *testing.B) {
+	server, err := kubeapiservertesting.StartTestServer(b, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
+	if err != nil {
+		panic(err)
+	}
+	defer server.TearDownFn()
+	config := server.ClientConfig
+
+	apiExtensionClient, err := apiextensionsclient.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err)
+	}
+	crdSchema, err := os.ReadFile("./testdata/crd-schema.json")
+	if err != nil {
+		b.Fatalf("failed to read file: %v", err)
+	}
+	patchYAMLBody, err := os.ReadFile("./testdata/noxu-cr-shell.yaml")
+	if err != nil {
+		b.Fatalf("failed to read file: %v", err)
+	}
+
+	// create the CRD
+	noxuDefinition := fixtures.NewNoxuV1CustomResourceDefinition(apiextensionsv1.ClusterScoped)
+	var c apiextensionsv1.CustomResourceValidation
+	err = json.Unmarshal(crdSchema, &c)
+	if err != nil {
+		panic(err)
+	}
+	// set the CRD schema
+	noxuDefinition.Spec.PreserveUnknownFields = false
+	for i := range noxuDefinition.Spec.Versions {
+		noxuDefinition.Spec.Versions[i].Schema = &c
+		//fmt.Printf("noxuDefiniton.Spec.Versions[i].Schema = %+v\n", noxuDefinition.Spec.Versions[i].Schema)
+	}
+	// install the CRD
+	noxuDefinition, err = fixtures.CreateNewV1CustomResourceDefinition(noxuDefinition, apiExtensionClient, dynamicClient)
+	if err != nil {
+		panic(err)
+	}
+
+	kind := noxuDefinition.Spec.Names.Kind
+	apiVersion := noxuDefinition.Spec.Group + "/" + noxuDefinition.Spec.Versions[0].Name
+	name := "mytest"
+
+	// create a CR
+	rest := apiExtensionClient.Discovery().RESTClient()
+	yamlBody := []byte(fmt.Sprintf(string(patchYAMLBody), apiVersion, kind, name))
+	result, err := rest.Patch(types.ApplyPatchType).
+		AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
+		Name(name).
+		Param("fieldManager", "apply_test").
+		Body(yamlBody).
+		DoRaw(context.TODO())
+	if err != nil {
+		panic(fmt.Sprintf("failed to create custom resource with apply: %v:\n%v", err, string(result)))
+	}
+
+	benchmarks := []struct {
+		name        string
+		patchType   types.PatchType
+		params      map[string]string
+		bodyBase    string
+		errContains string
+	}{
+		{
+			name:        "ignore-validation-crd-patch",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-%d"]}}`,
+			errContains: "",
+		},
+		{
+			name:        "strict-validation-crd-patch",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{"fieldValidation": "Strict"},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-%d"]}}`,
+			errContains: "",
+		},
+		{
+			name:        "ignore-validation-crd-patch-unknown-field",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-unknown-%d"]}, "spec":{"foo": "bar"}}`,
+			errContains: "",
+		},
+		{
+			name:        "strict-validation-crd-patch-unknown-field",
+			patchType:   types.MergePatchType,
+			params:      map[string]string{"fieldValidation": "Strict"},
+			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-unknown-%d"]}, "spec":{"foo": "bar"}}`,
+			errContains: "failed with unknown fields",
+		},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for n := 0; n < b.N; n++ {
+				body := fmt.Sprintf(bm.bodyBase, n)
+				// patch the CR as specified by the test case
+				req := rest.Patch(bm.patchType).
+					AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
+					Name(name)
+				for k, v := range bm.params {
+					req = req.Param(k, v)
+				}
+				result, err = req.
+					Body([]byte(body)).
+					DoRaw(context.TODO())
+				if err == nil && bm.errContains != "" {
+					panic(fmt.Sprintf("unexpected patch succeeded, expected %s", bm.errContains))
+				}
+				if err != nil && !strings.Contains(string(result), bm.errContains) {
+					panic(err)
+				}
+			}
 		})
 	}
 }
