@@ -152,12 +152,7 @@ func BenchmarkFieldValidationSMP(b *testing.B) {
 	}
 }
 
-func patchCRDTestSetup(t testing.TB, name string) (restclient.Interface, *apiextensionsv1.CustomResourceDefinition) {
-	server, err := kubeapiservertesting.StartTestServer(t, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer server.TearDownFn()
+func patchCRDTestSetup(t testing.TB, server kubeapiservertesting.TestServer, name string) (restclient.Interface, *apiextensionsv1.CustomResourceDefinition) {
 	config := server.ClientConfig
 
 	apiExtensionClient, err := apiextensionsclient.NewForConfig(config)
@@ -256,74 +251,22 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			name := "testname"
-			//rest, noxuDefinition := patchCRDTestSetup(t, name)
+			// setup the testerver and install the CRD
 			server, err := kubeapiservertesting.StartTestServer(t, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer server.TearDownFn()
-			config := server.ClientConfig
-
-			apiExtensionClient, err := apiextensionsclient.NewForConfig(config)
-			if err != nil {
-				t.Fatal(err)
-			}
-			dynamicClient, err := dynamic.NewForConfig(config)
-			if err != nil {
-				t.Fatal(err)
-			}
-			crdSchema, err := os.ReadFile("./testdata/crd-schema.json")
-			if err != nil {
-				t.Fatalf("failed to read file: %v", err)
-			}
-			patchYAMLBody, err := os.ReadFile("./testdata/noxu-cr-shell.yaml")
-			if err != nil {
-				t.Fatalf("failed to read file: %v", err)
-			}
-
-			// create the CRD
-			noxuDefinition := fixtures.NewNoxuV1CustomResourceDefinition(apiextensionsv1.ClusterScoped)
-			var c apiextensionsv1.CustomResourceValidation
-			err = json.Unmarshal(crdSchema, &c)
-			if err != nil {
-				t.Fatal(err)
-			}
-			// set the CRD schema
-			noxuDefinition.Spec.PreserveUnknownFields = false
-			for i := range noxuDefinition.Spec.Versions {
-				noxuDefinition.Spec.Versions[i].Schema = &c
-			}
-			// install the CRD
-			noxuDefinition, err = fixtures.CreateNewV1CustomResourceDefinition(noxuDefinition, apiExtensionClient, dynamicClient)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			kind := noxuDefinition.Spec.Names.Kind
-			apiVersion := noxuDefinition.Spec.Group + "/" + noxuDefinition.Spec.Versions[0].Name
-
-			// create a CR
-			rest := apiExtensionClient.Discovery().RESTClient()
-			yamlBody := []byte(fmt.Sprintf(string(patchYAMLBody), apiVersion, kind, name))
-			result, err := rest.Patch(types.ApplyPatchType).
-				AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
-				Name(name).
-				Param("fieldManager", "apply_test").
-				Body(yamlBody).
-				DoRaw(context.TODO())
-			if err != nil {
-				t.Fatalf("failed to create custom resource with apply: %v:\n%v", err, string(result))
-			}
+			rest, noxuDefinition := patchCRDTestSetup(t, server, tc.name)
 
 			// patch the CR as specified by the test case
 			req := rest.Patch(tc.patchType).
 				AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
-				Name(name)
+				Name(tc.name)
 			for k, v := range tc.params {
 				req = req.Param(k, v)
 			}
-			result, err = req.
+			result, err := req.
 				Body([]byte(tc.body)).
 				DoRaw(context.TODO())
 			if err == nil && tc.errContains != "" {
@@ -338,66 +281,6 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 }
 
 func BenchmarkFieldValidationPatchCRD(b *testing.B) {
-	server, err := kubeapiservertesting.StartTestServer(b, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
-	if err != nil {
-		panic(err)
-	}
-	defer server.TearDownFn()
-	config := server.ClientConfig
-
-	apiExtensionClient, err := apiextensionsclient.NewForConfig(config)
-	if err != nil {
-		panic(err)
-	}
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		panic(err)
-	}
-	crdSchema, err := os.ReadFile("./testdata/crd-schema.json")
-	if err != nil {
-		b.Fatalf("failed to read file: %v", err)
-	}
-	patchYAMLBody, err := os.ReadFile("./testdata/noxu-cr-shell.yaml")
-	if err != nil {
-		b.Fatalf("failed to read file: %v", err)
-	}
-
-	// create the CRD
-	noxuDefinition := fixtures.NewNoxuV1CustomResourceDefinition(apiextensionsv1.ClusterScoped)
-	var c apiextensionsv1.CustomResourceValidation
-	err = json.Unmarshal(crdSchema, &c)
-	if err != nil {
-		panic(err)
-	}
-	// set the CRD schema
-	noxuDefinition.Spec.PreserveUnknownFields = false
-	for i := range noxuDefinition.Spec.Versions {
-		noxuDefinition.Spec.Versions[i].Schema = &c
-		//fmt.Printf("noxuDefiniton.Spec.Versions[i].Schema = %+v\n", noxuDefinition.Spec.Versions[i].Schema)
-	}
-	// install the CRD
-	noxuDefinition, err = fixtures.CreateNewV1CustomResourceDefinition(noxuDefinition, apiExtensionClient, dynamicClient)
-	if err != nil {
-		panic(err)
-	}
-
-	kind := noxuDefinition.Spec.Names.Kind
-	apiVersion := noxuDefinition.Spec.Group + "/" + noxuDefinition.Spec.Versions[0].Name
-	name := "mytest"
-
-	// create a CR
-	rest := apiExtensionClient.Discovery().RESTClient()
-	yamlBody := []byte(fmt.Sprintf(string(patchYAMLBody), apiVersion, kind, name))
-	result, err := rest.Patch(types.ApplyPatchType).
-		AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
-		Name(name).
-		Param("fieldManager", "apply_test").
-		Body(yamlBody).
-		DoRaw(context.TODO())
-	if err != nil {
-		panic(fmt.Sprintf("failed to create custom resource with apply: %v:\n%v", err, string(result)))
-	}
-
 	benchmarks := []struct {
 		name        string
 		patchType   types.PatchType
@@ -439,15 +322,24 @@ func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for n := 0; n < b.N; n++ {
+
+				// setup the testerver and install the CRD
+				server, err := kubeapiservertesting.StartTestServer(b, kubeapiservertesting.NewDefaultTestServerOptions(), nil, framework.SharedEtcd())
+				if err != nil {
+					b.Fatal(err)
+				}
+				defer server.TearDownFn()
+				rest, noxuDefinition := patchCRDTestSetup(b, server, bm.name)
+
 				body := fmt.Sprintf(bm.bodyBase, n)
 				// patch the CR as specified by the test case
 				req := rest.Patch(bm.patchType).
 					AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
-					Name(name)
+					Name(bm.name)
 				for k, v := range bm.params {
 					req = req.Param(k, v)
 				}
-				result, err = req.
+				result, err := req.
 					Body([]byte(body)).
 					DoRaw(context.TODO())
 				if err == nil && bm.errContains != "" {
