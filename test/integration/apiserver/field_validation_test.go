@@ -173,7 +173,7 @@ func TestFieldValidationPost(t *testing.T) {
 }
 
 // Benchmark field validation for strict vs non-strict
-func BenchmarkFieldValidation(b *testing.B) {
+func BenchmarkFieldValidationPostPut(b *testing.B) {
 	_, client, closeFn := setup(b)
 	defer closeFn()
 
