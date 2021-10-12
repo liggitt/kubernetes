@@ -41,6 +41,8 @@ import (
 	"k8s.io/kubernetes/test/integration/framework"
 )
 
+// TestFieldValidationPut tests PUT requests containing unknown fields with
+// strict and non-strict field validation.
 func TestFieldValidationPut(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
 
@@ -116,6 +118,9 @@ func TestFieldValidationPut(t *testing.T) {
 	}
 
 }
+
+// TestFieldValidationPost tests POST requests containing unknown fields with
+// strict and non-strict field validation.
 func TestFieldValidationPost(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
 
@@ -242,7 +247,7 @@ func BenchmarkFieldValidationPostPut(b *testing.B) {
 				// (i.e. without it -count=n for n>1 will fail, this might be from not tearing stuff down properly).
 				bodyBase, err := os.ReadFile(bm.bodyFile)
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 
 				objName := fmt.Sprintf("obj-%s-%d-%d-%d", bm.name, n, b.N, time.Now().UnixNano())
@@ -260,7 +265,7 @@ func BenchmarkFieldValidationPostPut(b *testing.B) {
 				_, err = postReq.Body(body).
 					DoRaw(context.TODO())
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 
 				// TODO: put PUT in a different bench case than POST (ie. have a baseReq) be a part of the test case.
@@ -276,7 +281,7 @@ func BenchmarkFieldValidationPostPut(b *testing.B) {
 				_, err = putReq.Body(body).
 					DoRaw(context.TODO())
 				if err != nil {
-					panic(err)
+					b.Fatal(err)
 				}
 			}
 		})
@@ -525,6 +530,7 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 	}
 }
 
+// Benchmark patch CRD for strict vs non-strict
 func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 	benchmarks := []struct {
 		name        string
@@ -588,10 +594,10 @@ func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 					Body([]byte(body)).
 					DoRaw(context.TODO())
 				if err == nil && bm.errContains != "" {
-					panic(fmt.Sprintf("unexpected patch succeeded, expected %s", bm.errContains))
+					b.Fatalf("unexpected patch succeeded, expected %s", bm.errContains)
 				}
 				if err != nil && !strings.Contains(string(result), bm.errContains) {
-					panic(err)
+					b.Fatal(err)
 				}
 			}
 		})
