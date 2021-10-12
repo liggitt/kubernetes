@@ -19,10 +19,12 @@ package apiserver
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -38,6 +40,249 @@ import (
 
 	"k8s.io/kubernetes/test/integration/framework"
 )
+
+func TestFieldValidationPut(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+
+	_, client, closeFn := setup(t)
+	defer closeFn()
+
+	deployName := `"test-deployment"`
+	postBytes, err := os.ReadFile("./testdata/deploy-small.json")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	postBody := []byte(fmt.Sprintf(string(postBytes), deployName))
+
+	if _, err := client.CoreV1().RESTClient().Post().
+		AbsPath("/apis/apps/v1").
+		Namespace("default").
+		Resource("deployments").
+		Body(postBody).
+		DoRaw(context.TODO()); err != nil {
+		t.Fatalf("failed to create initial deployment: %v", err)
+	}
+
+	putBytes, err := os.ReadFile("./testdata/deploy-small-unknown-field.json")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	putBody := []byte(fmt.Sprintf(string(putBytes), deployName))
+	var testcases = []struct {
+		name string
+		// TODO: use PostOptions for fieldValidation param instead of raw strings.
+		params      map[string]string
+		errContains string
+	}{
+		{
+			name:        "put-strict-validation",
+			params:      map[string]string{"fieldValidation": "Strict"},
+			errContains: "found unknown field",
+		},
+		{
+			name:        "put-default-ignore-validation",
+			params:      map[string]string{},
+			errContains: "",
+		},
+		{
+			name:        "put-ignore-validation",
+			params:      map[string]string{"fieldValidation": "Ignore"},
+			errContains: "",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := client.CoreV1().RESTClient().Put().
+				AbsPath("/apis/apps/v1").
+				Namespace("default").
+				Resource("deployments").
+				Name("test-dep")
+			for k, v := range tc.params {
+				req.Param(k, v)
+
+			}
+			result, err := req.Body(putBody).DoRaw(context.TODO())
+			if err == nil && tc.errContains != "" {
+				t.Fatalf("unexpected post succeeded")
+
+			}
+			if err != nil && !strings.Contains(string(result), tc.errContains) {
+				t.Fatalf("unexpected response: %v", string(result))
+
+			}
+		})
+
+	}
+
+}
+func TestFieldValidationPost(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+
+	_, client, closeFn := setup(t)
+	defer closeFn()
+
+	bodyBytes, err := os.ReadFile("./testdata/deploy-small-unknown-field.json")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	body := []byte(fmt.Sprintf(string(bodyBytes), `"test-deployment"`))
+
+	var testcases = []struct {
+		name string
+		// TODO: use PostOptions for fieldValidation param instead of raw strings.
+		params      map[string]string
+		errContains string
+	}{
+		{
+			name:        "post-strict-validation",
+			params:      map[string]string{"fieldValidation": "Strict"},
+			errContains: "found unknown field",
+		},
+		{
+			name:        "post-default-ignore-validation",
+			params:      map[string]string{},
+			errContains: "",
+		},
+		{
+			name:        "post-ignore-validation",
+			params:      map[string]string{"fieldValidation": "Ignore"},
+			errContains: "",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := client.CoreV1().RESTClient().Post().
+				AbsPath("/apis/apps/v1").
+				Namespace("default").
+				Resource("deployments")
+			for k, v := range tc.params {
+				req.Param(k, v)
+
+			}
+			result, err := req.Body([]byte(body)).DoRaw(context.TODO())
+			if err == nil && tc.errContains != "" {
+				t.Fatalf("unexpected post succeeded")
+			}
+			if err != nil && !strings.Contains(string(result), tc.errContains) {
+				t.Fatalf("unexpected response: %v", string(result))
+			}
+		})
+	}
+}
+
+// Benchmark field validation for strict vs non-strict
+func BenchmarkFieldValidation(b *testing.B) {
+	_, client, closeFn := setup(b)
+	defer closeFn()
+
+	flag.Lookup("v").Value.Set("0")
+	corePath := "/api/v1"
+	appsPath := "/apis/apps/v1"
+	// TODO: split POST and PUT into their own test-cases.
+	// TODO: add test for "Warn" validation once it is implemented.
+	benchmarks := []struct {
+		name     string
+		params   map[string]string
+		bodyFile string
+		resource string
+		absPath  string
+	}{
+		{
+			name:     "ignore-validation-deployment",
+			params:   map[string]string{"fieldValidation": "Ignore"},
+			bodyFile: "./testdata/deploy-small.json",
+			resource: "deployments",
+			absPath:  appsPath,
+		},
+		{
+			name:     "strict-validation-deployment",
+			params:   map[string]string{"fieldValidation": "Strict"},
+			bodyFile: "./testdata/deploy-small.json",
+			resource: "deployments",
+			absPath:  appsPath,
+		},
+		{
+			name:     "ignore-validation-pod",
+			params:   map[string]string{"fieldValidation": "Ignore"},
+			bodyFile: "./testdata/pod-medium.json",
+			resource: "pods",
+			absPath:  corePath,
+		},
+		{
+			name:     "strict-validation-pod",
+			params:   map[string]string{"fieldValidation": "Strict"},
+			bodyFile: "./testdata/pod-medium.json",
+			resource: "pods",
+			absPath:  corePath,
+		},
+		{
+			name:     "ignore-validation-big-pod",
+			params:   map[string]string{"fieldValidation": "Ignore"},
+			bodyFile: "./testdata/pod-large.json",
+			resource: "pods",
+			absPath:  corePath,
+		},
+		{
+			name:     "strict-validation-big-pod",
+			params:   map[string]string{"fieldValidation": "Strict"},
+			bodyFile: "./testdata/pod-large.json",
+			resource: "pods",
+			absPath:  corePath,
+		},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ResetTimer()
+			b.ReportAllocs()
+			for n := 0; n < b.N; n++ {
+				// append the timestamp to the name so that we don't hit conflicts when running the test multiple times
+				// (i.e. without it -count=n for n>1 will fail, this might be from not tearing stuff down properly).
+				bodyBase, err := os.ReadFile(bm.bodyFile)
+				if err != nil {
+					panic(err)
+				}
+
+				objName := fmt.Sprintf("obj-%s-%d-%d-%d", bm.name, n, b.N, time.Now().UnixNano())
+				objString := fmt.Sprintf(string(bodyBase), fmt.Sprintf(`"%s"`, objName))
+				body := []byte(objString)
+
+				postReq := client.CoreV1().RESTClient().Post().
+					AbsPath(bm.absPath).
+					Namespace("default").
+					Resource(bm.resource)
+				for k, v := range bm.params {
+					postReq = postReq.Param(k, v)
+				}
+
+				_, err = postReq.Body(body).
+					DoRaw(context.TODO())
+				if err != nil {
+					panic(err)
+				}
+
+				// TODO: put PUT in a different bench case than POST (ie. have a baseReq) be a part of the test case.
+				putReq := client.CoreV1().RESTClient().Put().
+					AbsPath(bm.absPath).
+					Namespace("default").
+					Resource(bm.resource).
+					Name(objName)
+				for k, v := range bm.params {
+					putReq = putReq.Param(k, v)
+				}
+
+				_, err = putReq.Body(body).
+					DoRaw(context.TODO())
+				if err != nil {
+					panic(err)
+				}
+			}
+		})
+
+	}
+}
 
 // smpTestSetup applies an object that will later be patched
 // in the actual test/benchmark.
