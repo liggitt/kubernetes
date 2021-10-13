@@ -79,7 +79,7 @@ func TestFieldValidationPut(t *testing.T) {
 		{
 			name:        "put-strict-validation",
 			params:      map[string]string{"fieldValidation": "Strict"},
-			errContains: "found unknown field",
+			errContains: "unknown field",
 		},
 		{
 			name:        "put-default-ignore-validation",
@@ -142,7 +142,7 @@ func TestFieldValidationPost(t *testing.T) {
 		{
 			name:        "post-strict-validation",
 			params:      map[string]string{"fieldValidation": "Strict"},
-			errContains: "found unknown field",
+			errContains: "unknown field",
 		},
 		{
 			name:        "post-default-ignore-validation",

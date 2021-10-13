@@ -169,7 +169,9 @@ func DisableStrict(options *CodecFactoryOptions) {
 // TODO: allow other codecs to be compiled in?
 // TODO: accept a scheme interface
 func NewCodecFactory(scheme *runtime.Scheme, mutators ...CodecFactoryOptionsMutator) CodecFactory {
-	options := CodecFactoryOptions{Pretty: true}
+	// default to strict decoding, callers of decode are responsible for
+	// distinguishing fatal decoding errors from strict decoding errors.
+	options := CodecFactoryOptions{Pretty: true, Strict: true}
 	for _, fn := range mutators {
 		fn(&options)
 	}

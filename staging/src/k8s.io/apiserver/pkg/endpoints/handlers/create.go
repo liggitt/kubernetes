@@ -92,17 +92,7 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 			return
 		}
 
-		decodeSerializer := s.Serializer
-		// TODO: put behind feature gate?
-		validationDirective, err := fieldValidation(req)
-		if err != nil {
-			scope.err(err, w, req)
-			return
-		}
-		if validationDirective == strictFieldValidation {
-			decodeSerializer = s.StrictSerializer
-		}
-		decoder := scope.Serializer.DecoderToVersion(decodeSerializer, scope.HubGroupVersion)
+		decoder := scope.Serializer.DecoderToVersion(s.Serializer, scope.HubGroupVersion)
 
 		body, err := limitedReadBody(req, scope.MaxRequestBodyBytes)
 		if err != nil {
@@ -126,12 +116,23 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 
 		defaultGVK := scope.Kind
 		original := r.New()
+		validationDirective, err := fieldValidation(req)
+		if err != nil {
+			scope.err(err, w, req)
+			return
+		}
+
 		trace.Step("About to convert to expected version")
 		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
 		if err != nil {
-			err = transformDecodeError(scope.Typer, err, original, gvk, body)
-			scope.err(err, w, req)
-			return
+			if !runtime.IsStrictDecodingError(err) || validationDirective == strictFieldValidation {
+				err = transformDecodeError(scope.Typer, err, original, gvk, body)
+				scope.err(err, w, req)
+				return
+			}
+			if validationDirective == warnFieldValidation {
+				// TODO: throw a warning here
+			}
 		}
 
 		objGV := gvk.GroupVersion()
