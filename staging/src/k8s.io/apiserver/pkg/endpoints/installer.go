@@ -569,15 +569,15 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 	kubeVerbs := map[string]struct{}{}
 	reqScope := handlers.RequestScope{
-		Serializer: a.group.Serializer,
-		//StrictSerializer: a.group.Serializer,
-		ParameterCodec:  a.group.ParameterCodec,
-		Creater:         a.group.Creater,
-		Convertor:       a.group.Convertor,
-		Defaulter:       a.group.Defaulter,
-		Typer:           a.group.Typer,
-		UnsafeConvertor: a.group.UnsafeConvertor,
-		Authorizer:      a.group.Authorizer,
+		Serializer:       a.group.Serializer,
+		StrictSerializer: a.group.Serializer,
+		ParameterCodec:   a.group.ParameterCodec,
+		Creater:          a.group.Creater,
+		Convertor:        a.group.Convertor,
+		Defaulter:        a.group.Defaulter,
+		Typer:            a.group.Typer,
+		UnsafeConvertor:  a.group.UnsafeConvertor,
+		Authorizer:       a.group.Authorizer,
 
 		EquivalentResourceMapper: a.group.EquivalentResourceRegistry,
 
