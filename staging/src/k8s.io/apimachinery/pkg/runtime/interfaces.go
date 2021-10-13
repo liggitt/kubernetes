@@ -126,7 +126,7 @@ type SerializerInfo struct {
 	// readability.
 	PrettySerializer Serializer
 	// StrictSerializer errors on unknown fields when deserializing an object
-	StrictSerializer Serializer
+	//StrictSerializer Serializer
 	// StreamSerializer, if set, describes the streaming serialization format
 	// for this media type.
 	StreamSerializer *StreamSerializerInfo
