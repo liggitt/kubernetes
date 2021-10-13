@@ -229,6 +229,7 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			subresource:           scope.Subresource,
 			dryRun:                dryrun.IsDryRun(options.DryRun),
 			strictFieldValidation: strictValidation,
+			validationDirective:   validationDirective,
 
 			objectInterfaces: scope,
 
@@ -292,6 +293,7 @@ type patcher struct {
 	subresource           string
 	dryRun                bool
 	strictFieldValidation bool
+	validationDirective   fieldValidationDirective
 
 	objectInterfaces admission.ObjectInterfaces
 
@@ -349,9 +351,15 @@ func (p *jsonPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (r
 	// Construct the resulting typed, unversioned object.
 	objToUpdate := p.restPatcher.New()
 	if err := runtime.DecodeInto(p.codec, patchedObjJS, objToUpdate); err != nil {
-		return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
-			field.Invalid(field.NewPath("patch"), string(patchedObjJS), err.Error()),
-		})
+		klog.Warningf("decode into err: %v", err)
+		if !runtime.IsStrictDecodingError(err) || p.validationDirective == strictFieldValidation {
+			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
+				field.Invalid(field.NewPath("patch"), string(patchedObjJS), err.Error()),
+			})
+		}
+		if p.validationDirective == warnFieldValidation {
+			// TODO: throw a warning here
+		}
 	}
 
 	if p.fieldManager != nil {
