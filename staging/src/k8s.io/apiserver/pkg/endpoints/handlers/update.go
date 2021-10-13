@@ -102,24 +102,27 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		defaultGVK := scope.Kind
 		original := r.New()
 
-		trace.Step("About to convert to expected version")
-		decodeSerializer := s.Serializer
 		// TODO: put behind feature gate?
 		validationDirective, err := fieldValidation(req)
 		if err != nil {
 			scope.err(err, w, req)
 			return
 		}
-		if validationDirective == strictFieldValidation {
-			decodeSerializer = s.StrictSerializer
-		}
-		decoder := scope.Serializer.DecoderToVersion(decodeSerializer, scope.HubGroupVersion)
+
+		decoder := scope.Serializer.DecoderToVersion(s.Serializer, scope.HubGroupVersion)
+		trace.Step("About to convert to expected version")
 		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
 		if err != nil {
-			err = transformDecodeError(scope.Typer, err, original, gvk, body)
-			scope.err(err, w, req)
-			return
+			if !runtime.IsStrictDecodingError(err) || validationDirective == strictFieldValidation {
+				err = transformDecodeError(scope.Typer, err, original, gvk, body)
+				scope.err(err, w, req)
+				return
+			}
+			if validationDirective == warnFieldValidation {
+				// TODO: throw a warning here
+			}
 		}
+
 		objGV := gvk.GroupVersion()
 		if !scope.AcceptsGroupVersion(objGV) {
 			err = errors.NewBadRequest(fmt.Sprintf("the API version in the data (%s) does not match the expected API version (%s)", objGV, defaultGVK.GroupVersion()))

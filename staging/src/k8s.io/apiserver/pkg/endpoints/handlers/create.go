@@ -92,8 +92,6 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 			return
 		}
 
-		decoder := scope.Serializer.DecoderToVersion(s.Serializer, scope.HubGroupVersion)
-
 		body, err := limitedReadBody(req, scope.MaxRequestBodyBytes)
 		if err != nil {
 			scope.err(err, w, req)
@@ -116,12 +114,15 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 
 		defaultGVK := scope.Kind
 		original := r.New()
+
+		// TODO: put behind feature gate?
 		validationDirective, err := fieldValidation(req)
 		if err != nil {
 			scope.err(err, w, req)
 			return
 		}
 
+		decoder := scope.Serializer.DecoderToVersion(s.Serializer, scope.HubGroupVersion)
 		trace.Step("About to convert to expected version")
 		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
 		if err != nil {
