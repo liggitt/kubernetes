@@ -17,6 +17,7 @@ limitations under the License.
 package apiserver
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -1247,6 +1248,9 @@ func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersion
 	}
 	if u, ok := obj.(*unstructured.Unstructured); ok {
 		if err := d.validator.apply(u); err != nil {
+			if runtime.IsStrictDecodingError(err) {
+				return obj, gvk, err
+			}
 			return nil, gvk, err
 		}
 	}
@@ -1355,13 +1359,15 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 	if err != nil {
 		return err
 	}
+
+	pruned := map[string]bool{}
 	if gv.Group == v.structuralSchemaGK.Group && kind == v.structuralSchemaGK.Kind {
 		if v.unknownFieldsDirective != preserve {
 			// TODO: switch over pruning and coercing at the root to schemaobjectmeta.Coerce too (I don't remember what this comment means anymore)
-			pruned := structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
-			if v.unknownFieldsDirective == fail && len(pruned) > 0 {
-				return fmt.Errorf("failed with unknown fields: %v", pruned)
-			}
+			pruned = structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
+			//if v.unknownFieldsDirective == fail && len(pruned) > 0 {
+			//	return fmt.Errorf("failed with unknown fields: %v", pruned)
+			//}
 			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
 		}
 		if err := schemaobjectmeta.Coerce(nil, u.Object, v.structuralSchemas[gv.Version], false, v.dropInvalidMetadata); err != nil {
@@ -1383,6 +1389,15 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 		if err := schemaobjectmeta.SetObjectMeta(u.Object, objectMeta); err != nil {
 			return err
 		}
+	}
+	if len(pruned) > 0 {
+		allStrictErrs := make([]error, len(pruned))
+		i := 0
+		for unknownField, _ := range pruned {
+			allStrictErrs[i] = errors.New(unknownField)
+		}
+		return runtime.NewStrictDecodingError(allStrictErrs)
+
 	}
 
 	return nil
