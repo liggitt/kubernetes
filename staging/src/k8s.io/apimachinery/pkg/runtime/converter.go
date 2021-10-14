@@ -102,7 +102,9 @@ type unstructuredConverter struct {
 	// This is supposed to be set only in tests.
 	mismatchDetection bool
 	// comparison is the default test logic used to compare
-	comparison               conversion.Equalities
+	comparison conversion.Equalities
+	// fieldValidationDirective indicates what to do with unknown
+	// fields. It defaults to ignoring unkown fields.
 	fieldValidationDirective FieldValidationDirective
 }
 
@@ -126,6 +128,8 @@ const (
 	WarnFieldValidation
 )
 
+// SetFieldValidationDirective sets the directive for what the converter should do with
+// unknown fields.
 func (c *unstructuredConverter) SetFieldValidationDirective(directive FieldValidationDirective) {
 	c.fieldValidationDirective = directive
 }

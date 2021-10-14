@@ -116,7 +116,6 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 		defaultGVK := scope.Kind
 		original := r.New()
 
-		// TODO: put behind feature gate?
 		validationDirective, err := fieldValidation(req)
 		if err != nil {
 			scope.err(err, w, req)

@@ -259,16 +259,15 @@ type mutateObjectUpdateFunc func(ctx context.Context, obj, old runtime.Object) e
 // moved into this type.
 type patcher struct {
 	// Pieces of RequestScope
-	namer           ScopeNamer
-	creater         runtime.ObjectCreater
-	defaulter       runtime.ObjectDefaulter
-	typer           runtime.ObjectTyper
-	unsafeConvertor runtime.ObjectConvertor
-	resource        schema.GroupVersionResource
-	kind            schema.GroupVersionKind
-	subresource     string
-	dryRun          bool
-	//strictFieldValidation bool
+	namer               ScopeNamer
+	creater             runtime.ObjectCreater
+	defaulter           runtime.ObjectDefaulter
+	typer               runtime.ObjectTyper
+	unsafeConvertor     runtime.ObjectConvertor
+	resource            schema.GroupVersionResource
+	kind                schema.GroupVersionKind
+	subresource         string
+	dryRun              bool
 	validationDirective runtime.FieldValidationDirective
 
 	objectInterfaces admission.ObjectInterfaces
