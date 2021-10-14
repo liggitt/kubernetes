@@ -649,9 +649,14 @@ func applyPatchToObject(
 	converter := runtime.DefaultUnstructuredConverter
 	converter.SetFieldValidationDirective(validationDirective)
 	if err := converter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
-		return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
-			field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
-		})
+		if !runtime.IsStrictDecodingError(err) || validationDirective == runtime.StrictFieldValidation {
+			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
+				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
+			})
+		}
+		if validationDirective == runtime.WarnFieldValidation {
+			// TODO: throw a warning here
+		}
 	}
 	// Decoding from JSON to a versioned object would apply defaults, so we do the same here
 	defaulter.Default(objToUpdate)

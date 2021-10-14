@@ -351,7 +351,7 @@ func TestFieldValidationSMP(t *testing.T) {
 		{
 			name:        "smp-strict-validation",
 			params:      map[string]string{"fieldValidation": "Strict"},
-			errContains: "unknown fields when converting from unstructured",
+			errContains: "unknown field",
 		},
 		{
 			name:        "smp-ignore-validation",
@@ -381,7 +381,7 @@ func BenchmarkFieldValidationSMP(b *testing.B) {
 		{
 			name:        "smp-strict-validation",
 			params:      map[string]string{"fieldValidation": "Strict"},
-			errContains: "unknown fields when converting from unstructured",
+			errContains: "unknown field",
 		},
 		{
 			name:        "smp-ignore-validation",
@@ -565,7 +565,7 @@ func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 			patchType:   types.MergePatchType,
 			params:      map[string]string{"fieldValidation": "Strict"},
 			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-unknown-%d"]}, "spec":{"foo": "bar"}}`,
-			errContains: "failed with unknown fields",
+			errContains: "unknown field",
 		},
 	}
 	for _, bm := range benchmarks {

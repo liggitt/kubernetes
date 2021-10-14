@@ -421,19 +421,15 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fie
 		}
 	}
 	if len(keys) > 0 && c.fieldValidationDirective == StrictFieldValidation {
-		return &UnknownFieldError{
-			invalidFields: keys,
+		allStrictErrs := make([]error, len(keys))
+		for i, unknownField := range keys {
+			allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField.String())
+			i++
 		}
+		err := NewStrictDecodingError(allStrictErrs)
+		return err
 	}
 	return nil
-}
-
-type UnknownFieldError struct {
-	invalidFields []reflect.Value
-}
-
-func (fe *UnknownFieldError) Error() string {
-	return fmt.Sprintf("unknown fields when converting from unstructured: %+v", fe.invalidFields)
 }
 
 func deleteFromKeys(name string, keys *[]reflect.Value) {
