@@ -41,6 +41,80 @@ import (
 	"k8s.io/kubernetes/test/integration/framework"
 )
 
+// TestFieldValidationPost tests POST requests containing unknown fields with
+// strict and non-strict field validation.
+func TestFieldValidationPost(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+
+	_, client, closeFn := setup(t)
+	defer closeFn()
+
+	bodyBytes, err := os.ReadFile("./testdata/deploy-small-unknown-field.json")
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	body := []byte(fmt.Sprintf(string(bodyBytes), `"test-deployment"`))
+
+	var testcases = []struct {
+		name string
+		// TODO: use PostOptions for fieldValidation param instead of raw strings.
+		params       map[string]string
+		errContains  string
+		warnContains string
+	}{
+		{
+			name:        "post-strict-validation",
+			params:      map[string]string{"fieldValidation": "Strict"},
+			errContains: "unknown field",
+		},
+		{
+			name:         "post-ignore-validation",
+			params:       map[string]string{"fieldValidation": "Warn"},
+			warnContains: "unknown field",
+		},
+		{
+			name:   "post-default-ignore-validation",
+			params: map[string]string{},
+		},
+		{
+			name:   "post-ignore-validation",
+			params: map[string]string{"fieldValidation": "Ignore"},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := client.CoreV1().RESTClient().Post().
+				AbsPath("/apis/apps/v1").
+				Namespace("default").
+				Resource("deployments")
+			for k, v := range tc.params {
+				req.Param(k, v)
+
+			}
+			result := req.Body([]byte(body)).Do(context.TODO())
+			if tc.warnContains != "" {
+				warningMatched := false
+				for _, w := range result.Warnings() {
+					if strings.Contains(w.String(), tc.warnContains) {
+						warningMatched = true
+					}
+				}
+				if !warningMatched {
+					t.Fatalf("expected warning to contain: %s, got warnings: %v", tc.warnContains, result.Warnings())
+				}
+			}
+			resBody, err := result.Raw()
+			if err == nil && tc.errContains != "" {
+				t.Fatalf("unexpected post succeeded")
+			}
+			if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+				t.Fatalf("unexpected response: %v", string(resBody))
+			}
+		})
+	}
+}
+
 // TestFieldValidationPut tests PUT requests containing unknown fields with
 // strict and non-strict field validation.
 func TestFieldValidationPut(t *testing.T) {
@@ -73,8 +147,9 @@ func TestFieldValidationPut(t *testing.T) {
 	var testcases = []struct {
 		name string
 		// TODO: use PostOptions for fieldValidation param instead of raw strings.
-		params      map[string]string
-		errContains string
+		params       map[string]string
+		errContains  string
+		warnContains string
 	}{
 		{
 			name:        "put-strict-validation",
@@ -82,14 +157,17 @@ func TestFieldValidationPut(t *testing.T) {
 			errContains: "unknown field",
 		},
 		{
-			name:        "put-default-ignore-validation",
-			params:      map[string]string{},
-			errContains: "",
+			name:         "put-strict-validation",
+			params:       map[string]string{"fieldValidation": "Warn"},
+			warnContains: "unknown field",
 		},
 		{
-			name:        "put-ignore-validation",
-			params:      map[string]string{"fieldValidation": "Ignore"},
-			errContains: "",
+			name:   "put-default-ignore-validation",
+			params: map[string]string{},
+		},
+		{
+			name:   "put-ignore-validation",
+			params: map[string]string{"fieldValidation": "Ignore"},
 		},
 	}
 
@@ -104,74 +182,24 @@ func TestFieldValidationPut(t *testing.T) {
 				req.Param(k, v)
 
 			}
-			result, err := req.Body(putBody).DoRaw(context.TODO())
+			result := req.Body([]byte(putBody)).Do(context.TODO())
+			if tc.warnContains != "" {
+				warningMatched := false
+				for _, w := range result.Warnings() {
+					if strings.Contains(w.String(), tc.warnContains) {
+						warningMatched = true
+					}
+				}
+				if !warningMatched {
+					t.Fatalf("expected warning to contain: %s, got warnings: %v", tc.warnContains, result.Warnings())
+				}
+			}
+			resBody, err := result.Raw()
 			if err == nil && tc.errContains != "" {
-				t.Fatalf("unexpected post succeeded")
-
+				t.Fatalf("unexpected put succeeded")
 			}
-			if err != nil && !strings.Contains(string(result), tc.errContains) {
-				t.Fatalf("unexpected response: %v", string(result))
-
-			}
-		})
-
-	}
-
-}
-
-// TestFieldValidationPost tests POST requests containing unknown fields with
-// strict and non-strict field validation.
-func TestFieldValidationPost(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
-
-	_, client, closeFn := setup(t)
-	defer closeFn()
-
-	bodyBytes, err := os.ReadFile("./testdata/deploy-small-unknown-field.json")
-	if err != nil {
-		t.Fatalf("failed to read file: %v", err)
-	}
-	body := []byte(fmt.Sprintf(string(bodyBytes), `"test-deployment"`))
-
-	var testcases = []struct {
-		name string
-		// TODO: use PostOptions for fieldValidation param instead of raw strings.
-		params      map[string]string
-		errContains string
-	}{
-		{
-			name:        "post-strict-validation",
-			params:      map[string]string{"fieldValidation": "Strict"},
-			errContains: "unknown field",
-		},
-		{
-			name:        "post-default-ignore-validation",
-			params:      map[string]string{},
-			errContains: "",
-		},
-		{
-			name:        "post-ignore-validation",
-			params:      map[string]string{"fieldValidation": "Ignore"},
-			errContains: "",
-		},
-	}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			req := client.CoreV1().RESTClient().Post().
-				AbsPath("/apis/apps/v1").
-				Namespace("default").
-				Resource("deployments")
-			for k, v := range tc.params {
-				req.Param(k, v)
-
-			}
-			result, err := req.Body([]byte(body)).DoRaw(context.TODO())
-			if err == nil && tc.errContains != "" {
-				t.Fatalf("unexpected post succeeded")
-			}
-			if err != nil && !strings.Contains(string(result), tc.errContains) {
-				t.Fatalf("unexpected response: %v", string(result))
+			if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+				t.Fatalf("unexpected response: %v", string(resBody))
 			}
 		})
 	}

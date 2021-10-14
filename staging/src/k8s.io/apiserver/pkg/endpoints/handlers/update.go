@@ -41,6 +41,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/apiserver/pkg/warning"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -119,7 +120,7 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 				return
 			}
 			if validationDirective == runtime.WarnFieldValidation {
-				// TODO: throw a warning here
+				warning.AddWarning(req.Context(), "", err.Error())
 			}
 		}
 

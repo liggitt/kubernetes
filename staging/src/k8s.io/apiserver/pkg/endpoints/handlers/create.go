@@ -43,6 +43,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/apiserver/pkg/warning"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -132,7 +133,7 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 				return
 			}
 			if validationDirective == runtime.WarnFieldValidation {
-				// TODO: throw a warning here
+				warning.AddWarning(req.Context(), "", err.Error())
 			}
 		}
 

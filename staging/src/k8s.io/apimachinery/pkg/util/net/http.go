@@ -556,6 +556,10 @@ type WarningHeader struct {
 	Text string
 }
 
+func (w WarningHeader) String() string {
+	return fmt.Sprintf("%03d %s %s", w.Code, w.Agent, w.Text)
+}
+
 // ParseWarningHeaders extract RFC2616 14.46 warnings headers from the specified set of header values.
 // Multiple comma-separated warnings per header are supported.
 // If errors are encountered on a header, the remainder of that header are skipped and subsequent headers are parsed.
