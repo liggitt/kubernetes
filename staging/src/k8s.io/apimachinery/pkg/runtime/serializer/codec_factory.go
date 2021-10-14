@@ -69,6 +69,7 @@ func newSerializersForScheme(scheme *runtime.Scheme, mf json.MetaFactory, option
 			json.SerializerOptions{Yaml: false, Pretty: true, Strict: options.Strict},
 		)
 	}
+
 	yamlSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
 		json.SerializerOptions{Yaml: true, Pretty: false, Strict: options.Strict},
