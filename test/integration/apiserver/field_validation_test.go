@@ -68,7 +68,7 @@ func TestFieldValidationPost(t *testing.T) {
 			errContains: "unknown field",
 		},
 		{
-			name:         "post-ignore-validation",
+			name:         "post-warn-validation",
 			params:       map[string]string{"fieldValidation": "Warn"},
 			warnContains: "unknown field",
 		},
@@ -157,7 +157,7 @@ func TestFieldValidationPut(t *testing.T) {
 			errContains: "unknown field",
 		},
 		{
-			name:         "put-strict-validation",
+			name:         "put-warn-validation",
 			params:       map[string]string{"fieldValidation": "Warn"},
 			warnContains: "unknown field",
 		},
@@ -396,7 +396,7 @@ func TestFieldValidationSMP(t *testing.T) {
 			errContains: "unknown field",
 		},
 		{
-			name:         "smp-strict-validation",
+			name:         "smp-warn-validation",
 			params:       map[string]string{"fieldValidation": "Warn"},
 			warnContains: "unknown field",
 		},
@@ -509,11 +509,12 @@ func patchCRDTestSetup(t testing.TB, server kubeapiservertesting.TestServer, nam
 // works for jsonpatch and mergepatch requests.
 func TestFieldValidationPatchCRD(t *testing.T) {
 	var testcases = []struct {
-		name        string
-		patchType   types.PatchType
-		params      map[string]string
-		body        string
-		errContains string
+		name         string
+		patchType    types.PatchType
+		params       map[string]string
+		body         string
+		errContains  string
+		warnContains string
 	}{
 		{
 			name:        "merge-patch-strict-validation",
@@ -523,11 +524,17 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			errContains: "unknown field",
 		},
 		{
-			name:        "merge-patch-no-validation",
-			patchType:   types.MergePatchType,
-			params:      map[string]string{},
-			body:        `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
-			errContains: "",
+			name:         "merge-patch-warn-validation",
+			patchType:    types.MergePatchType,
+			params:       map[string]string{"fieldValidation": "Warn"},
+			body:         `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
+			warnContains: "unknown field",
+		},
+		{
+			name:      "merge-patch-no-validation",
+			patchType: types.MergePatchType,
+			params:    map[string]string{},
+			body:      `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
 		},
 		// TODO: figure out how to test JSONPatch
 		//{
@@ -562,15 +569,24 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			for k, v := range tc.params {
 				req = req.Param(k, v)
 			}
-			result, err := req.
-				Body([]byte(tc.body)).
-				DoRaw(context.TODO())
-			if err == nil && tc.errContains != "" {
-				t.Fatalf("unexpected patch succeeded, expected %s", tc.errContains)
+			result := req.Body([]byte(tc.body)).Do(context.TODO())
+			if tc.warnContains != "" {
+				warningMatched := false
+				for _, w := range result.Warnings() {
+					if strings.Contains(w.String(), tc.warnContains) {
+						warningMatched = true
+					}
+				}
+				if !warningMatched {
+					t.Fatalf("expected warning to contain: %s, got warnings: %v", tc.warnContains, result.Warnings())
+				}
 			}
-			if err != nil && !strings.Contains(string(result), tc.errContains) {
-				t.Errorf("bad err: %v", err)
-				t.Fatalf("unexpected response: %v", string(result))
+			resBody, err := result.Raw()
+			if err == nil && tc.errContains != "" {
+				t.Fatalf("unexpected put succeeded")
+			}
+			if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+				t.Fatalf("unexpected response: %v", string(resBody))
 			}
 		})
 	}
