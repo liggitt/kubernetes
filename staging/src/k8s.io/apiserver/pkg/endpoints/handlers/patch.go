@@ -70,17 +70,6 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			return
 		}
 
-		//// TODO: put behind feature gate?
-		//validationDirective, err := fieldValidation(req)
-		//if err != nil {
-		//	scope.err(err, w, req)
-		//	return
-		//}
-		//if validationDirective == strictFieldValidation {
-		//	scope.err(errors.NewBadRequest("strict validation is not supported yet"), w, req)
-		//	return
-		//}
-
 		// Do this first, otherwise name extraction can fail for unrecognized content types
 		// TODO: handle this in negotiation
 		contentType := req.Header.Get("Content-Type")
@@ -231,7 +220,6 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			updateValidation: rest.AdmissionToValidateObjectUpdateFunc(admit, staticUpdateAttributes, scope),
 			admissionCheck:   mutatingAdmission,
 
-			// TODO: define codec as strict or not-strict based on request
 			codec: codec,
 
 			options: options,

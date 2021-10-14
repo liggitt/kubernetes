@@ -391,6 +391,7 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fie
 		fieldInfo := fieldInfoFromField(dt, i)
 		fv := dv.Field(i)
 		if len(fieldInfo.name) == 0 {
+			// This field is inlined.
 			if err := c.fromUnstructured(sv, fv, fields); err != nil {
 				return err
 			}
