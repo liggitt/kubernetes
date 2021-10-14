@@ -50,6 +50,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/apiserver/pkg/warning"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -300,7 +301,7 @@ type patcher struct {
 }
 
 type patchMechanism interface {
-	applyPatchToCurrentObject(currentObject runtime.Object) (runtime.Object, error)
+	applyPatchToCurrentObject(requextContext context.Context, currentObject runtime.Object) (runtime.Object, error)
 	createNewObject() (runtime.Object, error)
 }
 
@@ -310,7 +311,7 @@ type jsonPatcher struct {
 	fieldManager *fieldmanager.FieldManager
 }
 
-func (p *jsonPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (runtime.Object, error) {
+func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, currentObject runtime.Object) (runtime.Object, error) {
 	// Encode will convert & return a versioned object in JSON.
 	currentObjJS, err := runtime.Encode(p.codec, currentObject)
 	if err != nil {
@@ -332,7 +333,7 @@ func (p *jsonPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (r
 			})
 		}
 		if p.validationDirective == runtime.WarnFieldValidation {
-			// TODO: throw a warning here
+			warning.AddWarning(requestContext, "", err.Error())
 		}
 	}
 
@@ -399,7 +400,7 @@ type smpPatcher struct {
 	fieldManager       *fieldmanager.FieldManager
 }
 
-func (p *smpPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (runtime.Object, error) {
+func (p *smpPatcher) applyPatchToCurrentObject(requestContext context.Context, currentObject runtime.Object) (runtime.Object, error) {
 	// Since the patch is applied on versioned objects, we need to convert the
 	// current object to versioned representation first.
 	currentVersionedObject, err := p.unsafeConvertor.ConvertToVersion(currentObject, p.kind.GroupVersion())
@@ -410,7 +411,7 @@ func (p *smpPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (ru
 	if err != nil {
 		return nil, err
 	}
-	if err := strategicPatchObject(p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj, p.validationDirective); err != nil {
+	if err := strategicPatchObject(requestContext, p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj, p.validationDirective); err != nil {
 		return nil, err
 	}
 	// Convert the object back to the hub version
@@ -438,7 +439,7 @@ type applyPatcher struct {
 	userAgent    string
 }
 
-func (p *applyPatcher) applyPatchToCurrentObject(obj runtime.Object) (runtime.Object, error) {
+func (p *applyPatcher) applyPatchToCurrentObject(_ context.Context, obj runtime.Object) (runtime.Object, error) {
 	force := false
 	if p.options.Force != nil {
 		force = *p.options.Force
@@ -460,7 +461,7 @@ func (p *applyPatcher) createNewObject() (runtime.Object, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new object: %v", err)
 	}
-	return p.applyPatchToCurrentObject(obj)
+	return p.applyPatchToCurrentObject(context.TODO(), obj)
 }
 
 // strategicPatchObject applies a strategic merge patch of <patchBytes> to
@@ -469,6 +470,7 @@ func (p *applyPatcher) createNewObject() (runtime.Object, error) {
 // <originalObject> and <patchBytes>.
 // NOTE: Both <originalObject> and <objToUpdate> are supposed to be versioned.
 func strategicPatchObject(
+	requestContext context.Context,
 	defaulter runtime.ObjectDefaulter,
 	originalObject runtime.Object,
 	patchBytes []byte,
@@ -486,7 +488,7 @@ func strategicPatchObject(
 		return errors.NewBadRequest(err.Error())
 	}
 
-	if err := applyPatchToObject(defaulter, originalObjMap, patchMap, objToUpdate, schemaReferenceObj, validationDirective); err != nil {
+	if err := applyPatchToObject(requestContext, defaulter, originalObjMap, patchMap, objToUpdate, schemaReferenceObj, validationDirective); err != nil {
 		return err
 	}
 	return nil
@@ -495,7 +497,7 @@ func strategicPatchObject(
 // applyPatch is called every time GuaranteedUpdate asks for the updated object,
 // and is given the currently persisted object as input.
 // TODO: rename this function because the name implies it is related to applyPatcher
-func (p *patcher) applyPatch(_ context.Context, _, currentObject runtime.Object) (objToUpdate runtime.Object, patchErr error) {
+func (p *patcher) applyPatch(ctx context.Context, _, currentObject runtime.Object) (objToUpdate runtime.Object, patchErr error) {
 	// Make sure we actually have a persisted currentObject
 	p.trace.Step("About to apply patch")
 	currentObjectHasUID, err := hasUID(currentObject)
@@ -504,7 +506,7 @@ func (p *patcher) applyPatch(_ context.Context, _, currentObject runtime.Object)
 	} else if !currentObjectHasUID {
 		objToUpdate, patchErr = p.mechanism.createNewObject()
 	} else {
-		objToUpdate, patchErr = p.mechanism.applyPatchToCurrentObject(currentObject)
+		objToUpdate, patchErr = p.mechanism.applyPatchToCurrentObject(ctx, currentObject)
 	}
 
 	if patchErr != nil {
@@ -633,6 +635,7 @@ func (p *patcher) patchResource(ctx context.Context, scope *RequestScope) (runti
 // <originalMap> and stores the result in <objToUpdate>.
 // NOTE: <objToUpdate> must be a versioned object.
 func applyPatchToObject(
+	requestContext context.Context,
 	defaulter runtime.ObjectDefaulter,
 	originalMap map[string]interface{},
 	patchMap map[string]interface{},
@@ -655,7 +658,7 @@ func applyPatchToObject(
 			})
 		}
 		if validationDirective == runtime.WarnFieldValidation {
-			// TODO: throw a warning here
+			warning.AddWarning(requestContext, "", err.Error())
 		}
 	}
 	// Decoding from JSON to a versioned object would apply defaults, so we do the same here

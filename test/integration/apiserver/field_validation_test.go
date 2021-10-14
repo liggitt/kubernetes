@@ -349,19 +349,33 @@ func smpRunTest(t testing.TB, client clientset.Interface, tc smpTestCase) {
 	for k, v := range tc.params {
 		req.Param(k, v)
 	}
-	result, err := req.Body([]byte(`{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`)).DoRaw(context.TODO())
-	if err == nil && tc.errContains != "" {
-		t.Fatalf("unexpected patch succeeded")
+	smpBody := `{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`
+	result := req.Body([]byte(smpBody)).Do(context.TODO())
+	if tc.warnContains != "" {
+		warningMatched := false
+		for _, w := range result.Warnings() {
+			if strings.Contains(w.String(), tc.warnContains) {
+				warningMatched = true
+			}
+		}
+		if !warningMatched {
+			t.Fatalf("expected warning to contain: %s, got warnings: %v", tc.warnContains, result.Warnings())
+		}
 	}
-	if err != nil && !strings.Contains(string(result), tc.errContains) {
-		t.Fatalf("unexpected response: %v", string(result))
+	resBody, err := result.Raw()
+	if err == nil && tc.errContains != "" {
+		t.Fatalf("unexpected put succeeded")
+	}
+	if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+		t.Fatalf("unexpected response: %v", string(resBody))
 	}
 }
 
 type smpTestCase struct {
-	name        string
-	params      map[string]string
-	errContains string
+	name         string
+	params       map[string]string
+	errContains  string
+	warnContains string
 }
 
 // TestFieldValidationSMP tests that attempting a strategic-merge-patch
@@ -382,9 +396,13 @@ func TestFieldValidationSMP(t *testing.T) {
 			errContains: "unknown field",
 		},
 		{
-			name:        "smp-ignore-validation",
-			params:      map[string]string{},
-			errContains: "",
+			name:         "smp-strict-validation",
+			params:       map[string]string{"fieldValidation": "Warn"},
+			warnContains: "unknown field",
+		},
+		{
+			name:   "smp-ignore-validation",
+			params: map[string]string{},
 		},
 	}
 

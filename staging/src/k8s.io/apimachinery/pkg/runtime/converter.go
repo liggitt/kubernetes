@@ -420,7 +420,7 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fie
 			}
 		}
 	}
-	if len(keys) > 0 && c.fieldValidationDirective == StrictFieldValidation {
+	if len(keys) > 0 && c.fieldValidationDirective == StrictFieldValidation || c.fieldValidationDirective == WarnFieldValidation {
 		allStrictErrs := make([]error, len(keys))
 		for i, unknownField := range keys {
 			allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField.String())
