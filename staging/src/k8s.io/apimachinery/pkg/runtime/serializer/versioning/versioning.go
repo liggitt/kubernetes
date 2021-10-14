@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"io"
 	"reflect"
-	goruntime "runtime"
 	"sync"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -125,10 +124,6 @@ func identifier(encodeGV runtime.GroupVersioner, encoder runtime.Encoder) runtim
 // successful, the returned runtime.Object will be the value passed as into. Note that this may bypass conversion if you pass an
 // into that matches the serialized version.
 func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
-	_, file, no, ok := goruntime.Caller(1)
-	if ok {
-		klog.Warningf("called from %s#%d\n", file, no)
-	}
 	// If the into object is unstructured and expresses an opinion about its group/version,
 	// create a new instance of the type so we always exercise the conversion path (skips short-circuiting on `into == obj`)
 	decodeInto := into
@@ -138,15 +133,12 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 		}
 	}
 
-	klog.Warningf("versionging decode")
 	obj, gvk, err := c.decoder.Decode(data, defaultGVK, decodeInto)
-	klog.Warningf("back from versionging decode: %v", err)
 	if err != nil && !runtime.IsStrictDecodingError(err) {
-		klog.Warningf("not a strict err")
 		return nil, gvk, err
 	}
+	// save the strictDecodingError and the caller decide what to do with it
 	strictDecodingErr := err
-	klog.Warningf("set SDE: %v", strictDecodingErr)
 
 	if d, ok := obj.(runtime.NestedObjectDecoder); ok {
 		if err := d.DecodeNestedObjects(runtime.WithoutVersionDecoder{c.decoder}); err != nil {
@@ -163,7 +155,6 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 
 		// Short-circuit conversion if the into object is same object
 		if into == obj {
-			klog.Warningf("short circuit into loop 1 sDE: %v", strictDecodingErr)
 			return into, gvk, strictDecodingErr
 		}
 
@@ -171,7 +162,6 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 			return nil, gvk, err
 		}
 
-		klog.Warningf("short circuit into loop 2 sDE: %v", strictDecodingErr)
 		return into, gvk, strictDecodingErr
 	}
 
@@ -184,7 +174,6 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 	if err != nil {
 		return nil, gvk, err
 	}
-	klog.Warningf("returning with sDE: %v", strictDecodingErr)
 	return out, gvk, strictDecodingErr
 }
 

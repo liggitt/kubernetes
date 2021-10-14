@@ -55,26 +55,14 @@ func Encode(e Encoder, obj Object) ([]byte, error) {
 
 // Decode is a convenience wrapper for decoding data into an Object.
 func Decode(d Decoder, data []byte) (Object, error) {
-	klog.Warningf("Decode wrapper")
 	obj, _, err := d.Decode(data, nil, nil)
-	klog.Warningf("back from decode wrapper")
-	if IsStrictDecodingError(err) {
-		klog.Warningf("got a strict error")
-		return obj, nil
-	}
 	return obj, err
 }
 
 // DecodeInto performs a Decode into the provided object.
 func DecodeInto(d Decoder, data []byte, into Object) error {
-	klog.Warningf("DecodeInto")
 	out, gvk, err := d.Decode(data, nil, into)
-	klog.Warningf("back from DecodeInto")
 	if err != nil {
-		klog.Warningf("this the one 1")
-		if IsStrictDecodingError(err) {
-			klog.Warningf("strict decode err")
-		}
 		return err
 	}
 	if out != into {
