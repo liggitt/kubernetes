@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	goruntime "runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -841,23 +840,14 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		clusterScoped := crd.Spec.Scope == apiextensionsv1.ClusterScoped
 
 		// CRDs explicitly do not support protobuf, but some objects returned by the API server do
-		// TODO: we could have two serializers one with strict directive and one without?
 		negotiatedSerializer := unstructuredNegotiatedSerializer{
-			typer:              typer,
-			creator:            creator,
-			converter:          safeConverter,
-			structuralSchemas:  structuralSchemas,
-			structuralSchemaGK: kind.GroupKind(),
-			//unknownFieldsDirective: makeUnknownFieldsDirective(crd.Spec.PreserveUnknownFields, false),
-			unknownFieldsDirective: makeUnknownFieldsDirective(crd.Spec.PreserveUnknownFields, true),
-		}
-		strictNegotiatedSerializer := unstructuredNegotiatedSerializer{
-			typer:                  typer,
-			creator:                creator,
-			converter:              safeConverter,
-			structuralSchemas:      structuralSchemas,
-			structuralSchemaGK:     kind.GroupKind(),
-			unknownFieldsDirective: makeUnknownFieldsDirective(crd.Spec.PreserveUnknownFields, true),
+			typer:                       typer,
+			creator:                     creator,
+			converter:                   safeConverter,
+			structuralSchemas:           structuralSchemas,
+			structuralSchemaGK:          kind.GroupKind(),
+			preserveUnknownFields:       crd.Spec.PreserveUnknownFields,
+			persistStrictDecodingErrors: true,
 		}
 		var standardSerializers []runtime.SerializerInfo
 		for _, s := range negotiatedSerializer.SupportedMediaTypes() {
@@ -874,7 +864,6 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 				SelfLinkPathPrefix: selfLinkPrefix,
 			},
 			Serializer:          negotiatedSerializer,
-			StrictSerializer:    strictNegotiatedSerializer,
 			ParameterCodec:      parameterCodec,
 			StandardSerializers: standardSerializers,
 
@@ -1044,9 +1033,10 @@ type unstructuredNegotiatedSerializer struct {
 	creator   runtime.ObjectCreater
 	converter runtime.ObjectConvertor
 
-	structuralSchemas      map[string]*structuralschema.Structural // by version
-	structuralSchemaGK     schema.GroupKind
-	unknownFieldsDirective unknownFieldsDirective
+	structuralSchemas           map[string]*structuralschema.Structural // by version
+	structuralSchemaGK          schema.GroupKind
+	preserveUnknownFields       bool
+	persistStrictDecodingErrors bool
 }
 
 func (s unstructuredNegotiatedSerializer) SupportedMediaTypes() []runtime.SerializerInfo {
@@ -1089,7 +1079,7 @@ func (s unstructuredNegotiatedSerializer) EncoderForVersion(encoder runtime.Enco
 }
 
 func (s unstructuredNegotiatedSerializer) DecoderToVersion(decoder runtime.Decoder, gv runtime.GroupVersioner) runtime.Decoder {
-	d := schemaCoercingDecoder{delegate: decoder, validator: unstructuredSchemaCoercer{structuralSchemas: s.structuralSchemas, structuralSchemaGK: s.structuralSchemaGK, unknownFieldsDirective: s.unknownFieldsDirective}}
+	d := schemaCoercingDecoder{delegate: decoder, validator: unstructuredSchemaCoercer{structuralSchemas: s.structuralSchemas, structuralSchemaGK: s.structuralSchemaGK, preserveUnknownFields: s.preserveUnknownFields, persistStrictDecodingErrors: s.persistStrictDecodingErrors}}
 	return versioning.NewCodec(nil, d, runtime.UnsafeObjectConvertor(Scheme), Scheme, Scheme, unstructuredDefaulter{
 		delegate:           Scheme,
 		structuralSchemas:  s.structuralSchemas,
@@ -1203,16 +1193,16 @@ func (t crdConversionRESTOptionsGetter) GetRESTOptions(resource schema.GroupReso
 	if err == nil {
 		d := schemaCoercingDecoder{delegate: ret.StorageConfig.Codec, validator: unstructuredSchemaCoercer{
 			// drop invalid fields while decoding old CRs (before we haven't had any ObjectMeta validation)
-			dropInvalidMetadata:    true,
-			repairGeneration:       true,
-			structuralSchemas:      t.structuralSchemas,
-			structuralSchemaGK:     t.structuralSchemaGK,
-			unknownFieldsDirective: makeUnknownFieldsDirective(t.preserveUnknownFields, false),
+			dropInvalidMetadata:   true,
+			repairGeneration:      true,
+			structuralSchemas:     t.structuralSchemas,
+			structuralSchemaGK:    t.structuralSchemaGK,
+			preserveUnknownFields: t.preserveUnknownFields,
 		}}
 		c := schemaCoercingConverter{delegate: t.converter, validator: unstructuredSchemaCoercer{
-			structuralSchemas:      t.structuralSchemas,
-			structuralSchemaGK:     t.structuralSchemaGK,
-			unknownFieldsDirective: makeUnknownFieldsDirective(t.preserveUnknownFields, false),
+			structuralSchemas:     t.structuralSchemas,
+			structuralSchemaGK:    t.structuralSchemaGK,
+			preserveUnknownFields: t.preserveUnknownFields,
 		}}
 		ret.StorageConfig.Codec = versioning.NewCodec(
 			ret.StorageConfig.Codec,
@@ -1243,10 +1233,6 @@ type schemaCoercingDecoder struct {
 var _ runtime.Decoder = schemaCoercingDecoder{}
 
 func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
-	_, file, no, ok := goruntime.Caller(1)
-	if ok {
-		klog.Warningf("called from %s#%d\n", file, no)
-	}
 	obj, gvk, err := d.delegate.Decode(data, defaults, into)
 	if err != nil {
 		return nil, gvk, err
@@ -1254,7 +1240,6 @@ func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersion
 	if u, ok := obj.(*unstructured.Unstructured); ok {
 		if err := d.validator.apply(u); err != nil {
 			if runtime.IsStrictDecodingError(err) {
-				klog.Warningf("sCD Decode err %v", err)
 				return obj, gvk, err
 			}
 			return nil, gvk, err
@@ -1306,30 +1291,6 @@ func (v schemaCoercingConverter) ConvertFieldLabel(gvk schema.GroupVersionKind, 
 	return v.delegate.ConvertFieldLabel(gvk, label, value)
 }
 
-// unknownFieldsDirective instructs what should happen
-// if a custom resource is received with unknown fields that
-// are not part of the schema. The options are:
-// - drop the unknown fields
-// - preserve the unknown fields
-// - fail to handle the request and error out.
-type unknownFieldsDirective int
-
-const (
-	drop unknownFieldsDirective = iota
-	preserve
-	fail
-)
-
-func makeUnknownFieldsDirective(preserveUnknownFields, failOnUnknownFields bool) unknownFieldsDirective {
-	if failOnUnknownFields {
-		return fail
-	}
-	if preserveUnknownFields {
-		return preserve
-	}
-	return drop
-}
-
 // unstructuredSchemaCoercer adds to unstructured unmarshalling what json.Unmarshal does
 // in addition for native types when decoding into Golang structs:
 //
@@ -1340,9 +1301,10 @@ type unstructuredSchemaCoercer struct {
 	dropInvalidMetadata bool
 	repairGeneration    bool
 
-	structuralSchemas      map[string]*structuralschema.Structural
-	structuralSchemaGK     schema.GroupKind
-	unknownFieldsDirective unknownFieldsDirective
+	structuralSchemas           map[string]*structuralschema.Structural
+	structuralSchemaGK          schema.GroupKind
+	preserveUnknownFields       bool
+	persistStrictDecodingErrors bool
 }
 
 func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
@@ -1367,20 +1329,16 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 	}
 
 	pruned := map[string]bool{}
-	klog.Warningf("applying directive: %d", v.unknownFieldsDirective)
 	if gv.Group == v.structuralSchemaGK.Group && kind == v.structuralSchemaGK.Kind {
-		if v.unknownFieldsDirective != preserve {
-			// TODO: switch over pruning and coercing at the root to schemaobjectmeta.Coerce too (I don't remember what this comment means anymore)
+		if !v.preserveUnknownFields {
+			// TODO: switch over pruning and coercing at the root to schemaobjectmeta.Coerce too
 			pruned = structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
-			klog.Warningf("pruned: %v", pruned)
-			//if v.unknownFieldsDirective == fail && len(pruned) > 0 {
-			//	return fmt.Errorf("failed with unknown fields: %v", pruned)
-			//}
 			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
 		}
 		if err := schemaobjectmeta.Coerce(nil, u.Object, v.structuralSchemas[gv.Version], false, v.dropInvalidMetadata); err != nil {
 			return err
 		}
+		// fixup missing generation in very old CRs
 		if v.repairGeneration && objectMeta.Generation == 0 {
 			objectMeta.Generation = 1
 		}
@@ -1398,19 +1356,15 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 			return err
 		}
 	}
-	if len(pruned) > 0 && v.unknownFieldsDirective == fail {
-		klog.Warningf("end of apply pruned len: %d", len(pruned))
-		klog.Warningf("pruned: %v", pruned)
-		klog.Warningf("directive: %d", v.unknownFieldsDirective)
+	// collect all the strict decoding errors and return them
+	if len(pruned) > 0 && v.persistStrictDecodingErrors {
 		allStrictErrs := make([]error, len(pruned))
 		i := 0
 		for unknownField, _ := range pruned {
 			allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField)
 			i++
 		}
-		klog.Warningf("all strict errs: %v", allStrictErrs)
 		err := runtime.NewStrictDecodingError(allStrictErrs)
-		klog.Warningf("apply return decoding err: %v", err)
 		return err
 	}
 

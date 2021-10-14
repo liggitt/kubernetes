@@ -50,7 +50,6 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -151,27 +150,20 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			return
 		}
 		gv := scope.Kind.GroupVersion()
-		strictValidation := false
 
-		scopeSerializer := scope.Serializer
 		validationDirective, err := fieldValidation(req)
 		if err != nil {
 			scope.err(err, w, req)
 			return
 		}
+		strictValidation := false
 		if validationDirective == strictFieldValidation {
-			scopeSerializer = scope.StrictSerializer
 			strictValidation = true
-			klog.Warningf("scpeSerializer %+v", scopeSerializer)
-			klog.Warningf("scope dot Serializer %+v", scope.Serializer)
-			klog.Warningf("sSerializer %+v", s.Serializer)
-		} else {
-			klog.Warningf("nonstrcit serializer")
 		}
 
 		codec := runtime.NewCodec(
-			scopeSerializer.EncoderForVersion(s.Serializer, gv),
-			scopeSerializer.DecoderToVersion(s.Serializer, scope.HubGroupVersion),
+			scope.Serializer.EncoderForVersion(s.Serializer, gv),
+			scope.Serializer.DecoderToVersion(s.Serializer, scope.HubGroupVersion),
 		)
 
 		userInfo, _ := request.UserFrom(ctx)
