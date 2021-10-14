@@ -17,10 +17,10 @@ limitations under the License.
 package apiserver
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"path"
+	goruntime "runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -843,12 +843,13 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		// CRDs explicitly do not support protobuf, but some objects returned by the API server do
 		// TODO: we could have two serializers one with strict directive and one without?
 		negotiatedSerializer := unstructuredNegotiatedSerializer{
-			typer:                  typer,
-			creator:                creator,
-			converter:              safeConverter,
-			structuralSchemas:      structuralSchemas,
-			structuralSchemaGK:     kind.GroupKind(),
-			unknownFieldsDirective: makeUnknownFieldsDirective(crd.Spec.PreserveUnknownFields, false),
+			typer:              typer,
+			creator:            creator,
+			converter:          safeConverter,
+			structuralSchemas:  structuralSchemas,
+			structuralSchemaGK: kind.GroupKind(),
+			//unknownFieldsDirective: makeUnknownFieldsDirective(crd.Spec.PreserveUnknownFields, false),
+			unknownFieldsDirective: makeUnknownFieldsDirective(crd.Spec.PreserveUnknownFields, true),
 		}
 		strictNegotiatedSerializer := unstructuredNegotiatedSerializer{
 			typer:                  typer,
@@ -1242,6 +1243,10 @@ type schemaCoercingDecoder struct {
 var _ runtime.Decoder = schemaCoercingDecoder{}
 
 func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
+	_, file, no, ok := goruntime.Caller(1)
+	if ok {
+		klog.Warningf("called from %s#%d\n", file, no)
+	}
 	obj, gvk, err := d.delegate.Decode(data, defaults, into)
 	if err != nil {
 		return nil, gvk, err
@@ -1249,6 +1254,7 @@ func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersion
 	if u, ok := obj.(*unstructured.Unstructured); ok {
 		if err := d.validator.apply(u); err != nil {
 			if runtime.IsStrictDecodingError(err) {
+				klog.Warningf("sCD Decode err %v", err)
 				return obj, gvk, err
 			}
 			return nil, gvk, err
@@ -1361,10 +1367,12 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 	}
 
 	pruned := map[string]bool{}
+	klog.Warningf("applying directive: %d", v.unknownFieldsDirective)
 	if gv.Group == v.structuralSchemaGK.Group && kind == v.structuralSchemaGK.Kind {
 		if v.unknownFieldsDirective != preserve {
 			// TODO: switch over pruning and coercing at the root to schemaobjectmeta.Coerce too (I don't remember what this comment means anymore)
 			pruned = structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
+			klog.Warningf("pruned: %v", pruned)
 			//if v.unknownFieldsDirective == fail && len(pruned) > 0 {
 			//	return fmt.Errorf("failed with unknown fields: %v", pruned)
 			//}
@@ -1390,14 +1398,20 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) error {
 			return err
 		}
 	}
-	if len(pruned) > 0 {
+	if len(pruned) > 0 && v.unknownFieldsDirective == fail {
+		klog.Warningf("end of apply pruned len: %d", len(pruned))
+		klog.Warningf("pruned: %v", pruned)
+		klog.Warningf("directive: %d", v.unknownFieldsDirective)
 		allStrictErrs := make([]error, len(pruned))
 		i := 0
 		for unknownField, _ := range pruned {
-			allStrictErrs[i] = errors.New(unknownField)
+			allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField)
+			i++
 		}
-		return runtime.NewStrictDecodingError(allStrictErrs)
-
+		klog.Warningf("all strict errs: %v", allStrictErrs)
+		err := runtime.NewStrictDecodingError(allStrictErrs)
+		klog.Warningf("apply return decoding err: %v", err)
+		return err
 	}
 
 	return nil

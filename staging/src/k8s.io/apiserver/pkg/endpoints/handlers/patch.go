@@ -353,6 +353,7 @@ func (p *jsonPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (r
 	if err := runtime.DecodeInto(p.codec, patchedObjJS, objToUpdate); err != nil {
 		klog.Warningf("decode into err: %v", err)
 		if !runtime.IsStrictDecodingError(err) || p.validationDirective == strictFieldValidation {
+			klog.Warningf("yes invalid err")
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), err.Error()),
 			})

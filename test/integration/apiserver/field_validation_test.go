@@ -474,7 +474,7 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			patchType:   types.MergePatchType,
 			params:      map[string]string{"fieldValidation": "Strict"},
 			body:        `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
-			errContains: "failed with unknown fields",
+			errContains: "unknown field",
 		},
 		{
 			name:        "merge-patch-no-validation",
