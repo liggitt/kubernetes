@@ -102,8 +102,8 @@ type unstructuredConverter struct {
 	// This is supposed to be set only in tests.
 	mismatchDetection bool
 	// comparison is the default test logic used to compare
-	comparison            conversion.Equalities
-	strictFieldValidation bool
+	comparison               conversion.Equalities
+	fieldValidationDirective FieldValidationDirective
 }
 
 // NewTestUnstructuredConverter creates an UnstructuredConverter that accepts JSON typed maps and translates them
@@ -116,8 +116,18 @@ func NewTestUnstructuredConverter(comparison conversion.Equalities) Unstructured
 	}
 }
 
-func (c *unstructuredConverter) SetStrictFieldValidation(strict bool) {
-	c.strictFieldValidation = strict
+// FieldValidationDirective indicates what the apiserver should
+// do with unknown fields (ignore, strict/error, or warn).
+type FieldValidationDirective int
+
+const (
+	IgnoreFieldValidation FieldValidationDirective = iota
+	StrictFieldValidation
+	WarnFieldValidation
+)
+
+func (c *unstructuredConverter) SetFieldValidationDirective(directive FieldValidationDirective) {
+	c.fieldValidationDirective = directive
 }
 
 func makeFields(u map[string]interface{}) map[string]struct{} {
@@ -410,7 +420,7 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fie
 			}
 		}
 	}
-	if len(keys) > 0 && c.strictFieldValidation {
+	if len(keys) > 0 && c.fieldValidationDirective == StrictFieldValidation {
 		return &UnknownFieldError{
 			invalidFields: keys,
 		}

@@ -113,12 +113,12 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		trace.Step("About to convert to expected version")
 		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
 		if err != nil {
-			if !runtime.IsStrictDecodingError(err) || validationDirective == strictFieldValidation {
+			if !runtime.IsStrictDecodingError(err) || validationDirective == runtime.StrictFieldValidation {
 				err = transformDecodeError(scope.Typer, err, original, gvk, body)
 				scope.err(err, w, req)
 				return
 			}
-			if validationDirective == warnFieldValidation {
+			if validationDirective == runtime.WarnFieldValidation {
 				// TODO: throw a warning here
 			}
 		}

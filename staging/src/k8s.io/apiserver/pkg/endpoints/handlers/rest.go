@@ -459,19 +459,11 @@ func isDryRun(url *url.URL) bool {
 	return len(url.Query()["dryRun"]) != 0
 }
 
-type fieldValidationDirective int
-
-const (
-	ignoreFieldValidation fieldValidationDirective = iota
-	strictFieldValidation
-	warnFieldValidation
-)
-
 // fieldValidation checks if the fieldValidation query parameter is set on the request,
 // and if so ensures that the parameter is valid and that the request has a valid
 // media type, because the list of media types that support field validation are a subset of
 // all supported media types (only json and yaml supports field validation).
-func fieldValidation(req *http.Request) (fieldValidationDirective, error) {
+func fieldValidation(req *http.Request) (runtime.FieldValidationDirective, error) {
 	supportedContentTypes := []string{runtime.ContentTypeJSON, runtime.ContentTypeJSONMergePatch, runtime.ContentTypeJSONStrategicMergePatch, runtime.ContentTypeYAML}
 	contentType := req.Header.Get("Content-Type")
 	// TODO: not sure if it is okay to assume empty content type is a valid one
@@ -481,7 +473,7 @@ func fieldValidation(req *http.Request) (fieldValidationDirective, error) {
 		for _, v := range strings.Split(contentType, ",") {
 			t, _, err := mime.ParseMediaType(v)
 			if err != nil {
-				return ignoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("could not parse media type: %v", v))
+				return runtime.IgnoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("could not parse media type: %v", v))
 			}
 			for _, mt := range supportedContentTypes {
 				if t == mt {
@@ -495,26 +487,26 @@ func fieldValidation(req *http.Request) (fieldValidationDirective, error) {
 	validationParam := req.URL.Query()["fieldValidation"]
 	switch len(validationParam) {
 	case 0:
-		return ignoreFieldValidation, nil
+		return runtime.IgnoreFieldValidation, nil
 	case 1:
 		switch strings.ToLower(validationParam[0]) {
 		case "ignore":
-			return ignoreFieldValidation, nil
+			return runtime.IgnoreFieldValidation, nil
 		case "strict":
 			if !supported {
-				return ignoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter only supports content types %v\n content type provided: %s", supportedContentTypes, contentType))
+				return runtime.IgnoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter only supports content types %v\n content type provided: %s", supportedContentTypes, contentType))
 			}
-			return strictFieldValidation, nil
+			return runtime.StrictFieldValidation, nil
 		case "warn":
 			if !supported {
-				return ignoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter only supports content types %v\n content type provided: %s", supportedContentTypes, contentType))
+				return runtime.IgnoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter only supports content types %v\n content type provided: %s", supportedContentTypes, contentType))
 			}
-			return warnFieldValidation, nil
+			return runtime.WarnFieldValidation, nil
 		default:
-			return ignoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter unsupported: %v", validationParam))
+			return runtime.IgnoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter unsupported: %v", validationParam))
 		}
 	default:
-		return ignoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation should only be one value: %v", validationParam))
+		return runtime.IgnoreFieldValidation, errors.NewBadRequest(fmt.Sprintf("fieldValidation should only be one value: %v", validationParam))
 
 	}
 }

@@ -145,10 +145,6 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			scope.err(err, w, req)
 			return
 		}
-		strictValidation := false
-		if validationDirective == strictFieldValidation {
-			strictValidation = true
-		}
 
 		codec := runtime.NewCodec(
 			scope.Serializer.EncoderForVersion(s.Serializer, gv),
@@ -200,17 +196,16 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 		}
 
 		p := patcher{
-			namer:                 scope.Namer,
-			creater:               scope.Creater,
-			defaulter:             scope.Defaulter,
-			typer:                 scope.Typer,
-			unsafeConvertor:       scope.UnsafeConvertor,
-			kind:                  scope.Kind,
-			resource:              scope.Resource,
-			subresource:           scope.Subresource,
-			dryRun:                dryrun.IsDryRun(options.DryRun),
-			strictFieldValidation: strictValidation,
-			validationDirective:   validationDirective,
+			namer:               scope.Namer,
+			creater:             scope.Creater,
+			defaulter:           scope.Defaulter,
+			typer:               scope.Typer,
+			unsafeConvertor:     scope.UnsafeConvertor,
+			kind:                scope.Kind,
+			resource:            scope.Resource,
+			subresource:         scope.Subresource,
+			dryRun:              dryrun.IsDryRun(options.DryRun),
+			validationDirective: validationDirective,
 
 			objectInterfaces: scope,
 
@@ -263,17 +258,17 @@ type mutateObjectUpdateFunc func(ctx context.Context, obj, old runtime.Object) e
 // moved into this type.
 type patcher struct {
 	// Pieces of RequestScope
-	namer                 ScopeNamer
-	creater               runtime.ObjectCreater
-	defaulter             runtime.ObjectDefaulter
-	typer                 runtime.ObjectTyper
-	unsafeConvertor       runtime.ObjectConvertor
-	resource              schema.GroupVersionResource
-	kind                  schema.GroupVersionKind
-	subresource           string
-	dryRun                bool
-	strictFieldValidation bool
-	validationDirective   fieldValidationDirective
+	namer           ScopeNamer
+	creater         runtime.ObjectCreater
+	defaulter       runtime.ObjectDefaulter
+	typer           runtime.ObjectTyper
+	unsafeConvertor runtime.ObjectConvertor
+	resource        schema.GroupVersionResource
+	kind            schema.GroupVersionKind
+	subresource     string
+	dryRun          bool
+	//strictFieldValidation bool
+	validationDirective runtime.FieldValidationDirective
 
 	objectInterfaces admission.ObjectInterfaces
 
@@ -331,12 +326,12 @@ func (p *jsonPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (r
 	// Construct the resulting typed, unversioned object.
 	objToUpdate := p.restPatcher.New()
 	if err := runtime.DecodeInto(p.codec, patchedObjJS, objToUpdate); err != nil {
-		if !runtime.IsStrictDecodingError(err) || p.validationDirective == strictFieldValidation {
+		if !runtime.IsStrictDecodingError(err) || p.validationDirective == runtime.StrictFieldValidation {
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), err.Error()),
 			})
 		}
-		if p.validationDirective == warnFieldValidation {
+		if p.validationDirective == runtime.WarnFieldValidation {
 			// TODO: throw a warning here
 		}
 	}
@@ -415,7 +410,7 @@ func (p *smpPatcher) applyPatchToCurrentObject(currentObject runtime.Object) (ru
 	if err != nil {
 		return nil, err
 	}
-	if err := strategicPatchObject(p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj, p.strictFieldValidation); err != nil {
+	if err := strategicPatchObject(p.defaulter, currentVersionedObject, p.patchBytes, versionedObjToUpdate, p.schemaReferenceObj, p.validationDirective); err != nil {
 		return nil, err
 	}
 	// Convert the object back to the hub version
@@ -479,7 +474,7 @@ func strategicPatchObject(
 	patchBytes []byte,
 	objToUpdate runtime.Object,
 	schemaReferenceObj runtime.Object,
-	strictFieldValidation bool,
+	validationDirective runtime.FieldValidationDirective,
 ) error {
 	originalObjMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(originalObject)
 	if err != nil {
@@ -491,7 +486,7 @@ func strategicPatchObject(
 		return errors.NewBadRequest(err.Error())
 	}
 
-	if err := applyPatchToObject(defaulter, originalObjMap, patchMap, objToUpdate, schemaReferenceObj, strictFieldValidation); err != nil {
+	if err := applyPatchToObject(defaulter, originalObjMap, patchMap, objToUpdate, schemaReferenceObj, validationDirective); err != nil {
 		return err
 	}
 	return nil
@@ -643,7 +638,7 @@ func applyPatchToObject(
 	patchMap map[string]interface{},
 	objToUpdate runtime.Object,
 	schemaReferenceObj runtime.Object,
-	strictFieldValidation bool,
+	validationDirective runtime.FieldValidationDirective,
 ) error {
 	patchedObjMap, err := strategicpatch.StrategicMergeMapPatch(originalMap, patchMap, schemaReferenceObj)
 	if err != nil {
@@ -652,7 +647,7 @@ func applyPatchToObject(
 
 	// Rather than serialize the patched map to JSON, then decode it to an object, we go directly from a map to an object
 	converter := runtime.DefaultUnstructuredConverter
-	converter.SetStrictFieldValidation(strictFieldValidation)
+	converter.SetFieldValidationDirective(validationDirective)
 	if err := converter.FromUnstructured(patchedObjMap, objToUpdate); err != nil {
 		return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 			field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
