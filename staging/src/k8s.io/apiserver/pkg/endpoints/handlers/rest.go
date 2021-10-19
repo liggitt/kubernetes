@@ -463,6 +463,10 @@ func isDryRun(url *url.URL) bool {
 // media type, because the list of media types that support field validation are a subset of
 // all supported media types (protobuf does not support field validation).
 func fieldValidation(req *http.Request) (runtime.FieldValidationDirective, error) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.FieldValidation) {
+		return runtime.IgnoreFieldValidation, nil
+	}
+
 	supportedContentTypes := []string{runtime.ContentTypeJSON, runtime.ContentTypeJSONMergePatch, runtime.ContentTypeJSONStrategicMergePatch, runtime.ContentTypeYAML}
 	contentType := req.Header.Get("Content-Type")
 	// TODO: not sure if it is okay to assume empty content type is a valid one

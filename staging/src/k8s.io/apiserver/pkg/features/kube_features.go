@@ -185,6 +185,13 @@ const (
 	//
 	// Enables expression validation for Custom Resource
 	CustomResourceValidationExpressions featuregate.Feature = "CustomResourceValidationExpressions"
+
+	// owner: @kevindelgado
+	// kep: http://kep.k8s.io/2885
+	// alpha: v1.23
+	//
+	// Enables server-side field validation.
+	FieldValidation featuregate.Feature = "FieldValidation"
 )
 
 func init() {
@@ -215,4 +222,5 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 	APIServerTracing:                    {Default: false, PreRelease: featuregate.Alpha},
 	OpenAPIEnums:                        {Default: false, PreRelease: featuregate.Alpha},
 	CustomResourceValidationExpressions: {Default: false, PreRelease: featuregate.Alpha},
+	FieldValidation:                     {Default: false, PreRelease: featuregate.Alpha},
 }

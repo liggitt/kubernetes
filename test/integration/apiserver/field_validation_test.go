@@ -45,7 +45,7 @@ import (
 // TestFieldValidationPost tests POST requests containing unknown fields with
 // strict and non-strict field validation.
 func TestFieldValidationPost(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.FieldValidation, true)()
 
 	_, client, closeFn := setup(t)
 	defer closeFn()
@@ -120,7 +120,7 @@ func TestFieldValidationPost(t *testing.T) {
 // TestFieldValidationPut tests PUT requests containing unknown fields with
 // strict and non-strict field validation.
 func TestFieldValidationPut(t *testing.T) {
-	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.FieldValidation, true)()
 
 	_, client, closeFn := setup(t)
 	defer closeFn()
@@ -210,6 +210,8 @@ func TestFieldValidationPut(t *testing.T) {
 
 // Benchmark field validation for strict vs non-strict
 func BenchmarkFieldValidationPostPut(b *testing.B) {
+	defer featuregatetesting.SetFeatureGateDuringTest(b, utilfeature.DefaultFeatureGate, features.FieldValidation, true)()
+
 	_, client, closeFn := setup(b)
 	defer closeFn()
 
@@ -384,6 +386,7 @@ type smpTestCase struct {
 // but succeeds when fieldValidation is ignored.
 func TestFieldValidationSMP(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.FieldValidation, true)()
 
 	_, client, closeFn := setup(t)
 	defer closeFn()
@@ -420,6 +423,7 @@ func TestFieldValidationSMP(t *testing.T) {
 // Benchmark strategic-merge-patch field validation for strict vs non-strict
 func BenchmarkFieldValidationSMP(b *testing.B) {
 	defer featuregatetesting.SetFeatureGateDuringTest(b, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
+	defer featuregatetesting.SetFeatureGateDuringTest(b, utilfeature.DefaultFeatureGate, features.FieldValidation, true)()
 
 	_, client, closeFn := setup(b)
 	defer closeFn()
@@ -513,6 +517,8 @@ func patchCRDTestSetup(t testing.TB, server kubeapiservertesting.TestServer, nam
 // TestFieldValidationPatchCRD tests that server-side schema validation
 // works for jsonpatch and mergepatch requests.
 func TestFieldValidationPatchCRD(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.FieldValidation, true)()
+
 	var testcases = []struct {
 		name         string
 		patchType    types.PatchType
@@ -600,6 +606,8 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 
 // Benchmark patch CRD for strict vs non-strict
 func BenchmarkFieldValidationPatchCRD(b *testing.B) {
+	defer featuregatetesting.SetFeatureGateDuringTest(b, utilfeature.DefaultFeatureGate, features.FieldValidation, true)()
+
 	benchmarks := []struct {
 		name        string
 		patchType   types.PatchType
