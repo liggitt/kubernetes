@@ -29,6 +29,7 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apiextensions-apiserver/test/integration/fixtures"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/features"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -56,29 +57,33 @@ func TestFieldValidationPost(t *testing.T) {
 	body := []byte(fmt.Sprintf(string(bodyBytes), `"test-deployment"`))
 
 	var testcases = []struct {
-		name string
-		// TODO: use PostOptions for fieldValidation param instead of raw strings.
-		params       map[string]string
+		name         string
+		opts         metav1.CreateOptions
 		errContains  string
 		warnContains string
 	}{
 		{
 			name:        "post-strict-validation",
-			params:      map[string]string{"fieldValidation": "Strict"},
 			errContains: "unknown field",
+			opts: metav1.CreateOptions{
+				FieldValidation: "Strict",
+			},
 		},
 		{
 			name:         "post-warn-validation",
-			params:       map[string]string{"fieldValidation": "Warn"},
 			warnContains: "unknown field",
+			opts: metav1.CreateOptions{
+				FieldValidation: "Warn",
+			},
 		},
 		{
-			name:   "post-default-ignore-validation",
-			params: map[string]string{},
+			name: "post-ignore-validation",
+			opts: metav1.CreateOptions{
+				FieldValidation: "Ignore",
+			},
 		},
 		{
-			name:   "post-ignore-validation",
-			params: map[string]string{"fieldValidation": "Ignore"},
+			name: "post-default-ignore-validation",
 		},
 	}
 
@@ -87,11 +92,8 @@ func TestFieldValidationPost(t *testing.T) {
 			req := client.CoreV1().RESTClient().Post().
 				AbsPath("/apis/apps/v1").
 				Namespace("default").
-				Resource("deployments")
-			for k, v := range tc.params {
-				req.Param(k, v)
-
-			}
+				Resource("deployments").
+				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			result := req.Body([]byte(body)).Do(context.TODO())
 			if tc.warnContains != "" {
 				warningMatched := false
@@ -145,29 +147,33 @@ func TestFieldValidationPut(t *testing.T) {
 	}
 	putBody := []byte(fmt.Sprintf(string(putBytes), deployName))
 	var testcases = []struct {
-		name string
-		// TODO: use PostOptions for fieldValidation param instead of raw strings.
-		params       map[string]string
+		name         string
+		opts         metav1.UpdateOptions
 		errContains  string
 		warnContains string
 	}{
 		{
-			name:        "put-strict-validation",
-			params:      map[string]string{"fieldValidation": "Strict"},
+			name: "put-strict-validation",
+			opts: metav1.UpdateOptions{
+				FieldValidation: "Strict",
+			},
 			errContains: "unknown field",
 		},
 		{
-			name:         "put-warn-validation",
-			params:       map[string]string{"fieldValidation": "Warn"},
+			name: "put-warn-validation",
+			opts: metav1.UpdateOptions{
+				FieldValidation: "Warn",
+			},
 			warnContains: "unknown field",
 		},
 		{
-			name:   "put-default-ignore-validation",
-			params: map[string]string{},
+			name: "put-default-ignore-validation",
+			opts: metav1.UpdateOptions{
+				FieldValidation: "Ignore",
+			},
 		},
 		{
-			name:   "put-ignore-validation",
-			params: map[string]string{"fieldValidation": "Ignore"},
+			name: "put-ignore-validation",
 		},
 	}
 
@@ -177,11 +183,8 @@ func TestFieldValidationPut(t *testing.T) {
 				AbsPath("/apis/apps/v1").
 				Namespace("default").
 				Resource("deployments").
-				Name("test-dep")
-			for k, v := range tc.params {
-				req.Param(k, v)
-
-			}
+				Name("test-dep").
+				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			result := req.Body([]byte(putBody)).Do(context.TODO())
 			if tc.warnContains != "" {
 				warningMatched := false
@@ -345,10 +348,8 @@ func smpRunTest(t testing.TB, client clientset.Interface, tc smpTestCase) {
 		AbsPath("/apis/apps/v1").
 		Namespace("default").
 		Resource("deployments").
-		Name("test-deployment")
-	for k, v := range tc.params {
-		req.Param(k, v)
-	}
+		Name("test-deployment").
+		VersionedParams(&tc.opts, metav1.ParameterCodec)
 	smpBody := `{"metadata":{"labels":{"label1": "val1"}},"spec":{"foo":"bar"}}`
 	result := req.Body([]byte(smpBody)).Do(context.TODO())
 	if tc.warnContains != "" {
@@ -373,7 +374,7 @@ func smpRunTest(t testing.TB, client clientset.Interface, tc smpTestCase) {
 
 type smpTestCase struct {
 	name         string
-	params       map[string]string
+	opts         metav1.PatchOptions
 	errContains  string
 	warnContains string
 }
@@ -391,18 +392,21 @@ func TestFieldValidationSMP(t *testing.T) {
 
 	var testcases = []smpTestCase{
 		{
-			name:        "smp-strict-validation",
-			params:      map[string]string{"fieldValidation": "Strict"},
+			name: "smp-strict-validation",
+			opts: metav1.PatchOptions{
+				FieldValidation: "Strict",
+			},
 			errContains: "unknown field",
 		},
 		{
-			name:         "smp-warn-validation",
-			params:       map[string]string{"fieldValidation": "Warn"},
+			name: "smp-warn-validation",
+			opts: metav1.PatchOptions{
+				FieldValidation: "Warn",
+			},
 			warnContains: "unknown field",
 		},
 		{
-			name:   "smp-ignore-validation",
-			params: map[string]string{},
+			name: "smp-ignore-validation",
 		},
 	}
 
@@ -425,13 +429,14 @@ func BenchmarkFieldValidationSMP(b *testing.B) {
 	// TODO: add more benchmarks to test bigger objects
 	var benchmarks = []smpTestCase{
 		{
-			name:        "smp-strict-validation",
-			params:      map[string]string{"fieldValidation": "Strict"},
+			name: "smp-strict-validation",
+			opts: metav1.PatchOptions{
+				FieldValidation: "Strict",
+			},
 			errContains: "unknown field",
 		},
 		{
 			name:        "smp-ignore-validation",
-			params:      map[string]string{},
 			errContains: "",
 		},
 	}
@@ -511,29 +516,32 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 	var testcases = []struct {
 		name         string
 		patchType    types.PatchType
-		params       map[string]string
+		opts         metav1.PatchOptions
 		body         string
 		errContains  string
 		warnContains string
 	}{
 		{
-			name:        "merge-patch-strict-validation",
-			patchType:   types.MergePatchType,
-			params:      map[string]string{"fieldValidation": "Strict"},
+			name:      "merge-patch-strict-validation",
+			patchType: types.MergePatchType,
+			opts: metav1.PatchOptions{
+				FieldValidation: "Strict",
+			},
 			body:        `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
 			errContains: "unknown field",
 		},
 		{
-			name:         "merge-patch-warn-validation",
-			patchType:    types.MergePatchType,
-			params:       map[string]string{"fieldValidation": "Warn"},
+			name:      "merge-patch-warn-validation",
+			patchType: types.MergePatchType,
+			opts: metav1.PatchOptions{
+				FieldValidation: "Warn",
+			},
 			body:         `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
 			warnContains: "unknown field",
 		},
 		{
 			name:      "merge-patch-no-validation",
 			patchType: types.MergePatchType,
-			params:    map[string]string{},
 			body:      `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
 		},
 		// TODO: figure out how to test JSONPatch
@@ -565,10 +573,8 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			// patch the CR as specified by the test case
 			req := rest.Patch(tc.patchType).
 				AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
-				Name(tc.name)
-			for k, v := range tc.params {
-				req = req.Param(k, v)
-			}
+				Name(tc.name).
+				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			result := req.Body([]byte(tc.body)).Do(context.TODO())
 			if tc.warnContains != "" {
 				warningMatched := false
@@ -597,6 +603,7 @@ func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 	benchmarks := []struct {
 		name        string
 		patchType   types.PatchType
+		opts        metav1.PatchOptions
 		params      map[string]string
 		bodyBase    string
 		errContains string
@@ -604,28 +611,30 @@ func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 		{
 			name:        "ignore-validation-crd-patch",
 			patchType:   types.MergePatchType,
-			params:      map[string]string{},
 			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-%d"]}}`,
 			errContains: "",
 		},
 		{
-			name:        "strict-validation-crd-patch",
-			patchType:   types.MergePatchType,
-			params:      map[string]string{"fieldValidation": "Strict"},
+			name:      "strict-validation-crd-patch",
+			patchType: types.MergePatchType,
+			opts: metav1.PatchOptions{
+				FieldValidation: "Strict",
+			},
 			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-%d"]}}`,
 			errContains: "",
 		},
 		{
 			name:        "ignore-validation-crd-patch-unknown-field",
 			patchType:   types.MergePatchType,
-			params:      map[string]string{},
 			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-ignore-unknown-%d"]}, "spec":{"foo": "bar"}}`,
 			errContains: "",
 		},
 		{
-			name:        "strict-validation-crd-patch-unknown-field",
-			patchType:   types.MergePatchType,
-			params:      map[string]string{"fieldValidation": "Strict"},
+			name:      "strict-validation-crd-patch-unknown-field",
+			patchType: types.MergePatchType,
+			opts: metav1.PatchOptions{
+				FieldValidation: "Strict",
+			},
 			bodyBase:    `{"metadata":{"finalizers":["test-finalizer","finalizer-strict-unknown-%d"]}, "spec":{"foo": "bar"}}`,
 			errContains: "unknown field",
 		},
@@ -648,10 +657,8 @@ func BenchmarkFieldValidationPatchCRD(b *testing.B) {
 				// patch the CR as specified by the test case
 				req := rest.Patch(bm.patchType).
 					AbsPath("/apis", noxuDefinition.Spec.Group, noxuDefinition.Spec.Versions[0].Name, noxuDefinition.Spec.Names.Plural).
-					Name(bm.name)
-				for k, v := range bm.params {
-					req = req.Param(k, v)
-				}
+					Name(bm.name).
+					VersionedParams(&bm.opts, metav1.ParameterCodec)
 				result, err := req.
 					Body([]byte(body)).
 					DoRaw(context.TODO())

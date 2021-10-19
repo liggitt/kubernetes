@@ -461,7 +461,7 @@ func isDryRun(url *url.URL) bool {
 // fieldValidation checks if the fieldValidation query parameter is set on the request,
 // and if so ensures that the parameter is valid and that the request has a valid
 // media type, because the list of media types that support field validation are a subset of
-// all supported media types (only json and yaml supports field validation).
+// all supported media types (protobuf does not support field validation).
 func fieldValidation(req *http.Request) (runtime.FieldValidationDirective, error) {
 	supportedContentTypes := []string{runtime.ContentTypeJSON, runtime.ContentTypeJSONMergePatch, runtime.ContentTypeJSONStrategicMergePatch, runtime.ContentTypeYAML}
 	contentType := req.Header.Get("Content-Type")

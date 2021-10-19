@@ -544,6 +544,16 @@ type CreateOptions struct {
 	// as defined by https://golang.org/pkg/unicode/#IsPrint.
 	// +optional
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,3,name=fieldManager"`
+
+	// fieldValidation determines how the server should respond to
+	// unknown/duplicate fields.
+	// TODO: Do we still need a protobuf tag if protobuf is not supported?
+	// Valid values are:
+	// - Ignore: ignore's unknown/duplicate fields
+	// - Strict: fail the request on unknown/duplicate fields
+	// - Warn: respond with a warning, but successfully serve the request.
+	// +optional
+	FieldValidation string `json:"fieldValidation,omitempty"`
 }
 
 // +k8s:conversion-gen:explicit-from=net/url.Values
@@ -577,6 +587,16 @@ type PatchOptions struct {
 	// types (JsonPatch, MergePatch, StrategicMergePatch).
 	// +optional
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,3,name=fieldManager"`
+
+	// fieldValidation determines how the server should respond to
+	// unknown/duplicate fields.
+	// TODO: Do we still need a protobuf tag if protobuf is not supported?
+	// Valid values are:
+	// - Ignore: ignore's unknown/duplicate fields
+	// - Strict: fail the request on unknown/duplicate fields
+	// - Warn: respond with a warning, but successfully serve the request.
+	// +optional
+	FieldValidation string `json:"fieldValidation,omitempty"`
 }
 
 // ApplyOptions may be provided when applying an API object.
@@ -632,6 +652,16 @@ type UpdateOptions struct {
 	// as defined by https://golang.org/pkg/unicode/#IsPrint.
 	// +optional
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,2,name=fieldManager"`
+
+	// fieldValidation determines how the server should respond to
+	// unknown/duplicate fields.
+	// TODO: Do we still need a protobuf tag if protobuf is not supported?
+	// Valid values are:
+	// - Ignore: ignore's unknown/duplicate fields
+	// - Strict: fail the request on unknown/duplicate fields
+	// - Warn: respond with a warning, but successfully serve the request.
+	// +optional
+	FieldValidation string `json:"fieldValidation,omitempty"`
 }
 
 // Preconditions must be fulfilled before an operation (update, delete, etc.) is carried out.
