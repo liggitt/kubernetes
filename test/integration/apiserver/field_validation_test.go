@@ -37,6 +37,7 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/klog/v2"
 	kubeapiservertesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
 
 	"k8s.io/kubernetes/test/integration/framework"
@@ -54,7 +55,6 @@ func TestFieldValidationPost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read file: %v", err)
 	}
-	body := []byte(fmt.Sprintf(string(bodyBytes), `"test-deployment"`))
 
 	var testcases = []struct {
 		name         string
@@ -89,6 +89,7 @@ func TestFieldValidationPost(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			body := []byte(fmt.Sprintf(string(bodyBytes), fmt.Sprintf(`"test-deployment-%s"`, tc.name)))
 			req := client.CoreV1().RESTClient().Post().
 				AbsPath("/apis/apps/v1").
 				Namespace("default").
@@ -110,7 +111,8 @@ func TestFieldValidationPost(t *testing.T) {
 			if err == nil && tc.errContains != "" {
 				t.Fatalf("unexpected post succeeded")
 			}
-			if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+			//if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+			if err != nil && (tc.errContains == "" || !strings.Contains(string(resBody), tc.errContains)) {
 				t.Fatalf("unexpected response: %v", string(resBody))
 			}
 		})
@@ -183,7 +185,7 @@ func TestFieldValidationPut(t *testing.T) {
 				AbsPath("/apis/apps/v1").
 				Namespace("default").
 				Resource("deployments").
-				Name("test-dep").
+				Name("test-deployment").
 				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			result := req.Body([]byte(putBody)).Do(context.TODO())
 			if tc.warnContains != "" {
@@ -201,7 +203,8 @@ func TestFieldValidationPut(t *testing.T) {
 			if err == nil && tc.errContains != "" {
 				t.Fatalf("unexpected put succeeded")
 			}
-			if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+			//if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+			if err != nil && (tc.errContains == "" || !strings.Contains(string(resBody), tc.errContains)) {
 				t.Fatalf("unexpected response: %v", string(resBody))
 			}
 		})
@@ -335,7 +338,7 @@ func smpTestSetup(t testing.TB, client clientset.Interface) {
 		Resource("deployments").
 		Name("test-deployment").
 		Param("fieldManager", "apply_test").
-		Body([]byte(fmt.Sprintf(string(bodyBase), "test-deployment"))).
+		Body([]byte(fmt.Sprintf(string(bodyBase), `"test-deployment"`))).
 		Do(context.TODO()).
 		Get()
 	if err != nil {
@@ -366,10 +369,12 @@ func smpRunTest(t testing.TB, client clientset.Interface, tc smpTestCase) {
 		}
 	}
 	resBody, err := result.Raw()
+	klog.Warningf("result: %v", string(resBody))
 	if err == nil && tc.errContains != "" {
 		t.Fatalf("unexpected put succeeded")
 	}
-	if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+	//if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+	if err != nil && (tc.errContains == "" || !strings.Contains(string(resBody), tc.errContains)) {
 		t.Fatalf("unexpected response: %v", string(resBody))
 	}
 }
@@ -593,10 +598,11 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 				}
 			}
 			resBody, err := result.Raw()
+			fmt.Printf("tname %s, resBody: %s, err: %v", tc.name, string(resBody), err)
 			if err == nil && tc.errContains != "" {
 				t.Fatalf("unexpected put succeeded")
 			}
-			if err != nil && !strings.Contains(string(resBody), tc.errContains) {
+			if err != nil && (tc.errContains == "" || !strings.Contains(string(resBody), tc.errContains)) {
 				t.Fatalf("unexpected response: %v", string(resBody))
 			}
 		})

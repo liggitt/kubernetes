@@ -425,6 +425,7 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fie
 		}
 	}
 	if len(keys) > 0 && c.fieldValidationDirective == StrictFieldValidation || c.fieldValidationDirective == WarnFieldValidation {
+		klog.Warningf("keys are: %v", keys)
 		allStrictErrs := make([]error, len(keys))
 		for i, unknownField := range keys {
 			allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField.String())
