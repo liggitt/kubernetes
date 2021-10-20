@@ -550,21 +550,20 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			patchType: types.MergePatchType,
 			body:      `{"metadata":{"finalizers":["test-finalizer","another-one"]}, "spec":{"foo": "bar"}}`,
 		},
-		// TODO: figure out how to test JSONPatch
-		//{
-		//	name:        "jsonPatchStrictValidation",
-		//	patchType:   types.JSONPatchType,
-		//	params:      map[string]string{"validate": "strict"},
-		//	body:        // TODO
-		//	errContains: "failed with unknown fields",
-		//},
-		//{
-		//	name:        "jsonPatchNoValidation",
-		//	patchType:   types.JSONPatchType,
-		//	params:      map[string]string{},
-		//	body:        // TODO
-		//	errContains: "",
-		//},
+		{
+			name:      "json-patch-strict-validation",
+			patchType: types.JSONPatchType,
+			opts: metav1.PatchOptions{
+				FieldValidation: "Strict",
+			},
+			body:        `[{"op": "add", "path": "/spec/foo", "value": "bar"}]`,
+			errContains: "unknown field",
+		},
+		{
+			name:      "json-patch-strict-validation",
+			patchType: types.JSONPatchType,
+			body:      `[{"op": "add", "path": "/spec/foo", "value": "bar"}]`,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {

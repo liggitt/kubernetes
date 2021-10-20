@@ -467,9 +467,12 @@ func fieldValidation(req *http.Request) (runtime.FieldValidationDirective, error
 		return runtime.IgnoreFieldValidation, nil
 	}
 
-	supportedContentTypes := []string{runtime.ContentTypeJSON, runtime.ContentTypeJSONMergePatch, runtime.ContentTypeJSONStrategicMergePatch, runtime.ContentTypeYAML}
+	// TODO: Should we blocklist unsupportedContentTypes (just protobuf) rather than allowlisting everything that isn't protobuf?
+	// TODO: Is there a better way to determine if something is JSON or YAML by its media type suffix rather than adding all these
+	// ContentTypes to the runtime package?
+	supportedContentTypes := []string{runtime.ContentTypeJSON, runtime.ContentTypeJSONPatch, runtime.ContentTypeJSONMergePatch, runtime.ContentTypeJSONStrategicMergePatch, runtime.ContentTypeYAML}
 	contentType := req.Header.Get("Content-Type")
-	// TODO: not sure if it is okay to assume empty content type is a valid one
+	// TODO: Is it okay to assume empty content type is a valid one?
 	supported := true
 	if contentType != "" {
 		supported = false
