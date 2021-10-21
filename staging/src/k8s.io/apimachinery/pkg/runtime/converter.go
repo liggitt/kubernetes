@@ -134,14 +134,6 @@ func (c *unstructuredConverter) SetFieldValidationDirective(directive FieldValid
 	c.fieldValidationDirective = directive
 }
 
-func makeFields(u map[string]interface{}) map[string]struct{} {
-	fields := make(map[string]struct{}, len(u))
-	for k, _ := range u {
-		fields[k] = struct{}{}
-	}
-	return fields
-}
-
 // FromUnstructured converts an object from map[string]interface{} representation into a concrete type.
 // It uses encoding/json/Unmarshaler if object implements it or reflection if not.
 func (c *unstructuredConverter) FromUnstructured(u map[string]interface{}, obj interface{}) error {
@@ -150,8 +142,7 @@ func (c *unstructuredConverter) FromUnstructured(u map[string]interface{}, obj i
 	if t.Kind() != reflect.Ptr || value.IsNil() {
 		return fmt.Errorf("FromUnstructured requires a non-nil pointer to an object, got %v", t)
 	}
-	fields := makeFields(u)
-	err := c.fromUnstructured(reflect.ValueOf(u), value.Elem(), fields)
+	err := c.fromUnstructured(reflect.ValueOf(u), value.Elem())
 	if c.mismatchDetection {
 		newObj := reflect.New(t.Elem()).Interface()
 		newErr := fromUnstructuredViaJSON(u, newObj)
@@ -173,7 +164,7 @@ func fromUnstructuredViaJSON(u map[string]interface{}, obj interface{}) error {
 	return json.Unmarshal(data, obj)
 }
 
-func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
+func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value) error {
 	sv = unwrapInterface(sv)
 	if !sv.IsValid() {
 		dv.Set(reflect.Zero(dv.Type()))
@@ -241,14 +232,14 @@ func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, fields ma
 
 	switch dt.Kind() {
 	case reflect.Map:
-		err := c.mapFromUnstructured(sv, dv, fields)
+		err := c.mapFromUnstructured(sv, dv)
 		return err
 	case reflect.Slice:
-		return c.sliceFromUnstructured(sv, dv, fields)
+		return c.sliceFromUnstructured(sv, dv)
 	case reflect.Ptr:
-		return c.pointerFromUnstructured(sv, dv, fields)
+		return c.pointerFromUnstructured(sv, dv)
 	case reflect.Struct:
-		err := c.structFromUnstructured(sv, dv, fields)
+		err := c.structFromUnstructured(sv, dv)
 		return err
 	case reflect.Interface:
 		return interfaceFromUnstructured(sv, dv)
@@ -305,7 +296,7 @@ func unwrapInterface(v reflect.Value) reflect.Value {
 	return v
 }
 
-func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
+func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore map from %v", st.Kind())
@@ -323,7 +314,7 @@ func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value, fields
 	for _, key := range sv.MapKeys() {
 		value := reflect.New(dt.Elem()).Elem()
 		if val := unwrapInterface(sv.MapIndex(key)); val.IsValid() {
-			if err := c.fromUnstructured(val, value, fields); err != nil {
+			if err := c.fromUnstructured(val, value); err != nil {
 				return err
 			}
 		} else {
@@ -338,7 +329,7 @@ func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value, fields
 	return nil
 }
 
-func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
+func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value) error {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() == reflect.String && dt.Elem().Kind() == reflect.Uint8 {
 		// We store original []byte representation as string.
@@ -371,14 +362,14 @@ func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value, fiel
 	}
 	dv.Set(reflect.MakeSlice(dt, sv.Len(), sv.Cap()))
 	for i := 0; i < sv.Len(); i++ {
-		if err := c.fromUnstructured(sv.Index(i), dv.Index(i), fields); err != nil {
+		if err := c.fromUnstructured(sv.Index(i), dv.Index(i)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
+func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value) error {
 	st, dt := sv.Type(), dv.Type()
 
 	if st.Kind() == reflect.Ptr && sv.IsNil() {
@@ -388,53 +379,87 @@ func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value, fi
 	dv.Set(reflect.New(dt.Elem()))
 	switch st.Kind() {
 	case reflect.Ptr, reflect.Interface:
-		return c.fromUnstructured(sv.Elem(), dv.Elem(), fields)
+		return c.fromUnstructured(sv.Elem(), dv.Elem())
 	default:
-		return c.fromUnstructured(sv, dv.Elem(), fields)
+		return c.fromUnstructured(sv, dv.Elem())
 	}
 }
 
-func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, fields map[string]struct{}) error {
-	st, dt := sv.Type(), dv.Type()
+func flattenedFields(dv reflect.Value) map[reflect.Value]reflect.Value {
+	klog.Warningf("fF called: %v", dv)
+	m := map[reflect.Value]reflect.Value{}
+	dt := dv.Type()
+	for i := 0; i < dt.NumField(); i++ {
+		klog.Warningf("fF i: %d", i)
+		fieldInfo := fieldInfoFromField(dt, i)
+		fv := dv.Field(i)
+
+		if len(fieldInfo.name) == 0 {
+			//inlined, recurse
+			klog.Warningf("fF inlined")
+			inlinedFields := flattenedFields(fv)
+			for k, v := range inlinedFields {
+				m[k] = v
+			}
+		} else {
+			klog.Warningf("fF field: %s", fieldInfo.nameValue.String())
+			m[fieldInfo.nameValue] = fv
+		}
+	}
+	return m
+}
+
+func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value) error {
+	st := sv.Type()
 	if st.Kind() != reflect.Map {
 		return fmt.Errorf("cannot restore struct from: %v", st.Kind())
 	}
-	keys := sv.MapKeys()
 
-	for i := 0; i < dt.NumField(); i++ {
-		fieldInfo := fieldInfoFromField(dt, i)
-		fv := dv.Field(i)
-		if len(fieldInfo.name) == 0 {
-			// This field is inlined.
-			if err := c.fromUnstructured(sv, fv, fields); err != nil {
+	// TODO: benchmark whether this flatten step actually is less performant
+	// and thus we need to only conditionally do it for non-ignore case
+	dtFieldsForFieldName := flattenedFields(dv)
+	var strictDecodingErr error
+	if c.fieldValidationDirective != IgnoreFieldValidation {
+		fieldNameStrings := map[string]struct{}{}
+		for nameValue := range dtFieldsForFieldName {
+			fieldNameStrings[nameValue.String()] = struct{}{}
+		}
+
+		klog.Warningf("dFields: %v\n", dtFieldsForFieldName)
+		unknownFields := []reflect.Value{}
+		for _, key := range sv.MapKeys() {
+			klog.Warningf("sv key %s", key.String())
+			if _, ok := fieldNameStrings[key.String()]; !ok {
+				klog.Warningf("found unknown field: %s", key.String())
+				unknownFields = append(unknownFields, key)
+			}
+		}
+
+		if len(unknownFields) > 0 {
+			klog.Warningf("directive is %v", c.fieldValidationDirective)
+			klog.Warningf("uFs are: %v", unknownFields)
+			allStrictErrs := make([]error, len(unknownFields))
+			for i, unknownField := range unknownFields {
+				allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField.String())
+			}
+			strictDecodingErr = NewStrictDecodingError(allStrictErrs)
+			if c.fieldValidationDirective == StrictFieldValidation {
+				return strictDecodingErr
+			}
+		}
+	}
+
+	for fieldName, fv := range dtFieldsForFieldName {
+		value := unwrapInterface(sv.MapIndex(fieldName))
+		if value.IsValid() {
+			if err := c.fromUnstructured(value, fv); err != nil {
 				return err
 			}
 		} else {
-			// delete from the source's keys
-			deleteFromKeys(fieldInfo.name, &keys)
-			delete(fields, fieldInfo.name)
-
-			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
-			if value.IsValid() {
-				if err := c.fromUnstructured(value, fv, fields); err != nil {
-					return err
-				}
-			} else {
-				fv.Set(reflect.Zero(fv.Type()))
-			}
+			fv.Set(reflect.Zero(fv.Type()))
 		}
 	}
-	if len(keys) > 0 && c.fieldValidationDirective == StrictFieldValidation || c.fieldValidationDirective == WarnFieldValidation {
-		klog.Warningf("keys are: %v", keys)
-		allStrictErrs := make([]error, len(keys))
-		for i, unknownField := range keys {
-			allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField.String())
-			i++
-		}
-		err := NewStrictDecodingError(allStrictErrs)
-		return err
-	}
-	return nil
+	return strictDecodingErr
 }
 
 func deleteFromKeys(name string, keys *[]reflect.Value) {
