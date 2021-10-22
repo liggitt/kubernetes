@@ -385,24 +385,22 @@ func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value) er
 	}
 }
 
+// flattenedFields takes a value and returns all inlined fields as top
+// level fields in order to determine which fields are invalid.
 func flattenedFields(dv reflect.Value) map[reflect.Value]reflect.Value {
-	klog.Warningf("fF called: %v", dv)
 	m := map[reflect.Value]reflect.Value{}
 	dt := dv.Type()
 	for i := 0; i < dt.NumField(); i++ {
-		klog.Warningf("fF i: %d", i)
 		fieldInfo := fieldInfoFromField(dt, i)
 		fv := dv.Field(i)
 
 		if len(fieldInfo.name) == 0 {
 			//inlined, recurse
-			klog.Warningf("fF inlined")
 			inlinedFields := flattenedFields(fv)
 			for k, v := range inlinedFields {
 				m[k] = v
 			}
 		} else {
-			klog.Warningf("fF field: %s", fieldInfo.nameValue.String())
 			m[fieldInfo.nameValue] = fv
 		}
 	}
@@ -425,19 +423,20 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value) err
 			fieldNameStrings[nameValue.String()] = struct{}{}
 		}
 
-		klog.Warningf("dFields: %v\n", dtFieldsForFieldName)
+		// for every field in sv confirm that it exists in the
+		// flattened fields set of dv.
+		// If not, add it to the slice of unknown fields.
 		unknownFields := []reflect.Value{}
 		for _, key := range sv.MapKeys() {
-			klog.Warningf("sv key %s", key.String())
 			if _, ok := fieldNameStrings[key.String()]; !ok {
-				klog.Warningf("found unknown field: %s", key.String())
 				unknownFields = append(unknownFields, key)
 			}
 		}
 
+		// if there are unknown fields in sv
+		// return the decoding error immediately for the strict directive,
+		// but for the warn directive, save the error and return it after conversion.
 		if len(unknownFields) > 0 {
-			klog.Warningf("directive is %v", c.fieldValidationDirective)
-			klog.Warningf("uFs are: %v", unknownFields)
 			allStrictErrs := make([]error, len(unknownFields))
 			for i, unknownField := range unknownFields {
 				allStrictErrs[i] = fmt.Errorf("unknown field: %s", unknownField.String())
