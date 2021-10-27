@@ -1,7 +1,6 @@
 resources:
 - 10-namespace.yaml
 - 20-configmap.yaml
-- 20-secret.yaml
 - 20-serviceaccount.yaml
 - 20-resourcequota.yaml
 - 30-clusterrole.yaml
