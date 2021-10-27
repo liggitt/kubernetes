@@ -26,9 +26,9 @@ spec:
       containers:
         - name: pod-security-webhook
           image: k8s.gcr.io/sig-auth/pod-security-webhook:v1.22-alpha.0
+          terminationMessagePolicy: FallbackToLogsOnError
           ports:
             - containerPort: 8443
-          command: ["/pod-security-webhook"]
           args:
             [
               "--config",
@@ -42,9 +42,9 @@ spec:
             ]
           resources:
             requests:
-              cpu: "0.25"
+              cpu: 100m
             limits:
-              cpu: "0.5"
+              cpu: 500m
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
