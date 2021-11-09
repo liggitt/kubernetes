@@ -134,7 +134,7 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 	}
 
 	obj, gvk, err := c.decoder.Decode(data, defaultGVK, decodeInto)
-	if err != nil && !runtime.IsStrictDecodingError(err) && !runtime.IsPreservedDecodingError(err) {
+	if err != nil && !runtime.IsStrictDecodingError(err) {
 		return nil, gvk, err
 	}
 	// save the strictDecodingError and the caller decide what to do with it

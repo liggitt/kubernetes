@@ -141,7 +141,7 @@ type fromUnstructuredOptions struct {
 	// takes as it travers the unstructured json map.
 	// It is used to report the full path to any unknown
 	// fields that the converter encounters.
-	parentPath string
+	parentPath []string
 	// validationDirective indicates what to do with unknown fields.
 	// It defaults to ignoring unknown fields. Options are:
 	// - FieldValidationIgnore
@@ -159,9 +159,10 @@ func (c *unstructuredConverter) FromUnstructuredWithValidation(u map[string]inte
 	if t.Kind() != reflect.Ptr || value.IsNil() {
 		return fmt.Errorf("FromUnstructured requires a non-nil pointer to an object, got %v", t)
 	}
-	err := c.fromUnstructured(reflect.ValueOf(u), value.Elem(), fromUnstructuredOptions{
+	strictErrs, err := fromUnstructured(reflect.ValueOf(u), value.Elem(), fromUnstructuredOptions{
 		strictErrs:          &[]error{},
 		matchedKeys:         map[string]struct{}{},
+		parentPath:          []string{},
 		validationDirective: validationDirective,
 	})
 	if c.mismatchDetection {
@@ -176,6 +177,9 @@ func (c *unstructuredConverter) FromUnstructuredWithValidation(u map[string]inte
 	}
 	if err != nil {
 		return err
+	}
+	if strictErrs != nil {
+		return NewStrictDecodingError(strictErrs)
 	}
 	return nil
 }
@@ -194,11 +198,11 @@ func fromUnstructuredViaJSON(u map[string]interface{}, obj interface{}) error {
 	return json.Unmarshal(data, obj)
 }
 
-func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) error {
+func fromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) (strictErrs []error, err error) {
 	sv = unwrapInterface(sv)
 	if !sv.IsValid() {
 		dv.Set(reflect.Zero(dv.Type()))
-		return nil
+		return nil, nil
 	}
 	st, dt := sv.Type(), dv.Type()
 
@@ -209,7 +213,7 @@ func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, opts from
 		// This should handle all simple types.
 		if st.AssignableTo(dt) {
 			dv.Set(sv)
-			return nil
+			return nil, nil
 		}
 		// We cannot simply use "ConvertibleTo", as JSON doesn't support conversions
 		// between those four groups: bools, integers, floats and string. We need to
@@ -220,13 +224,13 @@ func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, opts from
 				switch dt.Kind() {
 				case reflect.String:
 					dv.Set(sv.Convert(dt))
-					return nil
+					return nil, nil
 				}
 			case reflect.Bool:
 				switch dt.Kind() {
 				case reflect.Bool:
 					dv.Set(sv.Convert(dt))
-					return nil
+					return nil, nil
 				}
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -234,45 +238,45 @@ func (c *unstructuredConverter) fromUnstructured(sv, dv reflect.Value, opts from
 				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 					reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 					dv.Set(sv.Convert(dt))
-					return nil
+					return nil, nil
 				case reflect.Float32, reflect.Float64:
 					dv.Set(sv.Convert(dt))
-					return nil
+					return nil, nil
 				}
 			case reflect.Float32, reflect.Float64:
 				switch dt.Kind() {
 				case reflect.Float32, reflect.Float64:
 					dv.Set(sv.Convert(dt))
-					return nil
+					return nil, nil
 				}
 				if sv.Float() == math.Trunc(sv.Float()) {
 					dv.Set(sv.Convert(dt))
-					return nil
+					return nil, nil
 				}
 			}
-			return fmt.Errorf("cannot convert %s to %s", st.String(), dt.String())
+			return nil, fmt.Errorf("cannot convert %s to %s", st.String(), dt.String())
 		}
 	}
 
 	// Check if the object has a custom JSON marshaller/unmarshaller.
 	entry := value.TypeReflectEntryOf(dv.Type())
 	if entry.CanConvertFromUnstructured() {
-		return entry.FromUnstructured(sv, dv)
+		return nil, entry.FromUnstructured(sv, dv)
 	}
 
 	switch dt.Kind() {
 	case reflect.Map:
-		return c.mapFromUnstructured(sv, dv, opts)
+		return mapFromUnstructured(sv, dv, opts)
 	case reflect.Slice:
-		return c.sliceFromUnstructured(sv, dv, opts)
+		return sliceFromUnstructured(sv, dv, opts)
 	case reflect.Ptr:
-		return c.pointerFromUnstructured(sv, dv, opts)
+		return pointerFromUnstructured(sv, dv, opts)
 	case reflect.Struct:
-		return c.structFromUnstructured(sv, dv, opts)
+		return structFromUnstructured(sv, dv, opts)
 	case reflect.Interface:
-		return interfaceFromUnstructured(sv, dv)
+		return nil, interfaceFromUnstructured(sv, dv)
 	default:
-		return fmt.Errorf("unrecognized type: %v", dt.Kind())
+		return nil, fmt.Errorf("unrecognized type: %v", dt.Kind())
 	}
 
 }
@@ -325,26 +329,30 @@ func unwrapInterface(v reflect.Value) reflect.Value {
 	return v
 }
 
-func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) error {
+func mapFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) (strictErrs []error, err error) {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
-		return fmt.Errorf("cannot restore map from %v", st.Kind())
+		return nil, fmt.Errorf("cannot restore map from %v", st.Kind())
 	}
 
 	if !st.Key().AssignableTo(dt.Key()) && !st.Key().ConvertibleTo(dt.Key()) {
-		return fmt.Errorf("cannot copy map with non-assignable keys: %v %v", st.Key(), dt.Key())
+		return nil, fmt.Errorf("cannot copy map with non-assignable keys: %v %v", st.Key(), dt.Key())
 	}
 
 	if sv.IsNil() {
 		dv.Set(reflect.Zero(dt))
-		return nil
+		return nil, nil
 	}
 	dv.Set(reflect.MakeMap(dt))
 	for _, key := range sv.MapKeys() {
 		value := reflect.New(dt.Elem()).Elem()
 		if val := unwrapInterface(sv.MapIndex(key)); val.IsValid() {
-			if err := c.fromUnstructured(val, value, opts); err != nil {
-				return err
+			strictErrs, err := fromUnstructured(val, value, opts)
+			if err != nil {
+				return nil, err
+			}
+			if strictErrs != nil {
+				return strictErrs, nil
 			}
 		} else {
 			value.Set(reflect.Zero(dt.Elem()))
@@ -355,10 +363,10 @@ func (c *unstructuredConverter) mapFromUnstructured(sv, dv reflect.Value, opts f
 			dv.SetMapIndex(key.Convert(dt.Key()), value)
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) error {
+func sliceFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) (strictErrs []error, err error) {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() == reflect.String && dt.Elem().Kind() == reflect.Uint8 {
 		// We store original []byte representation as string.
@@ -367,67 +375,75 @@ func (c *unstructuredConverter) sliceFromUnstructured(sv, dv reflect.Value, opts
 		if len(sv.Interface().(string)) > 0 {
 			marshalled, err := json.Marshal(sv.Interface())
 			if err != nil {
-				return fmt.Errorf("error encoding %s to json: %v", st, err)
+				return nil, fmt.Errorf("error encoding %s to json: %v", st, err)
 			}
 			// TODO: Is this Unmarshal needed?
 			var data []byte
 			err = json.Unmarshal(marshalled, &data)
 			if err != nil {
-				return fmt.Errorf("error decoding from json: %v", err)
+				return nil, fmt.Errorf("error decoding from json: %v", err)
 			}
 			dv.SetBytes(data)
 		} else {
 			dv.Set(reflect.Zero(dt))
 		}
-		return nil
+		return nil, nil
 	}
 	if st.Kind() != reflect.Slice {
-		return fmt.Errorf("cannot restore slice from %v", st.Kind())
+		return nil, fmt.Errorf("cannot restore slice from %v", st.Kind())
 	}
 
 	if sv.IsNil() {
 		dv.Set(reflect.Zero(dt))
-		return nil
+		return nil, nil
 	}
 	dv.Set(reflect.MakeSlice(dt, sv.Len(), sv.Cap()))
 	for i := 0; i < sv.Len(); i++ {
-		if err := c.fromUnstructured(sv.Index(i), dv.Index(i), fromUnstructuredOptions{
+		strictErrs, err := fromUnstructured(sv.Index(i), dv.Index(i), fromUnstructuredOptions{
 			isInlined:           opts.isInlined,
 			matchedKeys:         opts.matchedKeys,
 			strictErrs:          opts.strictErrs,
-			parentPath:          fmt.Sprintf("%s/%d", opts.parentPath, i),
+			parentPath:          append(opts.parentPath, "[", strconv.Itoa(i), "]"),
 			validationDirective: opts.validationDirective,
-		}); err != nil {
-			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		if strictErrs != nil {
+			return strictErrs, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (c *unstructuredConverter) pointerFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) error {
+func getSeparator(path []string) string {
+	if len(path) > 0 {
+		return "."
+	}
+	return ""
+}
+
+func pointerFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) (strictErrs []error, err error) {
 	st, dt := sv.Type(), dv.Type()
 
 	if st.Kind() == reflect.Ptr && sv.IsNil() {
 		dv.Set(reflect.Zero(dt))
-		return nil
+		return nil, nil
 	}
 	dv.Set(reflect.New(dt.Elem()))
 	switch st.Kind() {
 	case reflect.Ptr, reflect.Interface:
-		return c.fromUnstructured(sv.Elem(), dv.Elem(), opts)
+		return fromUnstructured(sv.Elem(), dv.Elem(), opts)
 	default:
-		return c.fromUnstructured(sv, dv.Elem(), opts)
+		return fromUnstructured(sv, dv.Elem(), opts)
 	}
 }
 
-func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) error {
+func structFromUnstructured(sv, dv reflect.Value, opts fromUnstructuredOptions) (strictErrs []error, err error) {
 	st, dt := sv.Type(), dv.Type()
 	if st.Kind() != reflect.Map {
-		return fmt.Errorf("cannot restore struct from: %v", st.Kind())
+		return nil, fmt.Errorf("cannot restore struct from: %v", st.Kind())
 	}
-	// only check for unknown fields if the validation is strict or warn
-	// and we are in the root of a given JSON field from sv
-	shouldValidate := !opts.isInlined && (opts.validationDirective == FieldValidationWarn || opts.validationDirective == FieldValidationStrict)
 
 	for i := 0; i < dt.NumField(); i++ {
 		fieldInfo := fieldInfoFromField(dt, i)
@@ -436,12 +452,17 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, opt
 		if len(fieldInfo.name) == 0 {
 			// This field is inlined, recurse into fromUnstructured again
 			// with the same set of matched keys.
-			if err := c.fromUnstructured(sv, fv, fromUnstructuredOptions{
+			strictErrs, err := fromUnstructured(sv, fv, fromUnstructuredOptions{
 				isInlined:           true,
 				matchedKeys:         opts.matchedKeys,
 				validationDirective: opts.validationDirective,
-			}); err != nil {
-				return err
+				parentPath:          []string{},
+			})
+			if err != nil {
+				return nil, err
+			}
+			if strictErrs != nil {
+				return strictErrs, nil
 			}
 		} else {
 			// This field is not inlined so we recurse into
@@ -455,35 +476,43 @@ func (c *unstructuredConverter) structFromUnstructured(sv, dv reflect.Value, opt
 			opts.matchedKeys[fieldInfo.name] = struct{}{}
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
 			if value.IsValid() {
-				if err := c.fromUnstructured(value, fv, fromUnstructuredOptions{
+				strictErrs, err := fromUnstructured(value, fv, fromUnstructuredOptions{
 					strictErrs:          opts.strictErrs,
-					parentPath:          fmt.Sprintf("%s/%s", opts.parentPath, fieldInfo.name),
+					parentPath:          append(opts.parentPath, getSeparator(opts.parentPath), fieldInfo.name),
 					validationDirective: opts.validationDirective,
-				}); err != nil {
-					return err
+				})
+				if err != nil {
+					return nil, err
+				}
+				if strictErrs != nil {
+					return strictErrs, nil
 				}
 			} else {
 				fv.Set(reflect.Zero(fv.Type()))
 			}
 		}
 	}
+	// only check for unknown fields if the validation is strict or warn
+	// and we are in the root of a given JSON field from sv
+	shouldValidate := !opts.isInlined && (opts.validationDirective == FieldValidationWarn || opts.validationDirective == FieldValidationStrict)
 	if shouldValidate {
 		// for every first-child field in the top level JSON field sv
 		// confirm that it exists in dv by it's existence in matchedKeys,
 		// others collect an unknown field error in strictErrs.
 		for _, key := range sv.MapKeys() {
 			if _, ok := opts.matchedKeys[key.String()]; !ok {
-				*opts.strictErrs = append(*opts.strictErrs, fmt.Errorf(`unknown field "%s/%s"`, opts.parentPath, key.String()))
+				strictPath := strings.Join(append(opts.parentPath, getSeparator(opts.parentPath), key.String()), "")
+				*opts.strictErrs = append(*opts.strictErrs, fmt.Errorf(`unknown field "%s"`, strictPath))
 			}
 
 		}
 		// return all the strict errors if we are at the
 		// root of the source JSON object.
-		if len(*opts.strictErrs) > 0 && opts.parentPath == "" {
-			return NewStrictDecodingError(*opts.strictErrs)
+		if len(*opts.strictErrs) > 0 && len(opts.parentPath) == 0 {
+			return *opts.strictErrs, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func interfaceFromUnstructured(sv, dv reflect.Value) error {

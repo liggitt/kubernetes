@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/http"
 	"path"
-	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -1229,18 +1228,14 @@ func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersion
 	obj, gvk, err := d.delegate.Decode(data, defaults, into)
 	var decodingStrictErrs []error
 	if err != nil {
-		if !runtime.IsStrictDecodingError(err) {
+		decodeStrictErr, ok := runtime.AsStrictDecodingError(err)
+		if !ok {
 			return nil, gvk, err
 		}
-		decodeStrictJSONErr, ok := runtime.AsStrictDecodingError(err)
-		if !ok {
-			// unreachable
-			return nil, gvk, fmt.Errorf("error both is and is not a strict decoding error: %v", err)
-		}
-		decodingStrictErrs = decodeStrictJSONErr.Errors()
+		decodingStrictErrs = decodeStrictErr.Errors()
 	}
 	if u, ok := obj.(*unstructured.Unstructured); ok {
-		unknownFields, preserved, err := d.validator.apply(u)
+		unknownFields, err := d.validator.apply(u)
 		if err != nil {
 			return nil, gvk, err
 		}
@@ -1248,16 +1243,6 @@ func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersion
 			applyStrictErrs := make([]error, len(unknownFields))
 			for i, unknownField := range unknownFields {
 				applyStrictErrs[i] = fmt.Errorf(`unknown field "%s"`, unknownField)
-			}
-			// when apply indicates that preserved is true,
-			// we need to return a special type of strict decoding error
-			// (PreservedDecodingError) so that the handler knows
-			// that it should warn instead of error in the strict case
-			// in order to maintain compatibility with how
-			// preserve unknown fields was handled prior to server-side
-			// validation.
-			if preserved {
-				return obj, gvk, runtime.NewPreservedDecodingError(append(decodingStrictErrs, applyStrictErrs...))
 			}
 			return obj, gvk, runtime.NewStrictDecodingError(append(decodingStrictErrs, applyStrictErrs...))
 
@@ -1282,7 +1267,7 @@ func (v schemaCoercingConverter) Convert(in, out, context interface{}) error {
 	}
 
 	if u, ok := out.(*unstructured.Unstructured); ok {
-		if _, _, err := v.validator.apply(u); err != nil {
+		if _, err := v.validator.apply(u); err != nil {
 			return err
 		}
 	}
@@ -1297,7 +1282,7 @@ func (v schemaCoercingConverter) ConvertToVersion(in runtime.Object, gv runtime.
 	}
 
 	if u, ok := out.(*unstructured.Unstructured); ok {
-		if _, _, err := v.validator.apply(u); err != nil {
+		if _, err := v.validator.apply(u); err != nil {
 			return nil, err
 		}
 	}
@@ -1325,58 +1310,36 @@ type unstructuredSchemaCoercer struct {
 	returnUnknownFieldPaths bool
 }
 
-func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) (unknownFieldPaths []string, preserved bool, err error) {
+func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) (unknownFieldPaths []string, err error) {
 	// save implicit meta fields that don't have to be specified in the validation spec
 	kind, foundKind, err := unstructured.NestedString(u.UnstructuredContent(), "kind")
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	apiVersion, foundApiVersion, err := unstructured.NestedString(u.UnstructuredContent(), "apiVersion")
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	objectMeta, foundObjectMeta, err := schemaobjectmeta.GetObjectMeta(u.Object, v.dropInvalidMetadata)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	// compare group and kind because also other object like DeleteCollection options pass through here
 	gv, err := schema.ParseGroupVersion(apiVersion)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
 	if gv.Group == v.structuralSchemaGK.Group && kind == v.structuralSchemaGK.Kind {
-		// For strict and warning validations
-		// (i.e. when v.returnUnknwonFIeldPaths is true)
-		// we must prune twice (with and without pruneOnPreserve set)
-		// and compare the pruned fields.
-		//
-		// If the pruned fields are different it means that at least
-		// one sub-object has "x-kubernetes-preserve-unknown-fields"
-		// set to true and we should notify the caller via the `preserved`
-		// field so that they can warn instead of error.
-		if v.returnUnknownFieldPaths {
-			objCopy := u.DeepCopy()
-			unknownFieldPaths = structuralpruning.PruneWithOptions(objCopy.Object, v.structuralSchemas[gv.Version],
-				structuralpruning.PruneOptions{
-					IsResourceRoot:               false,
-					PruneOnPreserveUnknownFields: true,
-				})
-			sort.Strings(unknownFieldPaths)
-		}
 		if !v.preserveUnknownFields {
 			// TODO: switch over pruning and coercing at the root to schemaobjectmeta.Coerce too
-			pruned := structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
+			unknownFieldPaths = structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
 			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
-			sort.Strings(pruned)
-			preserved = !reflect.DeepEqual(pruned, unknownFieldPaths)
-		} else {
-			preserved = true
 		}
 
 		if err := schemaobjectmeta.Coerce(nil, u.Object, v.structuralSchemas[gv.Version], false, v.dropInvalidMetadata); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		// fixup missing generation in very old CRs
 		if v.repairGeneration && objectMeta.Generation == 0 {
@@ -1393,11 +1356,11 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) (unknown
 	}
 	if foundObjectMeta {
 		if err := schemaobjectmeta.SetObjectMeta(u.Object, objectMeta); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 	}
 
-	return unknownFieldPaths, preserved, nil
+	return unknownFieldPaths, nil
 }
 
 // hasServedCRDVersion returns true if the given version is in the list of CRD's versions and the Served flag is set.

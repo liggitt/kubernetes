@@ -557,7 +557,11 @@ type CreateOptions struct {
 	// fieldValidation determines how the server should respond to
 	// unknown/duplicate fields in the object in the request.
 	// Introduced in 1.23, older servers will ignore this param and
-	// not perform any server side field validation.
+	// not perform any server side field validation. Valid values are:
+	// - FieldValidationIgnore: ignores unknown/duplicate fields
+	// - FieldValidationWarn: responds with a warning for each
+	// unknown/duplicate field, but successfully serves the request
+	// - FieldValidationStrict fails the request on unknown/duplicate fields
 	// +optional
 	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,4,name=fieldValidation"`
 }
@@ -595,9 +599,13 @@ type PatchOptions struct {
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,3,name=fieldManager"`
 
 	// fieldValidation determines how the server should respond to
-	// unknown/duplicate fields in the patch.
+	// unknown/duplicate fields in the object in the request.
 	// Introduced in 1.23, older servers will ignore this param and
-	// not perform any server side field validation.
+	// not perform any server side field validation. Valid values are:
+	// - FieldValidationIgnore: ignores unknown/duplicate fields
+	// - FieldValidationWarn: responds with a warning for each
+	// unknown/duplicate field, but successfully serves the request
+	// - FieldValidationStrict fails the request on unknown/duplicate fields
 	// +optional
 	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,4,name=fieldValidation"`
 }
@@ -657,9 +665,13 @@ type UpdateOptions struct {
 	FieldManager string `json:"fieldManager,omitempty" protobuf:"bytes,2,name=fieldManager"`
 
 	// fieldValidation determines how the server should respond to
-	// unknown/duplicate fields in the object in the update.
+	// unknown/duplicate fields in the object in the request.
 	// Introduced in 1.23, older servers will ignore this param and
-	// not perform any server side field validation.
+	// not perform any server side field validation. Valid values are:
+	// - FieldValidationIgnore: ignores unknown/duplicate fields
+	// - FieldValidationWarn: responds with a warning for each
+	// unknown/duplicate field, but successfully serves the request
+	// - FieldValidationStrict fails the request on unknown/duplicate fields
 	// +optional
 	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,3,name=fieldValidation"`
 }

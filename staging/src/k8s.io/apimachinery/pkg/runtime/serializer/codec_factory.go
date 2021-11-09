@@ -103,6 +103,9 @@ func newSerializersForScheme(scheme *runtime.Scheme, mf json.MetaFactory, option
 			ContentType:        runtime.ContentTypeProtobuf,
 			FileExtensions:     []string{"pb"},
 			Serializer:         protoSerializer,
+			// note, strict decoding is unsupported for protobuf,
+			// fall back to regular serializing
+			StrictSerializer: protoSerializer,
 
 			Framer:           protobuf.LengthDelimitedFramer,
 			StreamSerializer: protoRawSerializer,

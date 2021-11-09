@@ -19,6 +19,7 @@ package pruning
 import (
 	"bytes"
 	"reflect"
+	"sort"
 	"testing"
 
 	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
@@ -33,13 +34,14 @@ func TestPrune(t *testing.T) {
 		json           string
 		isResourceRoot bool
 		schema         *structuralschema.Structural
-		expected       string
+		expectedObject string
+		expectedPruned []string
 	}{
-		{name: "empty", json: "null", expected: "null"},
-		{name: "scalar", json: "4", schema: &structuralschema.Structural{}, expected: "4"},
+		{name: "empty", json: "null", expectedObject: "null"},
+		{name: "scalar", json: "4", schema: &structuralschema.Structural{}, expectedObject: "4"},
 		{name: "scalar array", json: "[1,2]", schema: &structuralschema.Structural{
 			Items: &structuralschema.Structural{},
-		}, expected: "[1,2]"},
+		}, expectedObject: "[1,2]"},
 		{name: "object array", json: `[{"a":1},{"b":1},{"a":1,"b":2,"c":3}]`, schema: &structuralschema.Structural{
 			Items: &structuralschema.Structural{
 				Properties: map[string]structuralschema.Structural{
@@ -47,8 +49,9 @@ func TestPrune(t *testing.T) {
 					"c": {},
 				},
 			},
-		}, expected: `[{"a":1},{},{"a":1,"c":3}]`},
-		{name: "object array with nil schema", json: `[{"a":1},{"b":1},{"a":1,"b":2,"c":3}]`, expected: `[{},{},{}]`},
+		}, expectedObject: `[{"a":1},{},{"a":1,"c":3}]`, expectedPruned: []string{"[1].b", "[2].b"}},
+		{name: "object array with nil schema", json: `[{"a":1},{"b":1},{"a":1,"b":2,"c":3}]`, expectedObject: `[{},{},{}]`,
+			expectedPruned: []string{"[0].a", "[1].b", "[2].a", "[2].b", "[2].c"}},
 		{name: "object array object", json: `{"array":[{"a":1},{"b":1},{"a":1,"b":2,"c":3}],"unspecified":{"a":1},"specified":{"a":1,"b":2,"c":3}}`, schema: &structuralschema.Structural{
 			Properties: map[string]structuralschema.Structural{
 				"array": {
@@ -66,7 +69,8 @@ func TestPrune(t *testing.T) {
 					},
 				},
 			},
-		}, expected: `{"array":[{"a":1},{},{"a":1,"c":3}],"specified":{"a":1,"c":3}}`},
+		}, expectedObject: `{"array":[{"a":1},{},{"a":1,"c":3}],"specified":{"a":1,"c":3}}`,
+			expectedPruned: []string{"specified.b", "array[1].b", "array[2].b", "unspecified"}},
 		{name: "nested x-kubernetes-preserve-unknown-fields", json: `
 {
   "unspecified":"bar",
@@ -158,7 +162,7 @@ func TestPrune(t *testing.T) {
 					},
 				},
 			},
-		}, expected: `
+		}, expectedObject: `
 {
   "unspecified":"bar",
   "alpha": "abc",
@@ -185,7 +189,8 @@ func TestPrune(t *testing.T) {
      }
   }
 }
-`},
+`, expectedPruned: []string{"pruning.unspecified", "pruning.unspecifiedObject", "pruning.pruning.unspecified", "preserving.pruning.unspecified",
+			"preservingAdditionalPropertiesNotInheritingXPreserveUnknownFields.foo.specified.unspecified", "preservingAdditionalPropertiesNotInheritingXPreserveUnknownFields.foo.unspecified", "preservingAdditionalPropertiesKeyPruneValues.foo.specified.unspecified", "preservingAdditionalPropertiesKeyPruneValues.foo.unspecified"}},
 		{name: "additionalProperties with schema", json: `{"a":1,"b":1,"c":{"a":1,"b":2,"c":{"a":1}}}`, schema: &structuralschema.Structural{
 			Properties: map[string]structuralschema.Structural{
 				"a": {},
@@ -201,7 +206,8 @@ func TestPrune(t *testing.T) {
 					},
 				},
 			},
-		}, expected: `{"a":1,"c":{"a":1,"b":2,"c":{}}}`},
+		}, expectedObject: `{"a":1,"c":{"a":1,"b":2,"c":{}}}`,
+			expectedPruned: []string{"c.c.a", "b"}},
 		{name: "additionalProperties with bool", json: `{"a":1,"b":1,"c":{"a":1,"b":2,"c":{"a":1}}}`, schema: &structuralschema.Structural{
 			Properties: map[string]structuralschema.Structural{
 				"a": {},
@@ -213,7 +219,8 @@ func TestPrune(t *testing.T) {
 					},
 				},
 			},
-		}, expected: `{"a":1,"c":{"a":1,"b":2,"c":{}}}`},
+		}, expectedObject: `{"a":1,"c":{"a":1,"b":2,"c":{}}}`,
+			expectedPruned: []string{"c.c.a", "b"}},
 		{name: "x-kubernetes-embedded-resource", json: `
 {
   "apiVersion": "foo/v1",
@@ -318,7 +325,7 @@ func TestPrune(t *testing.T) {
 					},
 				},
 			},
-		}, expected: `
+		}, expectedObject: `
 {
   "pruned": {
     "apiVersion": "foo/v1",
@@ -363,7 +370,7 @@ func TestPrune(t *testing.T) {
     }
   }
 }
-`},
+`, expectedPruned: []string{"unspecified", "pruned.unspecified", "pruned.spec.unspecified", "nested.unspecified", "nested.spec.unspecified", "nested.spec.embedded.unspecified", "nested.spec.embedded.spec.unspecified"}},
 		{name: "x-kubernetes-embedded-resource, with root=true", json: `
 {
   "apiVersion": "foo/v1",
@@ -468,7 +475,7 @@ func TestPrune(t *testing.T) {
 					},
 				},
 			},
-		}, expected: `
+		}, expectedObject: `
 {
   "apiVersion": "foo/v1",
   "kind": "Foo",
@@ -519,7 +526,7 @@ func TestPrune(t *testing.T) {
     }
   }
 }
-`},
+`, expectedPruned: []string{"unspecified", "pruned.unspecified", "pruned.spec.unspecified", "nested.unspecified", "nested.spec.unspecified", "nested.spec.embedded.unspecified", "nested.spec.embedded.spec.unspecified"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -528,13 +535,13 @@ func TestPrune(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			var expected interface{}
-			if err := json.Unmarshal([]byte(tt.expected), &expected); err != nil {
+			var expectedObject interface{}
+			if err := json.Unmarshal([]byte(tt.expectedObject), &expectedObject); err != nil {
 				t.Fatal(err)
 			}
 
-			Prune(in, tt.schema, tt.isResourceRoot)
-			if !reflect.DeepEqual(in, expected) {
+			pruned := Prune(in, tt.schema, tt.isResourceRoot)
+			if !reflect.DeepEqual(in, expectedObject) {
 				var buf bytes.Buffer
 				enc := json.NewEncoder(&buf)
 				enc.SetIndent("", "  ")
@@ -542,7 +549,12 @@ func TestPrune(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected result mashalling error: %v", err)
 				}
-				t.Errorf("expected: %s\ngot: %s\ndiff: %s", tt.expected, buf.String(), diff.ObjectDiff(expected, in))
+				t.Errorf("expected object: %s\ngot: %s\ndiff: %s", tt.expectedObject, buf.String(), diff.ObjectDiff(expectedObject, in))
+			}
+			sort.Strings(pruned)
+			sort.Strings(tt.expectedPruned)
+			if !reflect.DeepEqual(pruned, tt.expectedPruned) {
+				t.Errorf("expected pruned: %v\n got: %v\n", tt.expectedPruned, pruned)
 			}
 		})
 	}

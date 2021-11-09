@@ -141,10 +141,7 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 		}
 		gv := scope.Kind.GroupVersion()
 
-		var validationDirective string
-		if fv := req.URL.Query()["fieldValidation"]; len(fv) > 0 {
-			validationDirective = fv[0]
-		}
+		validationDirective := fieldValidation(options.FieldValidation)
 		decodeSerializer := s.Serializer
 		if validationDirective == metav1.FieldValidationWarn || validationDirective == metav1.FieldValidationStrict {
 			decodeSerializer = s.StrictSerializer
@@ -232,7 +229,7 @@ func PatchResource(r rest.Patcher, scope *RequestScope, admit admission.Interfac
 			trace: trace,
 		}
 
-		result, wasCreated, err := p.patchResource(ctx, scope, w)
+		result, wasCreated, err := p.patchResource(ctx, scope)
 		if err != nil {
 			scope.err(err, w, req)
 			return
@@ -603,7 +600,7 @@ func (p *patcher) applyAdmission(ctx context.Context, patchedObject runtime.Obje
 }
 
 // patchResource divides PatchResource for easier unit testing
-func (p *patcher) patchResource(ctx context.Context, scope *RequestScope, w http.ResponseWriter) (runtime.Object, bool, error) {
+func (p *patcher) patchResource(ctx context.Context, scope *RequestScope) (runtime.Object, bool, error) {
 	p.namespace = request.NamespaceValue(ctx)
 	switch p.patchType {
 	case types.JSONPatchType, types.MergePatchType:

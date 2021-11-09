@@ -790,9 +790,9 @@ func TestFieldValidationSMP(t *testing.T) {
 				`duplicate field "imagePullPolicy"`,
 				`duplicate field "paused"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/template/spec/containers/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.template.spec.containers[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -805,9 +805,9 @@ func TestFieldValidationSMP(t *testing.T) {
 				`duplicate field "imagePullPolicy"`,
 				`duplicate field "paused"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/template/spec/containers/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.template.spec.containers[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1002,9 +1002,9 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1018,9 +1018,9 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1045,10 +1045,10 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			body: jsonPatchBody,
 			strictDecodingErrors: []string{
 				// note: duplicate fields are dropped by the
-				// evanphx/json-patch library and is expected.
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				// evanphx/json-patch library without error.
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1060,10 +1060,10 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			body: jsonPatchBody,
 			strictDecodingWarnings: []string{
 				// note: duplicate fields are dropped by the
-				// evanphx/json-patch library and is expected.
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				// evanphx/json-patch library without error.
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1087,13 +1087,11 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			},
 			body:                  mergePatchBody,
 			preserveUnknownFields: `"x-kubernetes-preserve-unknown-fields": true,`,
-			strictDecodingWarnings: []string{
+			strictDecodingErrors: []string{
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1108,9 +1106,7 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1136,12 +1132,10 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			},
 			body:                  jsonPatchBody,
 			preserveUnknownFields: `"x-kubernetes-preserve-unknown-fields": true,`,
-			strictDecodingWarnings: []string{
+			strictDecodingErrors: []string{
 				// note: duplicate fields are dropped by the
-				// evanphx/json-patch library and is expected.
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				// evanphx/json-patch library without error.
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1154,10 +1148,8 @@ func TestFieldValidationPatchCRD(t *testing.T) {
 			preserveUnknownFields: `"x-kubernetes-preserve-unknown-fields": true,`,
 			strictDecodingWarnings: []string{
 				// note: duplicate fields are dropped by the
-				// evanphx/json-patch library and is expected.
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				// evanphx/json-patch library without error.
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1345,9 +1337,9 @@ spec:
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1360,9 +1352,9 @@ spec:
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1383,13 +1375,11 @@ spec:
 			},
 			body:                  postBody,
 			preserveUnknownFields: `"x-kubernetes-preserve-unknown-fields": true,`,
-			strictDecodingWarnings: []string{
+			strictDecodingErrors: []string{
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1403,9 +1393,7 @@ spec:
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1432,9 +1420,7 @@ spec:
 				`line 11: key "knownField1" already set in map`,
 				`line 17: key "hostPort" already set in map`,
 				`line 9: key "unknownDupe" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1448,9 +1434,9 @@ spec:
 				`line 11: key "knownField1" already set in map`,
 				`line 17: key "hostPort" already set in map`,
 				`line 9: key "unknownDupe" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1474,13 +1460,11 @@ spec:
 			body:                  postBodyYAML,
 			contentType:           "application/yaml",
 			preserveUnknownFields: `"x-kubernetes-preserve-unknown-fields": true,`,
-			strictDecodingWarnings: []string{
+			strictDecodingErrors: []string{
 				`line 11: key "knownField1" already set in map`,
 				`line 17: key "hostPort" already set in map`,
 				`line 9: key "unknownDupe" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1495,9 +1479,7 @@ spec:
 				`line 11: key "knownField1" already set in map`,
 				`line 17: key "hostPort" already set in map`,
 				`line 9: key "unknownDupe" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1573,6 +1555,7 @@ spec:
 			if result.Error() == nil && len(tc.strictDecodingErrors) > 0 {
 				t.Fatalf("unexpected post succeeded")
 			}
+
 			for _, strictErr := range tc.strictDecodingErrors {
 				if !strings.Contains(result.Error().Error(), strictErr) {
 					t.Fatalf("missing strict decoding error: %s from error: %s", strictErr, result.Error().Error())
@@ -1588,6 +1571,10 @@ spec:
 
 			})
 
+			klog.Warningf("warn len: %d", len(result.Warnings()))
+			for _, w := range result.Warnings() {
+				klog.Warningf("w: %s", w.Text)
+			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
 					t.Fatalf("expected warning: %s, got warning: %s", strictWarn, result.Warnings()[i].Text)
@@ -1687,9 +1674,9 @@ spec:
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1703,9 +1690,9 @@ spec:
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1729,13 +1716,11 @@ spec:
 			postBody:              postBody,
 			putBody:               putBody,
 			preserveUnknownFields: `"x-kubernetes-preserve-unknown-fields": true,`,
-			strictDecodingWarnings: []string{
+			strictDecodingErrors: []string{
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1750,9 +1735,7 @@ spec:
 				`duplicate field "hostPort"`,
 				`duplicate field "knownField1"`,
 				`duplicate field "unknownDupe"`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1782,9 +1765,9 @@ spec:
 				`line 10: key "unknownDupe" already set in map`,
 				`line 12: key "knownField1" already set in map`,
 				`line 18: key "hostPort" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1799,9 +1782,9 @@ spec:
 				`line 10: key "unknownDupe" already set in map`,
 				`line 12: key "knownField1" already set in map`,
 				`line 18: key "hostPort" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
 			},
 		},
 		{
@@ -1828,13 +1811,11 @@ spec:
 			putBody:               putBodyYAML,
 			contentType:           "application/yaml",
 			preserveUnknownFields: `"x-kubernetes-preserve-unknown-fields": true,`,
-			strictDecodingWarnings: []string{
+			strictDecodingErrors: []string{
 				`line 10: key "unknownDupe" already set in map`,
 				`line 12: key "knownField1" already set in map`,
 				`line 18: key "hostPort" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -1850,9 +1831,7 @@ spec:
 				`line 10: key "unknownDupe" already set in map`,
 				`line 12: key "knownField1" already set in map`,
 				`line 18: key "hostPort" already set in map`,
-				`unknown field "/spec/ports/0/unknownNested"`,
-				`unknown field "/spec/unknown1"`,
-				`unknown field "/spec/unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
 			},
 		},
 		{
@@ -2273,9 +2252,11 @@ func TestFieldValidationApplyUpdate(t *testing.T) {
 	}
 }
 
-// TestFieldValidationApplyCreateCRD tests apply patch requests containing unknown fields
+// TestFieldValidationApplyCreateCRD tests apply patch requests containing duplicate fields
 // on newly created objects, for CRDs with schemas set to both preserve and not
 // preserve unknown fields.
+// Note that even prior to server-side validation, unknown fields were treated as
+// errors in apply-patch and are not tested here.
 func TestFieldValidationApplyCreateCRD(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StrictFieldValidation, true)()
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()
@@ -2467,9 +2448,11 @@ func TestFieldValidationApplyCreateCRD(t *testing.T) {
 	}
 }
 
-// TestFieldValidationApplyUpdateCRD tests apply patch requests containing unknown fields
+// TestFieldValidationApplyUpdateCRD tests apply patch requests containing duplicate fields
 // on existing objects, for CRDs with schemas set to both preserve and not
 // preserve unknown fields.
+// Note that even prior to server-side validation, unknown fields were treated as
+// errors in apply-patch and are not tested here.
 func TestFieldValidationApplyUpdateCRD(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StrictFieldValidation, true)()
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ServerSideApply, true)()

@@ -604,7 +604,7 @@ func schema_pkg_apis_meta_v1_CreateOptions(ref common.ReferenceCallback) common.
 					},
 					"fieldValidation": {
 						SchemaProps: spec.SchemaProps{
-							Description: "fieldValidation determines how the server should respond to unknown/duplicate fields in the object in the request. Introduced in 1.23, older servers will ignore this param and not perform any server side field validation.",
+							Description: "fieldValidation determines how the server should respond to unknown/duplicate fields in the object in the request. Introduced in 1.23, older servers will ignore this param and not perform any server side field validation. Valid values are: - FieldValidationIgnore: ignores unknown/duplicate fields - FieldValidationWarn: responds with a warning for each unknown/duplicate field, but successfully serves the request - FieldValidationStrict fails the request on unknown/duplicate fields",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1705,7 +1705,7 @@ func schema_pkg_apis_meta_v1_PatchOptions(ref common.ReferenceCallback) common.O
 					},
 					"fieldValidation": {
 						SchemaProps: spec.SchemaProps{
-							Description: "fieldValidation determines how the server should respond to unknown/duplicate fields in the patch. Introduced in 1.23, older servers will ignore this param and not perform any server side field validation.",
+							Description: "fieldValidation determines how the server should respond to unknown/duplicate fields in the object in the request. Introduced in 1.23, older servers will ignore this param and not perform any server side field validation. Valid values are: - FieldValidationIgnore: ignores unknown/duplicate fields - FieldValidationWarn: responds with a warning for each unknown/duplicate field, but successfully serves the request - FieldValidationStrict fails the request on unknown/duplicate fields",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2332,7 +2332,7 @@ func schema_pkg_apis_meta_v1_UpdateOptions(ref common.ReferenceCallback) common.
 					},
 					"fieldValidation": {
 						SchemaProps: spec.SchemaProps{
-							Description: "fieldValidation determines how the server should respond to unknown/duplicate fields in the object in the update. Introduced in 1.23, older servers will ignore this param and not perform any server side field validation.",
+							Description: "fieldValidation determines how the server should respond to unknown/duplicate fields in the object in the request. Introduced in 1.23, older servers will ignore this param and not perform any server side field validation. Valid values are: - FieldValidationIgnore: ignores unknown/duplicate fields - FieldValidationWarn: responds with a warning for each unknown/duplicate field, but successfully serves the request - FieldValidationStrict fails the request on unknown/duplicate fields",
 							Type:        []string{"string"},
 							Format:      "",
 						},

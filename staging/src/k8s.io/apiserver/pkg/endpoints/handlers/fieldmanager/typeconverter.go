@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/managedfields"
-	"k8s.io/klog/v2"
 	"k8s.io/kube-openapi/pkg/util/proto"
 	"sigs.k8s.io/structured-merge-diff/v4/typed"
 	"sigs.k8s.io/structured-merge-diff/v4/value"
@@ -90,10 +89,7 @@ func (c *typeConverter) ObjectToTyped(obj runtime.Object) (*typed.TypedValue, er
 	}
 	switch o := obj.(type) {
 	case *unstructured.Unstructured:
-		klog.Warningf("oUC: %v\n", o.UnstructuredContent())
-		tv, err := t.FromUnstructured(o.UnstructuredContent())
-		klog.Warningf("tv: %v\n err: %v\n", value.ToString(tv.AsValue()), err)
-		return tv, err
+		return t.FromUnstructured(o.UnstructuredContent())
 	default:
 		return t.FromStructured(obj)
 	}

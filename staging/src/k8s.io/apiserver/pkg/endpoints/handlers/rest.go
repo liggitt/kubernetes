@@ -458,23 +458,14 @@ func isDryRun(url *url.URL) bool {
 	return len(url.Query()["dryRun"]) != 0
 }
 
+// TODO: wtf are we doing here?
 // fieldValidation checks that the field validation feature is enabled and if so
 // that the content type is supported.
-func fieldValidation(req *http.Request, s runtime.SerializerInfo) (string, error) {
-	var validationDirective string
-	if fv := req.URL.Query()["fieldValidation"]; len(fv) > 0 {
-		validationDirective = fv[0]
+func fieldValidation(directive string) string {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) {
+		return metav1.FieldValidationIgnore
 	}
-	if validationDirective == metav1.FieldValidationWarn || validationDirective == metav1.FieldValidationStrict {
-		if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) {
-			return "", errors.NewBadRequest("the StrictFieldValidation feature is disabled")
-		}
-		if s.StrictSerializer == nil {
-			contentType := req.Header.Get("Content-Type")
-			return "", errors.NewBadRequest(fmt.Sprintf("fieldValidation parameter does not have a strict serializer for content type: %s", contentType))
-		}
-	}
-	return validationDirective, nil
+	return directive
 }
 
 // parseYAMLWarnings takes the strict decoding errors from the yaml decoder's output
