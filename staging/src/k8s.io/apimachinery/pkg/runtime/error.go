@@ -151,10 +151,6 @@ func (e *strictDecodingError) Errors() []error {
 	return e.errors
 }
 
-func (e *strictDecodingError) StrictErrors() []error {
-	return e.errors
-}
-
 // IsStrictDecodingError returns true if the error indicates that the provided object
 // strictness violations.
 func IsStrictDecodingError(err error) bool {
@@ -173,48 +169,4 @@ func AsStrictDecodingError(err error) (*strictDecodingError, bool) {
 	}
 	strictErr, ok := err.(*strictDecodingError)
 	return strictErr, ok
-}
-
-// preservedDecodingError is an error type returned
-// when structural pruning indicates that there are
-// unknown fields, but the schema indicates that
-// unknown fields should be preserved.
-type preservedDecodingError struct {
-	errors []error
-}
-
-func NewPreservedDecodingError(errors []error) error {
-	return &preservedDecodingError{
-		errors: errors,
-	}
-}
-
-func (e *preservedDecodingError) Error() string {
-	var s strings.Builder
-	s.WriteString("strict decoding error with preserved fields: ")
-	for i, err := range e.errors {
-		if i != 0 {
-			s.WriteString(", ")
-		}
-		s.WriteString(err.Error())
-	}
-	return s.String()
-}
-
-func (e *preservedDecodingError) StrictErrors() []error {
-	return e.errors
-}
-
-func IsPreservedDecodingError(err error) bool {
-	if err == nil {
-		return false
-	}
-	_, ok := err.(*preservedDecodingError)
-	return ok
-}
-
-// StrictError is an interface for both
-// preservedDecodingErrors and strictDecodingErrors
-type StrictError interface {
-	StrictErrors() []error
 }

@@ -318,7 +318,7 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 	}
 
 	// Apply the patch.
-	patchedObjJS, applyStrictJSONErrs, err := p.applyJSPatch(currentObjJS)
+	patchedObjJS, appliedStrictErrs, err := p.applyJSPatch(currentObjJS)
 	if err != nil {
 		return nil, err
 	}
@@ -326,32 +326,34 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 	// Construct the resulting typed, unversioned object.
 	objToUpdate := p.restPatcher.New()
 	if err := runtime.DecodeInto(p.codec, patchedObjJS, objToUpdate); err != nil {
-		if !runtime.IsStrictDecodingError(err) && !runtime.IsPreservedDecodingError(err) {
+		strictError, isStrictError := runtime.AsStrictDecodingError(err)
+		switch {
+		case !isStrictError:
+			// disregard any appliedStrictErrs, because it's an incomplete
+			// list of strict errors given that we don't know what fields were
+			// unknown because DecodeInto failed. Non-strict errors trump in this case.
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), err.Error()),
 			})
-		}
-
-		decodeStrictJSONErr, ok := err.(runtime.StrictError)
-		if !ok {
-			// unreachable
-			return nil, errors.NewInternalError(fmt.Errorf("unreachable error is neither strict decoding nor preserved decoding error: %v", err))
-		}
-		// combine the strict decoding errors from applyJSPatch and DecodeInto so that we report all of them
-		strictDecodingErr := runtime.NewStrictDecodingError(append(applyStrictJSONErrs, decodeStrictJSONErr.StrictErrors()...))
-		if runtime.IsStrictDecodingError(err) && p.validationDirective == metav1.FieldValidationStrict {
+		case p.validationDirective == metav1.FieldValidationStrict:
+			strictDecodingError := runtime.NewStrictDecodingError(append(appliedStrictErrs, strictError.Errors()...))
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
-				field.Invalid(field.NewPath("patch"), string(patchedObjJS), strictDecodingErr.Error()),
+				field.Invalid(field.NewPath("patch"), string(patchedObjJS), strictDecodingError.Error()),
 			})
-
+		case p.validationDirective == metav1.FieldValidationWarn:
+			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(append(appliedStrictErrs, strictError.Errors()...)))
+			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
 		}
-		strictErr, ok := strictDecodingErr.(runtime.StrictError)
-		if !ok {
-			// unreachable
-			return nil, errors.NewInternalError(fmt.Errorf("unreachable error is neither strict decoding nor preserved decoding error: %v", err))
-
+	} else if len(appliedStrictErrs) > 0 {
+		switch {
+		case p.validationDirective == metav1.FieldValidationStrict:
+			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
+				field.Invalid(field.NewPath("patch"), string(patchedObjJS), runtime.NewStrictDecodingError(appliedStrictErrs).Error()),
+			})
+		case p.validationDirective == metav1.FieldValidationWarn:
+			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(appliedStrictErrs))
+			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
 		}
-		addStrictDecodingWarnings(requestContext, strictErr)
 	}
 
 	if p.fieldManager != nil {
@@ -364,18 +366,26 @@ func (p *jsonPatcher) createNewObject(_ context.Context) (runtime.Object, error)
 	return nil, errors.NewNotFound(p.resource.GroupResource(), p.name)
 }
 
+type jsonPatchOp struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	From  string      `json:"from"`
+	Value interface{} `json:"value"`
+}
+
 // applyJSPatch applies the patch. Input and output objects must both have
 // the external version, since that is what the patch must have been constructed against.
 func (p *jsonPatcher) applyJSPatch(versionedJS []byte) (patchedJS []byte, strictErrors []error, retErr error) {
 	switch p.patchType {
 	case types.JSONPatchType:
-		// sanity check potentially abusive patches
-		// TODO(liggitt): drop this once golang json parser limits stack depth (https://github.com/golang/go/issues/31789)
-		if len(p.patchBytes) > 1024*1024 || p.validationDirective == metav1.FieldValidationStrict || p.validationDirective == metav1.FieldValidationWarn {
-			v := []interface{}{}
+		if p.validationDirective == metav1.FieldValidationStrict || p.validationDirective == metav1.FieldValidationWarn {
+			var v []jsonPatchOp
 			var err error
 			if strictErrors, err = kjson.UnmarshalStrict(p.patchBytes, &v); err != nil {
 				return nil, nil, errors.NewBadRequest(fmt.Sprintf("error decoding patch: %v", err))
+			}
+			for i, e := range strictErrors {
+				strictErrors[i] = fmt.Errorf("json patch %v", e)
 			}
 		}
 
@@ -394,9 +404,7 @@ func (p *jsonPatcher) applyJSPatch(versionedJS []byte) (patchedJS []byte, strict
 		}
 		return patchedJS, strictErrors, nil
 	case types.MergePatchType:
-		// sanity check potentially abusive patches
-		// TODO(liggitt): drop this once golang json parser limits stack depth (https://github.com/golang/go/issues/31789)
-		if len(p.patchBytes) > 1024*1024 || p.validationDirective == metav1.FieldValidationStrict || p.validationDirective == metav1.FieldValidationWarn {
+		if p.validationDirective == metav1.FieldValidationStrict || p.validationDirective == metav1.FieldValidationWarn {
 			v := map[string]interface{}{}
 			var err error
 			strictErrors, err = kjson.UnmarshalStrict(p.patchBytes, &v)
@@ -475,23 +483,25 @@ func (p *applyPatcher) applyPatchToCurrentObject(requestContext context.Context,
 		return nil, errors.NewBadRequest(fmt.Sprintf("error decoding YAML: %v", err))
 	}
 
+	obj, err := p.fieldManager.Apply(obj, patchObj, p.options.FieldManager, force)
+	if err != nil {
+		return obj, err
+	}
+
 	if p.validationDirective == metav1.FieldValidationStrict {
 		strictPatchObj := &unstructured.Unstructured{Object: map[string]interface{}{}}
 		if err := yaml.UnmarshalStrict(p.patch, &strictPatchObj.Object); err != nil {
 			return nil, errors.NewBadRequest(fmt.Sprintf("error strict decoding YAML: %v", err))
 		}
 
-	}
-	if p.validationDirective == metav1.FieldValidationWarn {
+	} else if p.validationDirective == metav1.FieldValidationWarn {
 		strictPatchObj := &unstructured.Unstructured{Object: map[string]interface{}{}}
 		if err := yaml.UnmarshalStrict(p.patch, &strictPatchObj.Object); err != nil {
-			addStrictDecodingWarnings(requestContext, runtime.NewStrictDecodingError([]error{err}).(runtime.StrictError))
+			addStrictDecodingWarnings(requestContext, []error{err})
 
 		}
 	}
-
-	obj, err := p.fieldManager.Apply(obj, patchObj, p.options.FieldManager, force)
-	return obj, err
+	return obj, nil
 }
 
 func (p *applyPatcher) createNewObject(requestContext context.Context) (runtime.Object, error) {
@@ -693,33 +703,37 @@ func applyPatchToObject(
 	// Rather than serialize the patched map to JSON, then decode it to an object, we go directly from a map to an object
 	converter := runtime.DefaultUnstructuredConverter
 	if err := converter.FromUnstructuredWithValidation(patchedObjMap, objToUpdate, validationDirective); err != nil {
-		if !runtime.IsStrictDecodingError(err) {
+		strictError, isStrictError := runtime.AsStrictDecodingError(err)
+		switch {
+		case !isStrictError:
+			// disregard any sttrictErrs, because it's an incomplete
+			// list of strict errors given that we don't know what fields were
+			// unknown because StrategicMergeMapPatch failed.
+			// Non-strict errors trump in this case.
 			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
 			})
-		}
-		decodeStrictJSONErr, ok := runtime.AsStrictDecodingError(err)
-		if !ok {
-			// not possible
-			return errors.NewInternalError(fmt.Errorf("decode error both is and is not a strict decoding error: %v", err))
-		}
-		// combine the strict decoding errors from applyJSPatch and DecodeInto so that we report all of them
-		strictDecodingErr := runtime.NewStrictDecodingError(append(strictErrs, decodeStrictJSONErr.Errors()...))
-		if validationDirective == metav1.FieldValidationStrict {
+		case validationDirective == metav1.FieldValidationStrict:
+			strictDecodingError := runtime.NewStrictDecodingError(append(strictErrs, strictError.Errors()...))
 			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
-				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), strictDecodingErr.Error()),
+				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), strictDecodingError.Error()),
 			})
+		case validationDirective == metav1.FieldValidationWarn:
+			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(append(strictErrs, strictError.Errors()...)))
+			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
 		}
-		strictErr, ok := strictDecodingErr.(runtime.StrictError)
-		if !ok {
-			// unreachable
-			return errors.NewInternalError(fmt.Errorf("unreachable error is neither strict decoding nor preserved decoding error: %v", err))
-
-		}
-		if validationDirective == metav1.FieldValidationWarn {
-			addStrictDecodingWarnings(requestContext, strictErr)
+	} else if len(strictErrs) > 0 {
+		switch {
+		case validationDirective == metav1.FieldValidationStrict:
+			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
+				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), runtime.NewStrictDecodingError(strictErrs).Error()),
+			})
+		case validationDirective == metav1.FieldValidationWarn:
+			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(strictErrs))
+			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
 		}
 	}
+
 	// Decoding from JSON to a versioned object would apply defaults, so we do the same here
 	defaulter.Default(objToUpdate)
 
@@ -744,8 +758,9 @@ func patchToUpdateOptions(po *metav1.PatchOptions) *metav1.UpdateOptions {
 		return nil
 	}
 	uo := &metav1.UpdateOptions{
-		DryRun:       po.DryRun,
-		FieldManager: po.FieldManager,
+		DryRun:          po.DryRun,
+		FieldManager:    po.FieldManager,
+		FieldValidation: po.FieldValidation,
 	}
 	uo.TypeMeta.SetGroupVersionKind(metav1.SchemeGroupVersion.WithKind("UpdateOptions"))
 	return uo
@@ -757,8 +772,9 @@ func patchToCreateOptions(po *metav1.PatchOptions) *metav1.CreateOptions {
 		return nil
 	}
 	co := &metav1.CreateOptions{
-		DryRun:       po.DryRun,
-		FieldManager: po.FieldManager,
+		DryRun:          po.DryRun,
+		FieldManager:    po.FieldManager,
+		FieldValidation: po.FieldValidation,
 	}
 	co.TypeMeta.SetGroupVersionKind(metav1.SchemeGroupVersion.WithKind("CreateOptions"))
 	return co

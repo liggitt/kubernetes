@@ -112,28 +112,15 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		trace.Step("About to convert to expected version")
 		obj, gvk, err := decoder.Decode(body, &defaultGVK, original)
 		if err != nil {
-			if !runtime.IsStrictDecodingError(err) && !runtime.IsPreservedDecodingError(err) {
+			strictError, isStrictError := runtime.AsStrictDecodingError(err)
+			switch {
+			case isStrictError && validationDirective == metav1.FieldValidationWarn:
+				addStrictDecodingWarnings(req.Context(), strictError.Errors())
+			case !isStrictError || validationDirective == metav1.FieldValidationStrict:
 				err = transformDecodeError(scope.Typer, err, original, gvk, body)
 				scope.err(err, w, req)
 				return
 			}
-
-			if runtime.IsStrictDecodingError(err) && validationDirective == metav1.FieldValidationStrict {
-				err = transformDecodeError(scope.Typer, err, original, gvk, body)
-				scope.err(err, w, req)
-				return
-			}
-
-			strictErr, ok := err.(runtime.StrictError)
-			if !ok {
-				// unreachable
-				err = errors.NewInternalError(fmt.Errorf("unreachable error is neither strict decoding nor preserved decoding error: %v", err))
-				scope.err(err, w, req)
-				return
-
-			}
-
-			addStrictDecodingWarnings(req.Context(), strictErr)
 		}
 
 		objGV := gvk.GroupVersion()
@@ -292,8 +279,9 @@ func updateToCreateOptions(uo *metav1.UpdateOptions) *metav1.CreateOptions {
 		return nil
 	}
 	co := &metav1.CreateOptions{
-		DryRun:       uo.DryRun,
-		FieldManager: uo.FieldManager,
+		DryRun:          uo.DryRun,
+		FieldManager:    uo.FieldManager,
+		FieldValidation: uo.FieldValidation,
 	}
 	co.TypeMeta.SetGroupVersionKind(metav1.SchemeGroupVersion.WithKind("CreateOptions"))
 	return co

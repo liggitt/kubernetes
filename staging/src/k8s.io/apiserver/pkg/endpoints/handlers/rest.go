@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -471,24 +472,26 @@ func fieldValidation(directive string) string {
 // parseYAMLWarnings takes the strict decoding errors from the yaml decoder's output
 // and parses each individual warnings, or leaves the warning as is if
 // it does not look like a yaml strict decoding error.
-func parseYAMLWarnings(err error) []error {
-	if strings.Contains(err.Error(), "unmarshal errors") {
-		unmarshalErrStrings := strings.Split(err.Error(), "\n")[1:]
-		unmarshalErrs := make([]error, len(unmarshalErrStrings))
-		for i, s := range unmarshalErrStrings {
-			unmarshalErrs[i] = goerrors.New(strings.TrimSpace(s))
+func parseYAMLWarnings(errString string) []error {
+	lines := strings.Split(errString, "\n")
+	yamlErrPrefix := `yaml: unmarshal errors:$`
+	if len(lines) > 0 {
+		if matched, _ := regexp.MatchString(yamlErrPrefix, lines[0]); matched {
+			unmarshalErrs := make([]error, len(lines[1:]))
+			for i, s := range lines[1:] {
+				unmarshalErrs[i] = goerrors.New(strings.TrimSpace(s))
+			}
+			return unmarshalErrs
 		}
-		return unmarshalErrs
-	} else {
-		return []error{err}
 	}
+	return []error{goerrors.New(errString)}
 }
 
 // addStrictDecodingWarnings confirms that the error is a strict decoding error
 // and if so adds a warning for each strict decoding violation.
-func addStrictDecodingWarnings(requestContext context.Context, err runtime.StrictError) bool {
-	for _, e := range err.StrictErrors() {
-		yamlWarnings := parseYAMLWarnings(e)
+func addStrictDecodingWarnings(requestContext context.Context, errs []error) bool {
+	for _, e := range errs {
+		yamlWarnings := parseYAMLWarnings(e.Error())
 		for _, w := range yamlWarnings {
 			warning.AddWarning(requestContext, "", w.Error())
 		}

@@ -169,6 +169,15 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 				}
 				return into, actual, nil
 			}
+			if !isUnstructured {
+				strictErrs, err := kjson.UnmarshalStrict(data, into)
+				if err != nil {
+					return nil, actual, err
+				} else if len(strictErrs) > 0 {
+					return into, actual, runtime.NewStrictDecodingError(strictErrs)
+				}
+				return into, actual, nil
+			}
 			var allStrictErrs []error
 			if s.options.Yaml {
 				// In strict mode pass the original data through the YAMLToJSONStrict converter.
@@ -186,7 +195,6 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 			m := u.UnstructuredContent()
 			strictJSONErrs, err := kjson.UnmarshalStrict(data, &m)
 			u.SetUnstructuredContent(m)
-			into = u
 			if err != nil {
 				// fatal decoding error, not due to strictness
 				return nil, actual, err
