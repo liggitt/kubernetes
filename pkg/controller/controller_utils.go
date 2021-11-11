@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"math"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -569,7 +570,13 @@ func (r RealPodControl) createPods(ctx context.Context, namespace string, pod *v
 	if err != nil {
 		// only send an event if the namespace isn't terminating
 		if !apierrors.HasStatusCause(err, v1.NamespaceTerminatingCause) {
-			r.Recorder.Eventf(object, v1.EventTypeWarning, FailedCreatePodReason, "Error creating: %v", err)
+			msg := err.Error()
+			if len(pod.Name) == 0 && len(pod.GenerateName) > 0 {
+				if r, err := regexp.Compile(fmt.Sprintf(`"%s[^"]+"`, regexp.QuoteMeta(pod.GenerateName))); err == nil {
+					msg = r.ReplaceAllLiteralString(msg, fmt.Sprintf(`"%s..."`, pod.GenerateName))
+				}
+			}
+			r.Recorder.Eventf(object, v1.EventTypeWarning, FailedCreatePodReason, "Error creating: %s", msg)
 		}
 		return err
 	}
@@ -579,7 +586,11 @@ func (r RealPodControl) createPods(ctx context.Context, namespace string, pod *v
 		return nil
 	}
 	klog.V(4).Infof("Controller %v created pod %v", accessor.GetName(), newPod.Name)
-	r.Recorder.Eventf(object, v1.EventTypeNormal, SuccessfulCreatePodReason, "Created pod: %v", newPod.Name)
+	if len(pod.Name) == 0 && len(pod.GenerateName) > 0 {
+		r.Recorder.Eventf(object, v1.EventTypeNormal, SuccessfulCreatePodReason, "Created pod: %s...", pod.GenerateName)
+	} else {
+		r.Recorder.Eventf(object, v1.EventTypeNormal, SuccessfulCreatePodReason, "Created pod: %s", newPod.Name)
+	}
 
 	return nil
 }
