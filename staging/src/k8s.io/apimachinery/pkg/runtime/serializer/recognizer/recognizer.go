@@ -108,9 +108,11 @@ func (d *decoder) Decode(data []byte, gvk *schema.GroupVersionKind, into runtime
 	// try recognizers that returned unknown or didn't recognize their data
 	for _, r := range skipped {
 		out, actual, err := r.Decode(data, gvk, into)
-		if err != nil && !runtime.IsStrictDecodingError(err) {
-			lastErr = err
-			continue
+		if err != nil {
+			if out == nil || !runtime.IsStrictDecodingError(err) {
+				lastErr = err
+				continue
+			}
 		}
 		return out, actual, err
 	}

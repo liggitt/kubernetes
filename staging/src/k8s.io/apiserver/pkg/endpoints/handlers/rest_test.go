@@ -1253,7 +1253,7 @@ spec:
 	testCases := []struct {
 		name     string
 		yaml     string
-		expected []error
+		expected []string
 	}{
 		{
 			name: "no errors",
@@ -1262,12 +1262,12 @@ spec:
 		{
 			name:     "one error",
 			yaml:     yamlOneErr,
-			expected: []error{errors.New(`line 9: key "field2" already set in map`)},
+			expected: []string{`line 9: key "field2" already set in map`},
 		},
 		{
 			name:     "many errors",
 			yaml:     yamlManyErrs,
-			expected: []error{errors.New(`line 9: key "field2" already set in map`), errors.New(`line 14: key "nestedField2" already set in map`)},
+			expected: []string{`line 9: key "field2" already set in map`, `line 14: key "nestedField2" already set in map`},
 		},
 	}
 	for _, tc := range testCases {

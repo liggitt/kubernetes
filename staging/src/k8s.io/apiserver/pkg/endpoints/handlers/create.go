@@ -127,12 +127,12 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 		if err != nil {
 			strictError, isStrictError := runtime.AsStrictDecodingError(err)
 			switch {
+			case isStrictError && obj != nil && validationDirective == metav1.FieldValidationWarn:
+				addStrictDecodingWarnings(req.Context(), strictError.Errors())
 			case !isStrictError || validationDirective == metav1.FieldValidationStrict:
 				err = transformDecodeError(scope.Typer, err, original, gvk, body)
 				scope.err(err, w, req)
 				return
-			case isStrictError && validationDirective == metav1.FieldValidationWarn:
-				addStrictDecodingWarnings(req.Context(), strictError.Errors())
 			}
 		}
 

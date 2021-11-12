@@ -133,13 +133,18 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 		}
 	}
 
+	var strictDecodingErr error
 	obj, gvk, err := c.decoder.Decode(data, defaultGVK, decodeInto)
-	if err != nil && !runtime.IsStrictDecodingError(err) {
-		return nil, gvk, err
+	if err != nil {
+		if obj != nil && runtime.IsStrictDecodingError(err) {
+			// save the strictDecodingError and the caller decide what to do with it
+			strictDecodingErr = err
+		} else {
+			return nil, gvk, err
+		}
 	}
-	// save the strictDecodingError and the caller decide what to do with it
-	strictDecodingErr := err
 
+	// TODO: look into strict handling of nested object decoding
 	if d, ok := obj.(runtime.NestedObjectDecoder); ok {
 		if err := d.DecodeNestedObjects(runtime.WithoutVersionDecoder{c.decoder}); err != nil {
 			return nil, gvk, err

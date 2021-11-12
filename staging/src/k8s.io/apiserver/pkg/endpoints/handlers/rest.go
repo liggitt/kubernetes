@@ -19,13 +19,11 @@ package handlers
 import (
 	"context"
 	"encoding/hex"
-	goerrors "errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -459,11 +457,13 @@ func isDryRun(url *url.URL) bool {
 	return len(url.Query()["dryRun"]) != 0
 }
 
-// TODO: wtf are we doing here?
-// fieldValidation checks that the field validation feature is enabled and if so
-// that the content type is supported.
+// fieldValidation checks that the field validation feature is enabled
+// and returns a valid directive of either
+// - Ignore (default)
+// - Warn
+// - Strict
 func fieldValidation(directive string) string {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) || directive == "" {
 		return metav1.FieldValidationIgnore
 	}
 	return directive
@@ -472,32 +472,37 @@ func fieldValidation(directive string) string {
 // parseYAMLWarnings takes the strict decoding errors from the yaml decoder's output
 // and parses each individual warnings, or leaves the warning as is if
 // it does not look like a yaml strict decoding error.
-func parseYAMLWarnings(errString string) []error {
-	lines := strings.Split(errString, "\n")
-	yamlErrPrefix := `yaml: unmarshal errors:$`
-	if len(lines) > 0 {
-		if matched, _ := regexp.MatchString(yamlErrPrefix, lines[0]); matched {
-			unmarshalErrs := make([]error, len(lines[1:]))
-			for i, s := range lines[1:] {
-				unmarshalErrs[i] = goerrors.New(strings.TrimSpace(s))
-			}
-			return unmarshalErrs
-		}
+func parseYAMLWarnings(errString string) []string {
+	klog.Warningf("errString: %v\n", errString)
+	var shortPrefix = "yaml: unmarshal errors:\n"
+	var longPrefix = "error converting YAML to JSON: yaml: unmarshal errors:\n"
+	var trimmedString string
+	if trimmedShortString := strings.TrimPrefix(errString, shortPrefix); len(trimmedShortString) < len(errString) {
+		trimmedString = trimmedShortString
+	} else if trimmedLongString := strings.TrimPrefix(errString, longPrefix); len(trimmedLongString) < len(errString) {
+		trimmedString = trimmedLongString
+	} else {
+		// not a yaml error, return as-is
+		return []string{errString}
 	}
-	return []error{goerrors.New(errString)}
+
+	splitStrings := strings.Split(trimmedString, "\n")
+	for i, s := range splitStrings {
+		splitStrings[i] = strings.TrimSpace(s)
+	}
+	klog.Warningf("splitStrings: %v\n", splitStrings)
+	return splitStrings
 }
 
 // addStrictDecodingWarnings confirms that the error is a strict decoding error
 // and if so adds a warning for each strict decoding violation.
-func addStrictDecodingWarnings(requestContext context.Context, errs []error) bool {
+func addStrictDecodingWarnings(requestContext context.Context, errs []error) {
 	for _, e := range errs {
 		yamlWarnings := parseYAMLWarnings(e.Error())
 		for _, w := range yamlWarnings {
-			warning.AddWarning(requestContext, "", w.Error())
+			warning.AddWarning(requestContext, "", w)
 		}
-
 	}
-	return true
 }
 
 type etcdError interface {

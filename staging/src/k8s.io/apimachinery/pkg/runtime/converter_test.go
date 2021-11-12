@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -283,6 +284,86 @@ func TestRoundTrip(t *testing.T) {
 		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
 			doRoundTrip(t, testCases[i].obj)
 		})
+	}
+}
+
+// TestUnknownFields checks for the collection of unknown
+// field errors from the various possible locations of
+// unknown fields (e.g. fields on struct, inlined sturct, slice, etc)
+func TestUnknownFields(t *testing.T) {
+	jsonData := `
+	{
+		"ca":[
+			{
+				"aa":1,
+				"ab":"11",
+				"ac":true
+			},
+			{
+				"aa":2,
+				"ab":"22",
+				"unknown1": "foo"
+			},
+			{
+				"aa":3,
+				"ab":"33",
+				"unknown2": "foo"
+			}
+		],
+		"ba":{
+			"aa":3,
+			"ab":"33",
+			"unknown3": 26,
+			"unknown4": "foo"
+		},
+		"unknown5": "foo",
+		"bb":"bbb",
+		"bc":{
+			"k1":"v1",
+			"k2":"v2"
+		},
+		"bd":[
+			"s1",
+			"s2"
+		],
+		"cc":"ccc",
+		"cd":42,
+		"ce":{
+			"k1":1,
+			"k2":2
+		},
+		"cf":[
+			true,
+			false,
+			false
+		],
+		"cg":
+		[
+			1,
+			2,
+			5
+		],
+		"ch":3.3,
+		"ci":[
+			null,
+			null,
+			null
+		]
+	}`
+	expectedErrs := []string{`unknown field "ca[1].unknown1"`, `unknown field "ca[2].unknown2"`, `unknown field "ba.unknown3"`, `unknown field "ba.unknown4"`, `unknown field "unknown5"`}
+	unstr := make(map[string]interface{})
+	err := json.Unmarshal([]byte(jsonData), &unstr)
+	if err != nil {
+		t.Errorf("Error when unmarshaling to unstructured: %v", err)
+		return
+	}
+	newObj := reflect.New(reflect.TypeOf(&C{}).Elem()).Interface()
+	err = runtime.NewTestUnstructuredConverterWithValidation(simpleEquality).FromUnstructuredWithValidation(unstr, newObj, "Strict")
+	// check for the existence of the errors because their odering is non-deterministic
+	for _, expected := range expectedErrs {
+		if !strings.Contains(err.Error(), expected) {
+			t.Errorf("expected error not found: %s, got err: %v", expected, err.Error())
+		}
 	}
 }
 

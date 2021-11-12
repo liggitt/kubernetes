@@ -556,12 +556,12 @@ type CreateOptions struct {
 
 	// fieldValidation determines how the server should respond to
 	// unknown/duplicate fields in the object in the request.
-	// Introduced in 1.23, older servers will ignore this param and
-	// not perform any server side field validation. Valid values are:
-	// - FieldValidationIgnore: ignores unknown/duplicate fields
-	// - FieldValidationWarn: responds with a warning for each
+	// Introduced as alpha in 1.23, older servers will ignore this param
+	// and not perform any server side field validation. Valid values are:
+	// - Ignore: ignores unknown/duplicate fields.
+	// - Warn: responds with a warning for each.
 	// unknown/duplicate field, but successfully serves the request
-	// - FieldValidationStrict fails the request on unknown/duplicate fields
+	// - Strict fails the request on unknown/duplicate fields.
 	// +optional
 	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,4,name=fieldValidation"`
 }
@@ -600,12 +600,12 @@ type PatchOptions struct {
 
 	// fieldValidation determines how the server should respond to
 	// unknown/duplicate fields in the object in the request.
-	// Introduced in 1.23, older servers will ignore this param and
-	// not perform any server side field validation. Valid values are:
-	// - FieldValidationIgnore: ignores unknown/duplicate fields
-	// - FieldValidationWarn: responds with a warning for each
+	// Introduced as alpha in 1.23, older servers will ignore this param
+	// and not perform any server side field validation. Valid values are:
+	// - Ignore: ignores unknown/duplicate fields.
+	// - Warn: responds with a warning for each.
 	// unknown/duplicate field, but successfully serves the request
-	// - FieldValidationStrict fails the request on unknown/duplicate fields
+	// - Strict fails the request on unknown/duplicate fields.
 	// +optional
 	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,4,name=fieldValidation"`
 }
@@ -666,12 +666,12 @@ type UpdateOptions struct {
 
 	// fieldValidation determines how the server should respond to
 	// unknown/duplicate fields in the object in the request.
-	// Introduced in 1.23, older servers will ignore this param and
-	// not perform any server side field validation. Valid values are:
-	// - FieldValidationIgnore: ignores unknown/duplicate fields
-	// - FieldValidationWarn: responds with a warning for each
+	// Introduced as alpha in 1.23, older servers will ignore this param
+	// and not perform any server side field validation. Valid values are:
+	// - Ignore: ignores unknown/duplicate fields.
+	// - Warn: responds with a warning for each.
 	// unknown/duplicate field, but successfully serves the request
-	// - FieldValidationStrict fails the request on unknown/duplicate fields
+	// - Strict fails the request on unknown/duplicate fields.
 	// +optional
 	FieldValidation string `json:"fieldValidation,omitempty" protobuf:"bytes,3,name=fieldValidation"`
 }

@@ -335,14 +335,15 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), err.Error()),
 			})
+		case p.validationDirective == metav1.FieldValidationWarn:
+			addStrictDecodingWarnings(requestContext, append(appliedStrictErrs, strictError.Errors()...))
 		case p.validationDirective == metav1.FieldValidationStrict:
+			// we must still check the validation directive here because the CRD handler
+			// is unaware of the validation directive and thus always returns strict errors.
 			strictDecodingError := runtime.NewStrictDecodingError(append(appliedStrictErrs, strictError.Errors()...))
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), strictDecodingError.Error()),
 			})
-		case p.validationDirective == metav1.FieldValidationWarn:
-			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(append(appliedStrictErrs, strictError.Errors()...)))
-			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
 		}
 	} else if len(appliedStrictErrs) > 0 {
 		switch {
@@ -351,8 +352,7 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), runtime.NewStrictDecodingError(appliedStrictErrs).Error()),
 			})
 		case p.validationDirective == metav1.FieldValidationWarn:
-			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(appliedStrictErrs))
-			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
+			addStrictDecodingWarnings(requestContext, appliedStrictErrs)
 		}
 	}
 
@@ -488,17 +488,12 @@ func (p *applyPatcher) applyPatchToCurrentObject(requestContext context.Context,
 		return obj, err
 	}
 
-	if p.validationDirective == metav1.FieldValidationStrict {
-		strictPatchObj := &unstructured.Unstructured{Object: map[string]interface{}{}}
-		if err := yaml.UnmarshalStrict(p.patch, &strictPatchObj.Object); err != nil {
-			return nil, errors.NewBadRequest(fmt.Sprintf("error strict decoding YAML: %v", err))
-		}
-
-	} else if p.validationDirective == metav1.FieldValidationWarn {
-		strictPatchObj := &unstructured.Unstructured{Object: map[string]interface{}{}}
-		if err := yaml.UnmarshalStrict(p.patch, &strictPatchObj.Object); err != nil {
+	if p.validationDirective == metav1.FieldValidationStrict || p.validationDirective == metav1.FieldValidationWarn {
+		if err := yaml.UnmarshalStrict(p.patch, &map[string]interface{}{}); err != nil {
+			if p.validationDirective == metav1.FieldValidationStrict {
+				return nil, errors.NewBadRequest(fmt.Sprintf("error strict decoding YAML: %v", err))
+			}
 			addStrictDecodingWarnings(requestContext, []error{err})
-
 		}
 	}
 	return obj, nil
@@ -719,8 +714,7 @@ func applyPatchToObject(
 				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), strictDecodingError.Error()),
 			})
 		case validationDirective == metav1.FieldValidationWarn:
-			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(append(strictErrs, strictError.Errors()...)))
-			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
+			addStrictDecodingWarnings(requestContext, append(strictErrs, strictError.Errors()...))
 		}
 	} else if len(strictErrs) > 0 {
 		switch {
@@ -729,8 +723,7 @@ func applyPatchToObject(
 				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), runtime.NewStrictDecodingError(strictErrs).Error()),
 			})
 		case validationDirective == metav1.FieldValidationWarn:
-			strictDecodingError, _ := runtime.AsStrictDecodingError(runtime.NewStrictDecodingError(strictErrs))
-			addStrictDecodingWarnings(requestContext, strictDecodingError.Errors())
+			addStrictDecodingWarnings(requestContext, strictErrs)
 		}
 	}
 

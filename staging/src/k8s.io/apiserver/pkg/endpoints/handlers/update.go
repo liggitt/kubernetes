@@ -114,7 +114,7 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		if err != nil {
 			strictError, isStrictError := runtime.AsStrictDecodingError(err)
 			switch {
-			case isStrictError && validationDirective == metav1.FieldValidationWarn:
+			case isStrictError && obj != nil && validationDirective == metav1.FieldValidationWarn:
 				addStrictDecodingWarnings(req.Context(), strictError.Errors())
 			case !isStrictError || validationDirective == metav1.FieldValidationStrict:
 				err = transformDecodeError(scope.Typer, err, original, gvk, body)

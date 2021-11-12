@@ -69,23 +69,15 @@ var metaFields = map[string]bool{
 	"metadata":   true,
 }
 
-func getSeparator(path []string) string {
+func appendKey(path []string, key string) []string {
 	if len(path) > 0 {
-		return "."
+		path = append(path, ".")
 	}
-	return ""
+	return append(path, key)
 }
 
-func copyOptionsUpdatePath(opts PruneOptions, parent string, isIndex bool) PruneOptions {
-	var parentPath []string
-	if isIndex {
-		parentPath = append(opts.parentPath, "[", parent, "]")
-	} else {
-		parentPath = append(opts.parentPath, getSeparator(opts.parentPath), parent)
-	}
-	return PruneOptions{
-		parentPath: parentPath,
-	}
+func appendIndex(path []string, index int) []string {
+	return append(path, "[", strconv.Itoa(index), "]")
 }
 
 func prune(x interface{}, s *structuralschema.Structural, opts PruneOptions) []string {
@@ -96,14 +88,16 @@ func prune(x interface{}, s *structuralschema.Structural, opts PruneOptions) []s
 	}
 
 	var pruned []string
+	origPathLen := len(opts.parentPath)
 	switch x := x.(type) {
 	case map[string]interface{}:
 		if s == nil {
 			for k := range x {
 				if !metaFields[k] {
-					pruned = append(pruned, strings.Join(append(opts.parentPath, getSeparator(opts.parentPath), k), ""))
+					pruned = append(pruned, strings.Join(appendKey(opts.parentPath, k), ""))
 				}
 				delete(x, k)
+				opts.parentPath = opts.parentPath[:origPathLen]
 			}
 			return pruned
 		}
@@ -111,27 +105,33 @@ func prune(x interface{}, s *structuralschema.Structural, opts PruneOptions) []s
 			if s.XEmbeddedResource && metaFields[k] {
 				continue
 			}
+			opts.parentPath = appendKey(opts.parentPath, k)
 			prop, ok := s.Properties[k]
 			if ok {
-				pruned = append(pruned, prune(v, &prop, copyOptionsUpdatePath(opts, k, false))...)
+				pruned = append(pruned, prune(v, &prop, opts)...)
 			} else if s.AdditionalProperties != nil {
-				pruned = append(pruned, prune(v, s.AdditionalProperties.Structural, copyOptionsUpdatePath(opts, k, false))...)
+				pruned = append(pruned, prune(v, s.AdditionalProperties.Structural, opts)...)
 			} else {
 				if !metaFields[k] {
-					pruned = append(pruned, strings.Join(append(opts.parentPath, getSeparator(opts.parentPath), k), ""))
+					pruned = append(pruned, strings.Join(opts.parentPath, ""))
 				}
 				delete(x, k)
 			}
+			opts.parentPath = opts.parentPath[:origPathLen]
 		}
 	case []interface{}:
 		if s == nil {
 			for i, v := range x {
-				pruned = append(pruned, prune(v, nil, copyOptionsUpdatePath(opts, strconv.Itoa(i), true))...)
+				opts.parentPath = appendIndex(opts.parentPath, i)
+				pruned = append(pruned, prune(v, nil, opts)...)
+				opts.parentPath = opts.parentPath[:origPathLen]
 			}
 			return pruned
 		}
 		for i, v := range x {
-			pruned = append(pruned, prune(v, s.Items, copyOptionsUpdatePath(opts, strconv.Itoa(i), true))...)
+			opts.parentPath = appendIndex(opts.parentPath, i)
+			pruned = append(pruned, prune(v, s.Items, opts)...)
+			opts.parentPath = opts.parentPath[:origPathLen]
 		}
 	default:
 		// scalars, do nothing
@@ -144,6 +144,7 @@ func skipPrune(x interface{}, s *structuralschema.Structural, opts PruneOptions)
 	if s == nil {
 		return pruned
 	}
+	origPathLen := len(opts.parentPath)
 
 	switch x := x.(type) {
 	case map[string]interface{}:
@@ -151,21 +152,19 @@ func skipPrune(x interface{}, s *structuralschema.Structural, opts PruneOptions)
 			if s.XEmbeddedResource && metaFields[k] {
 				continue
 			}
+			opts.parentPath = appendKey(opts.parentPath, k)
 			if prop, ok := s.Properties[k]; ok {
-				pruned = append(pruned, prune(v, &prop, PruneOptions{
-					parentPath: append(opts.parentPath, getSeparator(opts.parentPath), k),
-				})...)
+				pruned = append(pruned, prune(v, &prop, opts)...)
 			} else if s.AdditionalProperties != nil {
-				pruned = append(pruned, prune(v, s.AdditionalProperties.Structural, PruneOptions{
-					parentPath: append(opts.parentPath, getSeparator(opts.parentPath), k),
-				})...)
+				pruned = append(pruned, prune(v, s.AdditionalProperties.Structural, opts)...)
 			}
+			opts.parentPath = opts.parentPath[:origPathLen]
 		}
 	case []interface{}:
 		for i, v := range x {
-			pruned = append(pruned, skipPrune(v, s.Items, PruneOptions{
-				parentPath: append(opts.parentPath, "[", strconv.Itoa(i), "]"),
-			})...)
+			opts.parentPath = appendIndex(opts.parentPath, i)
+			pruned = append(pruned, prune(v, s.Items, opts)...)
+			opts.parentPath = opts.parentPath[:origPathLen]
 		}
 	default:
 		// scalars, do nothing

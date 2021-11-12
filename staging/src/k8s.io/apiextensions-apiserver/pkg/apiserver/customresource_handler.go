@@ -1225,28 +1225,27 @@ type schemaCoercingDecoder struct {
 var _ runtime.Decoder = schemaCoercingDecoder{}
 
 func (d schemaCoercingDecoder) Decode(data []byte, defaults *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
-	obj, gvk, err := d.delegate.Decode(data, defaults, into)
 	var decodingStrictErrs []error
+	obj, gvk, err := d.delegate.Decode(data, defaults, into)
 	if err != nil {
 		decodeStrictErr, ok := runtime.AsStrictDecodingError(err)
-		if !ok {
+		if !ok || obj == nil {
 			return nil, gvk, err
 		}
 		decodingStrictErrs = decodeStrictErr.Errors()
 	}
+	var unknownFields []string
 	if u, ok := obj.(*unstructured.Unstructured); ok {
-		unknownFields, err := d.validator.apply(u)
+		unknownFields, err = d.validator.apply(u)
 		if err != nil {
 			return nil, gvk, err
 		}
-		if len(unknownFields) > 0 && d.validator.returnUnknownFieldPaths {
-			applyStrictErrs := make([]error, len(unknownFields))
-			for i, unknownField := range unknownFields {
-				applyStrictErrs[i] = fmt.Errorf(`unknown field "%s"`, unknownField)
-			}
-			return obj, gvk, runtime.NewStrictDecodingError(append(decodingStrictErrs, applyStrictErrs...))
-
+	}
+	if d.validator.returnUnknownFieldPaths && (len(decodingStrictErrs) > 0 || len(unknownFields) > 0) {
+		for _, unknownField := range unknownFields {
+			decodingStrictErrs = append(decodingStrictErrs, fmt.Errorf(`unknown field "%s"`, unknownField))
 		}
+		return obj, gvk, runtime.NewStrictDecodingError(decodingStrictErrs)
 	}
 
 	return obj, gvk, nil
