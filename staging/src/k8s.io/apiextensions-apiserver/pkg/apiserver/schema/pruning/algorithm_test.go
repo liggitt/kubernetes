@@ -81,6 +81,7 @@ func TestPrune(t *testing.T) {
      "unspecified": "bar",
      "unspecifiedObject": {"unspecified": "bar"},
      "pruning": {"unspecified": "bar"},
+     "apiVersion": "unknown",
      "preserving": {"unspecified": "bar"}
   },
   "preserving": {
@@ -189,7 +190,7 @@ func TestPrune(t *testing.T) {
      }
   }
 }
-`, expectedPruned: []string{"pruning.unspecified", "pruning.unspecifiedObject", "pruning.pruning.unspecified", "preserving.pruning.unspecified",
+`, expectedPruned: []string{"pruning.unspecified", "pruning.unspecifiedObject", "pruning.apiVersion", "pruning.pruning.unspecified", "preserving.pruning.unspecified",
 			"preservingAdditionalPropertiesNotInheritingXPreserveUnknownFields.foo.specified.unspecified", "preservingAdditionalPropertiesNotInheritingXPreserveUnknownFields.foo.unspecified", "preservingAdditionalPropertiesKeyPruneValues.foo.specified.unspecified", "preservingAdditionalPropertiesKeyPruneValues.foo.unspecified"}},
 		{name: "additionalProperties with schema", json: `{"a":1,"b":1,"c":{"a":1,"b":2,"c":{"a":1}}}`, schema: &structuralschema.Structural{
 			Properties: map[string]structuralschema.Structural{
@@ -208,7 +209,7 @@ func TestPrune(t *testing.T) {
 			},
 		}, expectedObject: `{"a":1,"c":{"a":1,"b":2,"c":{}}}`,
 			expectedPruned: []string{"c.c.a", "b"}},
-		{name: "additionalProperties with bool", json: `{"a":1,"b":1,"c":{"a":1,"b":2,"c":{"a":1}}}`, schema: &structuralschema.Structural{
+		{name: "additionalProperties with bool", json: `{"a":1,"b":1,"c":{"a":1,"b":2,"c":{"a":1, "apiVersion": "unknown"}}}`, schema: &structuralschema.Structural{
 			Properties: map[string]structuralschema.Structural{
 				"a": {},
 				"c": {
@@ -220,7 +221,7 @@ func TestPrune(t *testing.T) {
 				},
 			},
 		}, expectedObject: `{"a":1,"c":{"a":1,"b":2,"c":{}}}`,
-			expectedPruned: []string{"c.c.a", "b"}},
+			expectedPruned: []string{"b", "c.c.a", "c.c.apiVersion"}},
 		{name: "x-kubernetes-embedded-resource", json: `
 {
   "apiVersion": "foo/v1",

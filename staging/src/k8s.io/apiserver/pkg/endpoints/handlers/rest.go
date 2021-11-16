@@ -64,6 +64,10 @@ const (
 	// NOTE: For CREATE and UPDATE requests the API server dedups both before and after mutating admission.
 	// For PATCH request the API server only dedups after mutating admission.
 	DuplicateOwnerReferencesAfterMutatingAdmissionWarningFormat = ".metadata.ownerReferences contains duplicate entries after mutating admission happens; API server dedups owner references in 1.20+, and may reject such requests as early as 1.24; please fix your requests; duplicate UID(s) observed: %v"
+	// shortPrefix is one possible beginning of yaml unmarshal strict errors.
+	shortPrefix = "yaml: unmarshal errors:\n"
+	// longPrefix is the other possible beginning of yaml unmarshal strict errors.
+	longPrefix = "error converting YAML to JSON: yaml: unmarshal errors:\n"
 )
 
 // RequestScope encapsulates common fields across all RESTful handler methods.
@@ -473,9 +477,6 @@ func fieldValidation(directive string) string {
 // and parses each individual warnings, or leaves the warning as is if
 // it does not look like a yaml strict decoding error.
 func parseYAMLWarnings(errString string) []string {
-	klog.Warningf("errString: %v\n", errString)
-	var shortPrefix = "yaml: unmarshal errors:\n"
-	var longPrefix = "error converting YAML to JSON: yaml: unmarshal errors:\n"
 	var trimmedString string
 	if trimmedShortString := strings.TrimPrefix(errString, shortPrefix); len(trimmedShortString) < len(errString) {
 		trimmedString = trimmedShortString
@@ -490,7 +491,6 @@ func parseYAMLWarnings(errString string) []string {
 	for i, s := range splitStrings {
 		splitStrings[i] = strings.TrimSpace(s)
 	}
-	klog.Warningf("splitStrings: %v\n", splitStrings)
 	return splitStrings
 }
 

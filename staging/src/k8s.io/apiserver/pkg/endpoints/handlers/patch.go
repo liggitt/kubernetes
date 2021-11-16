@@ -337,7 +337,7 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 			})
 		case p.validationDirective == metav1.FieldValidationWarn:
 			addStrictDecodingWarnings(requestContext, append(appliedStrictErrs, strictError.Errors()...))
-		case p.validationDirective == metav1.FieldValidationStrict:
+		default:
 			// we must still check the validation directive here because the CRD handler
 			// is unaware of the validation directive and thus always returns strict errors.
 			strictDecodingError := runtime.NewStrictDecodingError(append(appliedStrictErrs, strictError.Errors()...))
@@ -347,12 +347,12 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 		}
 	} else if len(appliedStrictErrs) > 0 {
 		switch {
-		case p.validationDirective == metav1.FieldValidationStrict:
+		case p.validationDirective == metav1.FieldValidationWarn:
+			addStrictDecodingWarnings(requestContext, appliedStrictErrs)
+		default:
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), runtime.NewStrictDecodingError(appliedStrictErrs).Error()),
 			})
-		case p.validationDirective == metav1.FieldValidationWarn:
-			addStrictDecodingWarnings(requestContext, appliedStrictErrs)
 		}
 	}
 
@@ -708,22 +708,22 @@ func applyPatchToObject(
 			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), err.Error()),
 			})
-		case validationDirective == metav1.FieldValidationStrict:
+		case validationDirective == metav1.FieldValidationWarn:
+			addStrictDecodingWarnings(requestContext, append(strictErrs, strictError.Errors()...))
+		default:
 			strictDecodingError := runtime.NewStrictDecodingError(append(strictErrs, strictError.Errors()...))
 			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), strictDecodingError.Error()),
 			})
-		case validationDirective == metav1.FieldValidationWarn:
-			addStrictDecodingWarnings(requestContext, append(strictErrs, strictError.Errors()...))
 		}
 	} else if len(strictErrs) > 0 {
 		switch {
+		case validationDirective == metav1.FieldValidationWarn:
+			addStrictDecodingWarnings(requestContext, strictErrs)
 		case validationDirective == metav1.FieldValidationStrict:
 			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), runtime.NewStrictDecodingError(strictErrs).Error()),
 			})
-		case validationDirective == metav1.FieldValidationWarn:
-			addStrictDecodingWarnings(requestContext, strictErrs)
 		}
 	}
 

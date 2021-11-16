@@ -163,7 +163,7 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 		types, _, err := s.typer.ObjectKinds(into)
 		switch {
 		case runtime.IsNotRegisteredError(err), isUnstructured:
-			if err := s.unmarshal(into, data, originalData, runtime.IsNotRegisteredError(err)); err != nil {
+			if err := s.unmarshal(into, data, originalData); err != nil {
 				return into, actual, err
 			}
 			return into, actual, nil
@@ -187,7 +187,7 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 		return nil, actual, err
 	}
 
-	if err := s.unmarshal(obj, data, originalData, false); err != nil {
+	if err := s.unmarshal(obj, data, originalData); err != nil {
 		return into, actual, err
 	}
 	return obj, actual, nil
@@ -227,20 +227,17 @@ func (s *Serializer) doEncode(obj runtime.Object, w io.Writer) error {
 	return encoder.Encode(obj)
 }
 
-func (s *Serializer) unmarshal(into runtime.Object, data, originalData []byte, notRegistered bool) error {
+// IsStrict indicates whether the serializer
+// uses strict decoding or not
+func (s *Serializer) IsStrict() bool {
+	return s.options.Strict
+}
+
+func (s *Serializer) unmarshal(into runtime.Object, data, originalData []byte) error {
 	// If the deserializer is non-strict, return here.
 	if !s.options.Strict {
 		if err := kjson.UnmarshalCaseSensitivePreserveInts(data, into); err != nil {
 			return err
-		}
-		return nil
-	}
-	if notRegistered {
-		strictErrs, err := kjson.UnmarshalStrict(data, into)
-		if err != nil {
-			return err
-		} else if len(strictErrs) > 0 {
-			return runtime.NewStrictDecodingError(strictErrs)
 		}
 		return nil
 	}

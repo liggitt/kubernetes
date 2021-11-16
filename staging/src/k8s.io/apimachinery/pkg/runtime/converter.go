@@ -140,9 +140,6 @@ type fromUnstructuredContext struct {
 	// matchedKeys is the set of all fields that exist in the
 	// concrete go type of the object being converted into.
 	matchedKeys map[string]struct{}
-	// strictErrs are all fields that exist in the JSON
-	// source but not in the concrete go type.
-	strictErrs []error
 	// parentPath collects the path that the conversion
 	// takes as it travers the unstructured json map.
 	// It is used to report the full path to any unknown
@@ -421,6 +418,10 @@ func sliceFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) (
 		return nil, nil
 	}
 	dv.Set(reflect.MakeSlice(dt, sv.Len(), sv.Cap()))
+
+	defer func() {
+		ctx.parentPath = ctx.parentPath[:len(ctx.parentPath)]
+	}()
 	for i := 0; i < sv.Len(); i++ {
 		origLen := ctx.pushIndex(i)
 		se, err := fromUnstructured(sv.Index(i), dv.Index(i), ctx)
@@ -464,6 +465,9 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 		return nil, fmt.Errorf("cannot restore struct from: %v", st.Kind())
 	}
 
+	defer func() {
+		ctx.parentPath = ctx.parentPath[:len(ctx.parentPath)]
+	}()
 	for i := 0; i < dt.NumField(); i++ {
 		fieldInfo := fieldInfoFromField(dt, i)
 		fv := dv.Field(i)
@@ -510,7 +514,6 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 			}
 		}
 	}
-	ctx.strictErrs = append(ctx.strictErrs, strictErrs...)
 	// only check for unknown fields if the validation is strict or warn
 	// and we are in the root of a given JSON field from sv
 	shouldValidate := !ctx.isInlined && (ctx.validationDirective == FieldValidationWarn || ctx.validationDirective == FieldValidationStrict)
@@ -521,17 +524,12 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 		for _, key := range sv.MapKeys() {
 			if _, ok := ctx.matchedKeys[key.String()]; !ok {
 				strictPath := strings.Join(append(ctx.parentPath, getSeparator(ctx.parentPath), key.String()), "")
-				ctx.strictErrs = append(ctx.strictErrs, fmt.Errorf(`unknown field "%s"`, strictPath))
+				strictErrs = append(strictErrs, fmt.Errorf(`unknown field "%s"`, strictPath))
 			}
 
 		}
-		// return all the strict errors if we are at the
-		// root of the source JSON object.
-		if len(ctx.strictErrs) > 0 && len(ctx.parentPath) == 0 {
-			return ctx.strictErrs, nil
-		}
 	}
-	return nil, nil
+	return strictErrs, nil
 }
 
 func interfaceFromUnstructured(sv, dv reflect.Value) error {

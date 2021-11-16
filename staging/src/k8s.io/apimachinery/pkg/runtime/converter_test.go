@@ -313,6 +313,7 @@ func TestUnknownFields(t *testing.T) {
 		"ba":{
 			"aa":3,
 			"ab":"33",
+			"ac": true,
 			"unknown3": 26,
 			"unknown4": "foo"
 		},

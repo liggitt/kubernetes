@@ -826,13 +826,12 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 
 		// CRDs explicitly do not support protobuf, but some objects returned by the API server do
 		negotiatedSerializer := unstructuredNegotiatedSerializer{
-			typer:                   typer,
-			creator:                 creator,
-			converter:               safeConverter,
-			structuralSchemas:       structuralSchemas,
-			structuralSchemaGK:      kind.GroupKind(),
-			preserveUnknownFields:   crd.Spec.PreserveUnknownFields,
-			returnUnknownFieldPaths: true,
+			typer:                 typer,
+			creator:               creator,
+			converter:             safeConverter,
+			structuralSchemas:     structuralSchemas,
+			structuralSchemaGK:    kind.GroupKind(),
+			preserveUnknownFields: crd.Spec.PreserveUnknownFields,
 		}
 		var standardSerializers []runtime.SerializerInfo
 		for _, s := range negotiatedSerializer.SupportedMediaTypes() {
@@ -1018,10 +1017,9 @@ type unstructuredNegotiatedSerializer struct {
 	creator   runtime.ObjectCreater
 	converter runtime.ObjectConvertor
 
-	structuralSchemas       map[string]*structuralschema.Structural // by version
-	structuralSchemaGK      schema.GroupKind
-	preserveUnknownFields   bool
-	returnUnknownFieldPaths bool
+	structuralSchemas     map[string]*structuralschema.Structural // by version
+	structuralSchemaGK    schema.GroupKind
+	preserveUnknownFields bool
 }
 
 func (s unstructuredNegotiatedSerializer) SupportedMediaTypes() []runtime.SerializerInfo {
@@ -1071,7 +1069,11 @@ func (s unstructuredNegotiatedSerializer) EncoderForVersion(encoder runtime.Enco
 }
 
 func (s unstructuredNegotiatedSerializer) DecoderToVersion(decoder runtime.Decoder, gv runtime.GroupVersioner) runtime.Decoder {
-	d := schemaCoercingDecoder{delegate: decoder, validator: unstructuredSchemaCoercer{structuralSchemas: s.structuralSchemas, structuralSchemaGK: s.structuralSchemaGK, preserveUnknownFields: s.preserveUnknownFields, returnUnknownFieldPaths: s.returnUnknownFieldPaths}}
+	returnUnknownFieldPaths := false
+	if serializer, ok := decoder.(*json.Serializer); ok {
+		returnUnknownFieldPaths = serializer.IsStrict()
+	}
+	d := schemaCoercingDecoder{delegate: decoder, validator: unstructuredSchemaCoercer{structuralSchemas: s.structuralSchemas, structuralSchemaGK: s.structuralSchemaGK, preserveUnknownFields: s.preserveUnknownFields, returnUnknownFieldPaths: returnUnknownFieldPaths}}
 	return versioning.NewCodec(nil, d, runtime.UnsafeObjectConvertor(Scheme), Scheme, Scheme, unstructuredDefaulter{
 		delegate:           Scheme,
 		structuralSchemas:  s.structuralSchemas,

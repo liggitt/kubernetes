@@ -51,11 +51,7 @@ func PruneWithOptions(obj interface{}, s *structuralschema.Structural, opts Prun
 			s = &clone
 		}
 	}
-	if opts.parentPath == nil {
-		opts.parentPath = []string{}
-	}
-	pruned := prune(obj, s, opts)
-	return pruned
+	return prune(obj, s, opts)
 }
 
 // Prune calls into PruneWithOptions
@@ -93,9 +89,7 @@ func prune(x interface{}, s *structuralschema.Structural, opts PruneOptions) []s
 	case map[string]interface{}:
 		if s == nil {
 			for k := range x {
-				if !metaFields[k] {
-					pruned = append(pruned, strings.Join(appendKey(opts.parentPath, k), ""))
-				}
+				pruned = append(pruned, strings.Join(appendKey(opts.parentPath, k), ""))
 				delete(x, k)
 				opts.parentPath = opts.parentPath[:origPathLen]
 			}
@@ -112,7 +106,7 @@ func prune(x interface{}, s *structuralschema.Structural, opts PruneOptions) []s
 			} else if s.AdditionalProperties != nil {
 				pruned = append(pruned, prune(v, s.AdditionalProperties.Structural, opts)...)
 			} else {
-				if !metaFields[k] {
+				if !metaFields[k] || len(opts.parentPath) > 1 {
 					pruned = append(pruned, strings.Join(opts.parentPath, ""))
 				}
 				delete(x, k)
