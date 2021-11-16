@@ -541,9 +541,9 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		}
 	}
 
-	var disabledParams string
+	var disabledParams []string
 	if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) {
-		disabledParams = "fieldValidation"
+		disabledParams = []string{"fieldValidation"}
 	}
 
 	// Create Routes for the actions.
@@ -776,7 +776,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 				Returns(http.StatusCreated, "Created", producedObject).
 				Reads(defaultVersionedObject).
 				Writes(producedObject)
-			if err := AddObjectParams(ws, route, versionedUpdateOptions, disabledParams); err != nil {
+			if err := AddObjectParams(ws, route, versionedUpdateOptions, disabledParams...); err != nil {
 				return nil, nil, err
 			}
 			addParams(route, action.Params)
@@ -807,7 +807,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 				Returns(http.StatusCreated, "Created", producedObject).
 				Reads(metav1.Patch{}).
 				Writes(producedObject)
-			if err := AddObjectParams(ws, route, versionedPatchOptions, disabledParams); err != nil {
+			if err := AddObjectParams(ws, route, versionedPatchOptions, disabledParams...); err != nil {
 				return nil, nil, err
 			}
 			addParams(route, action.Params)
@@ -838,7 +838,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 				Returns(http.StatusAccepted, "Accepted", producedObject).
 				Reads(defaultVersionedObject).
 				Writes(producedObject)
-			if err := AddObjectParams(ws, route, versionedCreateOptions, disabledParams); err != nil {
+			if err := AddObjectParams(ws, route, versionedCreateOptions, disabledParams...); err != nil {
 				return nil, nil, err
 			}
 			addParams(route, action.Params)

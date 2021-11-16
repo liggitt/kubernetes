@@ -51,6 +51,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -337,9 +338,10 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 			})
 		case p.validationDirective == metav1.FieldValidationWarn:
 			addStrictDecodingWarnings(requestContext, append(appliedStrictErrs, strictError.Errors()...))
+		case p.validationDirective == metav1.FieldValidationIgnore:
+			klog.Warningf("unexpected strict error when field validation is set to ignore")
+			fallthrough
 		default:
-			// we must still check the validation directive here because the CRD handler
-			// is unaware of the validation directive and thus always returns strict errors.
 			strictDecodingError := runtime.NewStrictDecodingError(append(appliedStrictErrs, strictError.Errors()...))
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), strictDecodingError.Error()),
@@ -349,6 +351,9 @@ func (p *jsonPatcher) applyPatchToCurrentObject(requestContext context.Context, 
 		switch {
 		case p.validationDirective == metav1.FieldValidationWarn:
 			addStrictDecodingWarnings(requestContext, appliedStrictErrs)
+		case p.validationDirective == metav1.FieldValidationIgnore:
+			klog.Warningf("unexpected strict error when field validation is set to ignore")
+			fallthrough
 		default:
 			return nil, errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), string(patchedObjJS), runtime.NewStrictDecodingError(appliedStrictErrs).Error()),
@@ -527,9 +532,16 @@ func strategicPatchObject(
 	}
 
 	patchMap := make(map[string]interface{})
-	strictErrs, err := kjson.UnmarshalStrict(patchBytes, &patchMap)
-	if err != nil {
-		return errors.NewBadRequest(err.Error())
+	var strictErrs []error
+	if validationDirective == metav1.FieldValidationWarn || validationDirective == metav1.FieldValidationStrict {
+		strictErrs, err = kjson.UnmarshalStrict(patchBytes, &patchMap)
+		if err != nil {
+			return errors.NewBadRequest(err.Error())
+		}
+	} else {
+		if err = kjson.UnmarshalCaseSensitivePreserveInts(patchBytes, &patchMap); err != nil {
+			return errors.NewBadRequest(err.Error())
+		}
 	}
 
 	if err := applyPatchToObject(requestContext, defaulter, originalObjMap, patchMap, objToUpdate, schemaReferenceObj, strictErrs, validationDirective); err != nil {
@@ -710,6 +722,9 @@ func applyPatchToObject(
 			})
 		case validationDirective == metav1.FieldValidationWarn:
 			addStrictDecodingWarnings(requestContext, append(strictErrs, strictError.Errors()...))
+		case validationDirective == metav1.FieldValidationIgnore:
+			klog.Warningf("unexpected strict error when field validation is set to ignore")
+			fallthrough
 		default:
 			strictDecodingError := runtime.NewStrictDecodingError(append(strictErrs, strictError.Errors()...))
 			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
@@ -720,6 +735,9 @@ func applyPatchToObject(
 		switch {
 		case validationDirective == metav1.FieldValidationWarn:
 			addStrictDecodingWarnings(requestContext, strictErrs)
+		case validationDirective == metav1.FieldValidationIgnore:
+			klog.Warningf("unexpected strict error when field validation is set to ignore")
+			fallthrough
 		case validationDirective == metav1.FieldValidationStrict:
 			return errors.NewInvalid(schema.GroupKind{}, "", field.ErrorList{
 				field.Invalid(field.NewPath("patch"), fmt.Sprintf("%+v", patchMap), runtime.NewStrictDecodingError(strictErrs).Error()),

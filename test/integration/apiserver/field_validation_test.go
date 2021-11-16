@@ -405,6 +405,16 @@ func TestFieldValidationPost(t *testing.T) {
 		{
 			name:     "post-default-ignore-validation",
 			bodyBase: invalidBodyJSON,
+			strictDecodingWarnings: []string{
+				`unknown field "unknown1"`,
+				`unknown field "unknownDupe"`,
+				`duplicate field "paused"`,
+				// note: fields that are both unknown
+				// and duplicated will only be detected
+				// as unknown for typed resources.
+				`unknown field "unknownNested"`,
+				`duplicate field "imagePullPolicy"`,
+			},
 		},
 		{
 			name: "post-strict-validation-yaml",
@@ -450,6 +460,14 @@ func TestFieldValidationPost(t *testing.T) {
 			name:        "post-no-validation-yaml",
 			bodyBase:    invalidBodyYAML,
 			contentType: "application/yaml",
+			strictDecodingWarnings: []string{
+				`line 10: key "unknownDupe" already set in map`,
+				`line 12: key "paused" already set in map`,
+				`line 26: key "imagePullPolicy" already set in map`,
+				`unknown field "unknownNested"`,
+				`unknown field "unknown1"`,
+				`unknown field "unknownDupe"`,
+			},
 		},
 	}
 
@@ -464,17 +482,17 @@ func TestFieldValidationPost(t *testing.T) {
 				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			result := req.Body(body).Do(context.TODO())
 
-			if result.Error() == nil && len(tc.strictDecodingErrors) > 0 {
-				t.Fatalf("unexpected post succeeded")
+			if result.Error() != nil && len(tc.strictDecodingErrors) == 0 {
+				t.Fatalf("unexpected request err: %v", result.Error())
 			}
 			for _, strictErr := range tc.strictDecodingErrors {
 				if !strings.Contains(result.Error().Error(), strictErr) {
-					t.Fatalf("missing strict decoding error: %s from error: %s", strictErr, result.Error().Error())
+					t.Fatalf("missing strict decoding error: %s from error: %v", strictErr, result.Error())
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected post had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -559,6 +577,16 @@ func TestFieldValidationPut(t *testing.T) {
 		{
 			name:        "put-ignore-validation",
 			putBodyBase: invalidBodyJSON,
+			strictDecodingWarnings: []string{
+				`unknown field "unknown1"`,
+				`unknown field "unknownDupe"`,
+				`duplicate field "paused"`,
+				// note: fields that are both unknown
+				// and duplicated will only be detected
+				// as unknown for typed resources.
+				`unknown field "unknownNested"`,
+				`duplicate field "imagePullPolicy"`,
+			},
 		},
 		{
 			name: "put-strict-validation-yaml",
@@ -604,6 +632,14 @@ func TestFieldValidationPut(t *testing.T) {
 			name:        "put-no-validation-yaml",
 			putBodyBase: invalidBodyYAML,
 			contentType: "application/yaml",
+			strictDecodingWarnings: []string{
+				`line 10: key "unknownDupe" already set in map`,
+				`line 12: key "paused" already set in map`,
+				`line 26: key "imagePullPolicy" already set in map`,
+				`unknown field "unknownNested"`,
+				`unknown field "unknown1"`,
+				`unknown field "unknownDupe"`,
+			},
 		},
 	}
 
@@ -615,12 +651,12 @@ func TestFieldValidationPut(t *testing.T) {
 				Namespace("default").
 				Resource("deployments").
 				SetHeader("Content-Type", tc.contentType).
-				Name("test-deployment").
+				Name(deployName).
 				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			result := req.Body([]byte(putBody)).Do(context.TODO())
 
-			if result.Error() == nil && len(tc.strictDecodingErrors) > 0 {
-				t.Fatalf("unexpected post succeeded")
+			if result.Error() != nil && len(tc.strictDecodingErrors) == 0 {
+				t.Fatalf("unexpected request err: %v", result.Error())
 			}
 			for _, strictErr := range tc.strictDecodingErrors {
 				if !strings.Contains(result.Error().Error(), strictErr) {
@@ -628,8 +664,8 @@ func TestFieldValidationPut(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected post had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -673,6 +709,7 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 			"spec": {
 				"containers": [{
 					"name": "nginx",
+					"image": "nginx:latest",
 					"unknownNested": "val1",
 					"imagePullPolicy": "Always",
 					"imagePullPolicy": "Never"
@@ -706,6 +743,7 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 			"spec": {
 				"containers": [{
 					"name": "nginx",
+					"image": "nginx:latest",
 					"imagePullPolicy": "Always",
 					"imagePullPolicy": "Never"
 				}]
@@ -735,6 +773,7 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 				`duplicate field "imagePullPolicy"`,
 				`unknown field "unknownNested"`,
 				`unknown field "unknown1"`,
+				`unknown field "unknownDupe"`,
 			},
 		},
 		{
@@ -750,6 +789,7 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 				`duplicate field "imagePullPolicy"`,
 				`unknown field "unknownNested"`,
 				`unknown field "unknown1"`,
+				`unknown field "unknownDupe"`,
 			},
 		},
 		{
@@ -764,6 +804,14 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 			name:      "merge-patch-no-validation",
 			patchType: types.MergePatchType,
 			body:      mergePatchBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "unknownDupe"`,
+				`duplicate field "paused"`,
+				`duplicate field "imagePullPolicy"`,
+				`unknown field "unknownNested"`,
+				`unknown field "unknown1"`,
+				`unknown field "unknownDupe"`,
+			},
 		},
 		{
 			name:      "json-patch-strict-validation",
@@ -819,6 +867,19 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 			name:      "json-patch-no-validation",
 			patchType: types.JSONPatchType,
 			body:      jsonPatchBody,
+			strictDecodingWarnings: []string{
+				// note: duplicate fields in the patch itself
+				// are dropped by the
+				// evanphx/json-patch library and is expected.
+				// Duplicate fields in the json patch ops
+				// themselves can be detected though
+				`json patch unknown field "foo"`,
+				`json patch duplicate field "path"`,
+				`unknown field "unknownNested"`,
+				`unknown field "unknown1"`,
+				`unknown field "unknown3"`,
+				`unknown field "unknownDupe"`,
+			},
 		},
 		{
 			name: "nonconflicting-merge-patch-strict-validation",
@@ -856,6 +917,10 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 			name:      "nonconflicting-merge-patch-no-validation",
 			patchType: types.MergePatchType,
 			body:      nonconflictingMergePatchBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "paused"`,
+				`duplicate field "imagePullPolicy"`,
+			},
 		},
 	}
 
@@ -869,8 +934,8 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 				VersionedParams(&tc.opts, metav1.ParameterCodec)
 			result := req.Body([]byte(tc.body)).Do(context.TODO())
 
-			if result.Error() == nil && len(tc.strictDecodingErrors) > 0 {
-				t.Fatalf("unexpected patch succeeded")
+			if result.Error() != nil && len(tc.strictDecodingErrors) == 0 {
+				t.Fatalf("unexpected request err: %v", result.Error())
 			}
 			for _, strictErr := range tc.strictDecodingErrors {
 				if !strings.Contains(result.Error().Error(), strictErr) {
@@ -878,8 +943,8 @@ func TestFieldValidationPatchTyped(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected patch had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -1009,6 +1074,14 @@ func TestFieldValidationSMP(t *testing.T) {
 		{
 			name: "smp-no-validation",
 			body: smpBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "imagePullPolicy"`,
+				`duplicate field "paused"`,
+				`duplicate field "unknownDupe"`,
+				`unknown field "spec.template.spec.containers[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
+			},
 		},
 		{
 			name: "nonconflicting-smp-strict-validation",
@@ -1042,6 +1115,10 @@ func TestFieldValidationSMP(t *testing.T) {
 		{
 			name: "nonconflicting-smp-no-validation",
 			body: nonconflictingSMPBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "imagePullPolicy"`,
+				`duplicate field "paused"`,
+			},
 		},
 	}
 
@@ -1082,8 +1159,8 @@ func TestFieldValidationSMP(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected patch had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 
 			sort.Slice(result.Warnings(), func(i, j int) bool {
@@ -1149,6 +1226,10 @@ func TestFieldValidationApplyCreate(t *testing.T) {
 			opts: metav1.PatchOptions{
 				FieldManager: "mgr",
 			},
+			strictDecodingWarnings: []string{
+				`line 10: key "paused" already set in map`,
+				`line 27: key "imagePullPolicy" already set in map`,
+			},
 		},
 	}
 
@@ -1165,10 +1246,7 @@ func TestFieldValidationApplyCreate(t *testing.T) {
 			result := req.Body(body).Do(context.TODO())
 
 			if result.Error() != nil && len(tc.strictDecodingErrors) == 0 {
-				t.Fatalf("unexpected apply err: %v", result.Error())
-			}
-			if result.Error() == nil && len(tc.strictDecodingErrors) > 0 {
-				t.Fatalf("unexpected apply succeeded")
+				t.Fatalf("unexpected request err: %v", result.Error())
 			}
 			for _, strictErr := range tc.strictDecodingErrors {
 				if !strings.Contains(result.Error().Error(), strictErr) {
@@ -1176,8 +1254,8 @@ func TestFieldValidationApplyCreate(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected apply had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -1238,6 +1316,10 @@ func TestFieldValidationApplyUpdate(t *testing.T) {
 			opts: metav1.PatchOptions{
 				FieldManager: "mgr",
 			},
+			strictDecodingWarnings: []string{
+				`line 10: key "paused" already set in map`,
+				`line 27: key "imagePullPolicy" already set in map`,
+			},
 		},
 	}
 
@@ -1267,17 +1349,14 @@ func TestFieldValidationApplyUpdate(t *testing.T) {
 			if result.Error() != nil && len(tc.strictDecodingErrors) == 0 {
 				t.Fatalf("unexpected apply err: %v", result.Error())
 			}
-			if result.Error() == nil && len(tc.strictDecodingErrors) > 0 {
-				t.Fatalf("unexpected apply succeeded")
-			}
 			for _, strictErr := range tc.strictDecodingErrors {
 				if !strings.Contains(result.Error().Error(), strictErr) {
 					t.Fatalf("missing strict decoding error: %s from error: %s", strictErr, result.Error().Error())
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected apply had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -1345,6 +1424,14 @@ func TestFieldValidationPostCRD(t *testing.T) {
 		{
 			name: "crd-post-no-validation",
 			body: crdInvalidBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "hostPort"`,
+				`duplicate field "knownField1"`,
+				`duplicate field "unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
+			},
 		},
 		{
 			name: "crd-post-strict-validation-yaml",
@@ -1388,6 +1475,14 @@ func TestFieldValidationPostCRD(t *testing.T) {
 			name:        "crd-post-no-validation-yaml",
 			body:        crdInvalidBodyYAML,
 			contentType: "application/yaml",
+			strictDecodingWarnings: []string{
+				`line 10: key "unknownDupe" already set in map`,
+				`line 12: key "knownField1" already set in map`,
+				`line 18: key "hostPort" already set in map`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
+			},
 		},
 	}
 	for _, tc := range testcases {
@@ -1417,8 +1512,8 @@ func TestFieldValidationPostCRD(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected post had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 
 			sort.Slice(result.Warnings(), func(i, j int) bool {
@@ -1426,10 +1521,6 @@ func TestFieldValidationPostCRD(t *testing.T) {
 
 			})
 
-			klog.Warningf("warn len: %d", len(result.Warnings()))
-			for _, w := range result.Warnings() {
-				klog.Warningf("w: %s", w.Text)
-			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
 					t.Fatalf("expected warning: %s, got warning: %s", strictWarn, result.Warnings()[i].Text)
@@ -1493,6 +1584,12 @@ func TestFieldValidationPostCRDSchemaless(t *testing.T) {
 		{
 			name: "schemaless-crd-post-no-validation",
 			body: crdInvalidBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "hostPort"`,
+				`duplicate field "knownField1"`,
+				`duplicate field "unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+			},
 		},
 		{
 			name: "schemaless-crd-post-strict-validation-yaml",
@@ -1534,6 +1631,12 @@ func TestFieldValidationPostCRDSchemaless(t *testing.T) {
 			name:        "schemaless-crd-post-no-validation-yaml",
 			body:        crdInvalidBodyYAML,
 			contentType: "application/yaml",
+			strictDecodingWarnings: []string{
+				`line 10: key "unknownDupe" already set in map`,
+				`line 12: key "knownField1" already set in map`,
+				`line 18: key "hostPort" already set in map`,
+				`unknown field "spec.ports[0].unknownNested"`,
+			},
 		},
 	}
 	for _, tc := range testcases {
@@ -1564,8 +1667,8 @@ func TestFieldValidationPostCRDSchemaless(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected post had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 
 			sort.Slice(result.Warnings(), func(i, j int) bool {
@@ -1573,10 +1676,6 @@ func TestFieldValidationPostCRDSchemaless(t *testing.T) {
 
 			})
 
-			klog.Warningf("warn len: %d", len(result.Warnings()))
-			for _, w := range result.Warnings() {
-				klog.Warningf("w: %s", w.Text)
-			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
 					t.Fatalf("expected warning: %s, got warning: %s", strictWarn, result.Warnings()[i].Text)
@@ -1643,6 +1742,14 @@ func TestFieldValidationPutCRD(t *testing.T) {
 		{
 			name:    "crd-put-no-validation",
 			putBody: crdInvalidBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "hostPort"`,
+				`duplicate field "knownField1"`,
+				`duplicate field "unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
+			},
 		},
 		{
 			name: "crd-put-strict-validation-yaml",
@@ -1688,6 +1795,14 @@ func TestFieldValidationPutCRD(t *testing.T) {
 			name:        "crd-put-no-validation-yaml",
 			putBody:     crdInvalidBodyYAML,
 			contentType: "application/yaml",
+			strictDecodingWarnings: []string{
+				`line 10: key "unknownDupe" already set in map`,
+				`line 12: key "knownField1" already set in map`,
+				`line 18: key "hostPort" already set in map`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
+			},
 		},
 	}
 	for _, tc := range testcases {
@@ -1730,8 +1845,8 @@ func TestFieldValidationPutCRD(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected patch had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 
 			sort.Slice(result.Warnings(), func(i, j int) bool {
@@ -1802,6 +1917,12 @@ func TestFieldValidationPutCRDSchemaless(t *testing.T) {
 		{
 			name:    "schemaless-crd-put-no-validation",
 			putBody: crdInvalidBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "hostPort"`,
+				`duplicate field "knownField1"`,
+				`duplicate field "unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+			},
 		},
 		{
 			name: "schemaless-crd-put-strict-validation-yaml",
@@ -1843,6 +1964,12 @@ func TestFieldValidationPutCRDSchemaless(t *testing.T) {
 			name:        "schemaless-crd-put-no-validation-yaml",
 			putBody:     crdInvalidBodyYAML,
 			contentType: "application/yaml",
+			strictDecodingWarnings: []string{
+				`line 10: key "unknownDupe" already set in map`,
+				`line 12: key "knownField1" already set in map`,
+				`line 18: key "hostPort" already set in map`,
+				`unknown field "spec.ports[0].unknownNested"`,
+			},
 		},
 	}
 	for _, tc := range testcases {
@@ -1885,8 +2012,8 @@ func TestFieldValidationPutCRDSchemaless(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected patch had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 
 			sort.Slice(result.Warnings(), func(i, j int) bool {
@@ -2014,6 +2141,14 @@ spec:
 			name:      "crd-merge-patch-no-validation",
 			patchType: types.MergePatchType,
 			body:      mergePatchBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "hostPort"`,
+				`duplicate field "knownField1"`,
+				`duplicate field "unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknownDupe"`,
+			},
 		},
 		{
 			name:      "crd-json-patch-strict-validation",
@@ -2069,6 +2204,19 @@ spec:
 			name:      "crd-json-patch-no-validation",
 			patchType: types.JSONPatchType,
 			body:      jsonPatchBody,
+			strictDecodingWarnings: []string{
+				// note: duplicate fields in the patch itself
+				// are dropped by the
+				// evanphx/json-patch library and is expected.
+				// Duplicate fields in the json patch ops
+				// themselves can be detected though
+				`json patch duplicate field "path"`,
+				`json patch unknown field "foo"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+				`unknown field "spec.unknown1"`,
+				`unknown field "spec.unknown3"`,
+				`unknown field "spec.unknownDupe"`,
+			},
 		},
 	}
 	for _, tc := range testcases {
@@ -2107,8 +2255,8 @@ spec:
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected patch had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 
 			// ordering of warnings are non-deterministic because the pruning/detection
@@ -2221,6 +2369,12 @@ func TestFieldValidationPatchCRDSchemaless(t *testing.T) {
 			name:      "schemaless-crd-merge-patch-no-validation",
 			patchType: types.MergePatchType,
 			body:      mergePatchBody,
+			strictDecodingWarnings: []string{
+				`duplicate field "hostPort"`,
+				`duplicate field "knownField1"`,
+				`duplicate field "unknownDupe"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+			},
 		},
 		{
 			name:      "schemaless-crd-json-patch-strict-validation",
@@ -2270,6 +2424,16 @@ func TestFieldValidationPatchCRDSchemaless(t *testing.T) {
 			name:      "schemaless-crd-json-patch-no-validation",
 			patchType: types.JSONPatchType,
 			body:      jsonPatchBody,
+			strictDecodingWarnings: []string{
+				// note: duplicate fields in the patch itself
+				// are dropped by the
+				// evanphx/json-patch library and is expected.
+				// Duplicate fields in the json patch ops
+				// themselves can be detected though
+				`json patch duplicate field "path"`,
+				`json patch unknown field "foo"`,
+				`unknown field "spec.ports[0].unknownNested"`,
+			},
 		},
 	}
 	for _, tc := range testcases {
@@ -2308,8 +2472,8 @@ func TestFieldValidationPatchCRDSchemaless(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected patch had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 
 			// ordering of warnings are non-deterministic because the pruning/detection
@@ -2379,6 +2543,10 @@ func TestFieldValidationApplyCreateCRD(t *testing.T) {
 			opts: metav1.PatchOptions{
 				FieldManager: "mgr",
 			},
+			strictDecodingWarnings: []string{
+				`line 10: key "knownField1" already set in map`,
+				`line 16: key "hostPort" already set in map`,
+			},
 		},
 	}
 
@@ -2407,8 +2575,8 @@ func TestFieldValidationApplyCreateCRD(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected apply had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -2471,6 +2639,10 @@ func TestFieldValidationApplyCreateCRDSchemaless(t *testing.T) {
 			opts: metav1.PatchOptions{
 				FieldManager: "mgr",
 			},
+			strictDecodingWarnings: []string{
+				`line 10: key "knownField1" already set in map`,
+				`line 16: key "hostPort" already set in map`,
+			},
 		},
 	}
 
@@ -2499,8 +2671,8 @@ func TestFieldValidationApplyCreateCRDSchemaless(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected apply had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -2562,6 +2734,10 @@ func TestFieldValidationApplyUpdateCRD(t *testing.T) {
 			opts: metav1.PatchOptions{
 				FieldManager: "mgr",
 			},
+			strictDecodingWarnings: []string{
+				`line 10: key "knownField1" already set in map`,
+				`line 16: key "hostPort" already set in map`,
+			},
 		},
 	}
 
@@ -2600,8 +2776,8 @@ func TestFieldValidationApplyUpdateCRD(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected apply had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {
@@ -2664,6 +2840,10 @@ func TestFieldValidationApplyUpdateCRDSchemaless(t *testing.T) {
 			opts: metav1.PatchOptions{
 				FieldManager: "mgr",
 			},
+			strictDecodingWarnings: []string{
+				`line 10: key "knownField1" already set in map`,
+				`line 16: key "hostPort" already set in map`,
+			},
 		},
 	}
 
@@ -2702,8 +2882,8 @@ func TestFieldValidationApplyUpdateCRDSchemaless(t *testing.T) {
 				}
 			}
 
-			if len(result.Warnings()) == 0 && len(tc.strictDecodingWarnings) > 0 {
-				t.Fatalf("unexpected apply had no warnings")
+			if len(result.Warnings()) != len(tc.strictDecodingWarnings) {
+				t.Fatalf("unexpected number of warnings, expected: %d, got: %d", len(tc.strictDecodingWarnings), len(result.Warnings()))
 			}
 			for i, strictWarn := range tc.strictDecodingWarnings {
 				if strictWarn != result.Warnings()[i].Text {

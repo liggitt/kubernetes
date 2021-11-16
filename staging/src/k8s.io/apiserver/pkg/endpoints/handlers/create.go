@@ -43,6 +43,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/klog/v2"
 	utiltrace "k8s.io/utils/trace"
 )
 
@@ -129,6 +130,9 @@ func createHandler(r rest.NamedCreater, scope *RequestScope, admit admission.Int
 			switch {
 			case isStrictError && obj != nil && validationDirective == metav1.FieldValidationWarn:
 				addStrictDecodingWarnings(req.Context(), strictError.Errors())
+			case isStrictError && validationDirective == metav1.FieldValidationIgnore:
+				klog.Warningf("unexpected strict error when field validation is set to ignore")
+				fallthrough
 			default:
 				err = transformDecodeError(scope.Typer, err, original, gvk, body)
 				scope.err(err, w, req)

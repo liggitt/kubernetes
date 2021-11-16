@@ -1335,7 +1335,11 @@ func (v *unstructuredSchemaCoercer) apply(u *unstructured.Unstructured) (unknown
 	if gv.Group == v.structuralSchemaGK.Group && kind == v.structuralSchemaGK.Kind {
 		if !v.preserveUnknownFields {
 			// TODO: switch over pruning and coercing at the root to schemaobjectmeta.Coerce too
-			unknownFieldPaths = structuralpruning.Prune(u.Object, v.structuralSchemas[gv.Version], false)
+			pruneOpts := structuralpruning.PruneOptions{}
+			if v.returnUnknownFieldPaths {
+				pruneOpts.ReturnPruned = true
+			}
+			unknownFieldPaths = structuralpruning.PruneWithOptions(u.Object, v.structuralSchemas[gv.Version], pruneOpts)
 			structuraldefaulting.PruneNonNullableNullsWithoutDefaults(u.Object, v.structuralSchemas[gv.Version])
 		}
 

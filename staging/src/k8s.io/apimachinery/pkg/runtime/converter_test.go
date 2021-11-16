@@ -98,6 +98,16 @@ type G struct {
 	CustomPointer2 *CustomPointer `json:"customPointer2"`
 }
 
+type H struct {
+	A A `json:"ha"`
+	C `json:",inline"`
+}
+
+type I struct {
+	A A `json:"ia"`
+	H `json:",inline"`
+}
+
 type CustomValue struct {
 	data []byte
 }
@@ -293,6 +303,16 @@ func TestRoundTrip(t *testing.T) {
 func TestUnknownFields(t *testing.T) {
 	jsonData := `
 	{
+		"ia": {
+			"aa": 1,
+			"ab": "ab",
+			"unknownI": "foo"
+		},
+		"ha": {
+			"aa": 2,
+			"ab": "ab2",
+			"unknownH": "foo"
+		},
 		"ca":[
 			{
 				"aa":1,
@@ -351,14 +371,14 @@ func TestUnknownFields(t *testing.T) {
 			null
 		]
 	}`
-	expectedErrs := []string{`unknown field "ca[1].unknown1"`, `unknown field "ca[2].unknown2"`, `unknown field "ba.unknown3"`, `unknown field "ba.unknown4"`, `unknown field "unknown5"`}
+	expectedErrs := []string{`unknown field "ca[1].unknown1"`, `unknown field "ca[2].unknown2"`, `unknown field "ba.unknown3"`, `unknown field "ba.unknown4"`, `unknown field "unknown5"`, `unknown field "ha.unknownH"`, `unknown field "ia.unknownI"`}
 	unstr := make(map[string]interface{})
 	err := json.Unmarshal([]byte(jsonData), &unstr)
 	if err != nil {
 		t.Errorf("Error when unmarshaling to unstructured: %v", err)
 		return
 	}
-	newObj := reflect.New(reflect.TypeOf(&C{}).Elem()).Interface()
+	newObj := reflect.New(reflect.TypeOf(&I{}).Elem()).Interface()
 	err = runtime.NewTestUnstructuredConverterWithValidation(simpleEquality).FromUnstructuredWithValidation(unstr, newObj, "Strict")
 	// check for the existence of the errors because their odering is non-deterministic
 	for _, expected := range expectedErrs {

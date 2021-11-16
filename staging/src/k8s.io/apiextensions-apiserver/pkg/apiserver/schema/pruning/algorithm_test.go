@@ -541,7 +541,10 @@ func TestPrune(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			pruned := Prune(in, tt.schema, tt.isResourceRoot)
+			pruned := PruneWithOptions(in, tt.schema, PruneOptions{
+				IsResourceRoot: tt.isResourceRoot,
+				ReturnPruned:   true,
+			})
 			if !reflect.DeepEqual(in, expectedObject) {
 				var buf bytes.Buffer
 				enc := json.NewEncoder(&buf)
@@ -556,6 +559,22 @@ func TestPrune(t *testing.T) {
 			sort.Strings(tt.expectedPruned)
 			if !reflect.DeepEqual(pruned, tt.expectedPruned) {
 				t.Errorf("expected pruned: %v\n got: %v\n", tt.expectedPruned, pruned)
+			}
+
+			// now check that pruned is empty when ReturnPruned is false
+			emptyPruned := Prune(in, tt.schema, tt.isResourceRoot)
+			if !reflect.DeepEqual(in, expectedObject) {
+				var buf bytes.Buffer
+				enc := json.NewEncoder(&buf)
+				enc.SetIndent("", "  ")
+				err := enc.Encode(in)
+				if err != nil {
+					t.Fatalf("unexpected result mashalling error: %v", err)
+				}
+				t.Errorf("expected object: %s\ngot: %s\ndiff: %s", tt.expectedObject, buf.String(), diff.ObjectDiff(expectedObject, in))
+			}
+			if len(emptyPruned) > 0 {
+				t.Errorf("unexpectedly returned pruned fields: %v", emptyPruned)
 			}
 		})
 	}

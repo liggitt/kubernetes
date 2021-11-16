@@ -467,8 +467,11 @@ func isDryRun(url *url.URL) bool {
 // - Warn
 // - Strict
 func fieldValidation(directive string) string {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) || directive == "" {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.StrictFieldValidation) {
 		return metav1.FieldValidationIgnore
+	}
+	if directive == "" {
+		return metav1.FieldValidationWarn
 	}
 	return directive
 }
