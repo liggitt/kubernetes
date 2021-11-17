@@ -562,7 +562,9 @@ func TestPrune(t *testing.T) {
 			}
 
 			// now check that pruned is empty when ReturnPruned is false
-			emptyPruned := Prune(in, tt.schema, tt.isResourceRoot)
+			emptyPruned := PruneWithOptions(in, tt.schema, PruneOptions{
+				IsResourceRoot: tt.isResourceRoot,
+			})
 			if !reflect.DeepEqual(in, expectedObject) {
 				var buf bytes.Buffer
 				enc := json.NewEncoder(&buf)

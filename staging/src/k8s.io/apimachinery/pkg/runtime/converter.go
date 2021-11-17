@@ -155,22 +155,42 @@ type fromUnstructuredContext struct {
 
 func (c *fromUnstructuredContext) pushKey(key string) int {
 	origLen := len(c.parentPath)
-	if len(c.parentPath) > 0 {
-		c.parentPath = append(c.parentPath, ".")
+	if c.validationDirective != FieldValidationIgnore {
+		if len(c.parentPath) > 0 {
+			c.parentPath = append(c.parentPath, ".")
+		}
+		c.parentPath = append(c.parentPath, key)
 	}
-	c.parentPath = append(c.parentPath, key)
 	return origLen
 
 }
 
 func (c *fromUnstructuredContext) pushIndex(index int) int {
 	origLen := len(c.parentPath)
-	c.parentPath = append(c.parentPath, "[", strconv.Itoa(index), "]")
+	if c.validationDirective != FieldValidationIgnore {
+		c.parentPath = append(c.parentPath, "[", strconv.Itoa(index), "]")
+	}
 	return origLen
 }
 
 func (c *fromUnstructuredContext) popPath(origLen int) {
 	c.parentPath = c.parentPath[:origLen]
+}
+
+func (c *fromUnstructuredContext) appendStrictErrors(strictErrs []error, se ...error) []error {
+	if c.validationDirective != FieldValidationIgnore {
+		return append(strictErrs, se...)
+	}
+	return strictErrs
+}
+
+func (c *fromUnstructuredContext) addMatchedKey(k string) {
+	if c.validationDirective != FieldValidationIgnore {
+		if c.matchedKeys == nil {
+			c.matchedKeys = map[string]struct{}{}
+		}
+		c.matchedKeys[k] = struct{}{}
+	}
 }
 
 // FromUnstructuredWIthValidation converts an object from map[string]interface{} representation into a concrete type.
@@ -372,7 +392,7 @@ func mapFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) (st
 				return nil, err
 			}
 			if se != nil {
-				strictErrs = append(strictErrs, se...)
+				strictErrs = ctx.appendStrictErrors(strictErrs, se...)
 			}
 		} else {
 			value.Set(reflect.Zero(dt.Elem()))
@@ -429,7 +449,7 @@ func sliceFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) (
 			return nil, err
 		}
 		if se != nil {
-			strictErrs = append(strictErrs, se...)
+			strictErrs = ctx.appendStrictErrors(strictErrs, se...)
 		}
 		ctx.popPath(origLen)
 	}
@@ -491,15 +511,14 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 			// dv, with a new set of matchedKeys and updating
 			// the parentPath to indicate that we are one level
 			// deeper.
-			if ctx.matchedKeys == nil {
-				ctx.matchedKeys = map[string]struct{}{}
-			}
-			ctx.matchedKeys[fieldInfo.name] = struct{}{}
+			ctx.addMatchedKey(fieldInfo.name)
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
 			if value.IsValid() {
 				origLen := ctx.pushKey(fieldInfo.name)
 				origInlined := ctx.isInlined
+				origMatchedKeys := ctx.matchedKeys
 				ctx.isInlined = false
+				ctx.matchedKeys = nil
 				se, err := fromUnstructured(value, fv, ctx)
 				if err != nil {
 					return nil, err
@@ -509,6 +528,7 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 				}
 				ctx.popPath(origLen)
 				ctx.isInlined = origInlined
+				ctx.matchedKeys = origMatchedKeys
 			} else {
 				fv.Set(reflect.Zero(fv.Type()))
 			}
