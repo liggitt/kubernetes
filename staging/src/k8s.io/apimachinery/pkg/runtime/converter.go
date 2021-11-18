@@ -145,6 +145,10 @@ type fromUnstructuredContext struct {
 	// It is used to report the full path to any unknown
 	// fields that the converter encounters.
 	parentPath []string
+	// previousParentLen indicates what the length of the
+	// parentPath previously was in the stack prior to the
+	// current recursive call and lets us reset back to it.
+	previousParentLen int
 	// validationDirective indicates what to do with unknown fields.
 	// It defaults to ignoring unknown fields. Options are:
 	// - FieldValidationIgnore
@@ -153,28 +157,25 @@ type fromUnstructuredContext struct {
 	validationDirective string
 }
 
-func (c *fromUnstructuredContext) pushKey(key string) int {
-	origLen := len(c.parentPath)
+func (c *fromUnstructuredContext) pushIndex(index int) {
+	c.previousParentLen = len(c.parentPath)
+	if c.validationDirective != FieldValidationIgnore {
+		c.parentPath = append(c.parentPath, "[", strconv.Itoa(index), "]")
+	}
+}
+
+func (c *fromUnstructuredContext) pushKey(key string) {
+	c.previousParentLen = len(c.parentPath)
 	if c.validationDirective != FieldValidationIgnore {
 		if len(c.parentPath) > 0 {
 			c.parentPath = append(c.parentPath, ".")
 		}
 		c.parentPath = append(c.parentPath, key)
 	}
-	return origLen
 
 }
-
-func (c *fromUnstructuredContext) pushIndex(index int) int {
-	origLen := len(c.parentPath)
-	if c.validationDirective != FieldValidationIgnore {
-		c.parentPath = append(c.parentPath, "[", strconv.Itoa(index), "]")
-	}
-	return origLen
-}
-
-func (c *fromUnstructuredContext) popPath(origLen int) {
-	c.parentPath = c.parentPath[:origLen]
+func (c *fromUnstructuredContext) popPath() {
+	c.parentPath = c.parentPath[:c.previousParentLen]
 }
 
 func (c *fromUnstructuredContext) appendStrictErrors(strictErrs []error, se ...error) []error {
@@ -191,6 +192,26 @@ func (c *fromUnstructuredContext) addMatchedKey(k string) {
 		}
 		c.matchedKeys[k] = struct{}{}
 	}
+}
+
+func (c *fromUnstructuredContext) stashContext(field string) fromUnstructuredContext {
+	c.pushKey(field)
+	stashedContext := fromUnstructuredContext{
+		isInlined:         c.isInlined,
+		matchedKeys:       c.matchedKeys,
+		previousParentLen: c.previousParentLen,
+		//validationDirective: c.validationDirective,
+	}
+	c.isInlined = false
+	c.matchedKeys = nil
+	return stashedContext
+}
+
+func (c *fromUnstructuredContext) restoreContext(ctx fromUnstructuredContext) {
+	c.isInlined = ctx.isInlined
+	c.matchedKeys = ctx.matchedKeys
+	c.previousParentLen = ctx.previousParentLen
+	c.popPath()
 }
 
 // FromUnstructuredWIthValidation converts an object from map[string]interface{} representation into a concrete type.
@@ -439,11 +460,13 @@ func sliceFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) (
 	}
 	dv.Set(reflect.MakeSlice(dt, sv.Len(), sv.Cap()))
 
+	pathLen := len(ctx.parentPath)
 	defer func() {
-		ctx.parentPath = ctx.parentPath[:len(ctx.parentPath)]
+		ctx.parentPath = ctx.parentPath[:pathLen]
 	}()
 	for i := 0; i < sv.Len(); i++ {
-		origLen := ctx.pushIndex(i)
+		ctx.pushIndex(i)
+		l := ctx.previousParentLen
 		se, err := fromUnstructured(sv.Index(i), dv.Index(i), ctx)
 		if err != nil {
 			return nil, err
@@ -451,16 +474,10 @@ func sliceFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) (
 		if se != nil {
 			strictErrs = ctx.appendStrictErrors(strictErrs, se...)
 		}
-		ctx.popPath(origLen)
+		ctx.previousParentLen = l
+		ctx.popPath()
 	}
 	return strictErrs, nil
-}
-
-func getSeparator(path []string) string {
-	if len(path) > 0 {
-		return "."
-	}
-	return ""
 }
 
 func pointerFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) (strictErrs []error, err error) {
@@ -485,8 +502,9 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 		return nil, fmt.Errorf("cannot restore struct from: %v", st.Kind())
 	}
 
+	pathLen := len(ctx.parentPath)
 	defer func() {
-		ctx.parentPath = ctx.parentPath[:len(ctx.parentPath)]
+		ctx.parentPath = ctx.parentPath[:pathLen]
 	}()
 	for i := 0; i < dt.NumField(); i++ {
 		fieldInfo := fieldInfoFromField(dt, i)
@@ -514,11 +532,7 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 			ctx.addMatchedKey(fieldInfo.name)
 			value := unwrapInterface(sv.MapIndex(fieldInfo.nameValue))
 			if value.IsValid() {
-				origLen := ctx.pushKey(fieldInfo.name)
-				origInlined := ctx.isInlined
-				origMatchedKeys := ctx.matchedKeys
-				ctx.isInlined = false
-				ctx.matchedKeys = nil
+				stashedContext := ctx.stashContext(fieldInfo.name)
 				se, err := fromUnstructured(value, fv, ctx)
 				if err != nil {
 					return nil, err
@@ -526,9 +540,7 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 				if se != nil {
 					strictErrs = append(strictErrs, se...)
 				}
-				ctx.popPath(origLen)
-				ctx.isInlined = origInlined
-				ctx.matchedKeys = origMatchedKeys
+				ctx.restoreContext(stashedContext)
 			} else {
 				fv.Set(reflect.Zero(fv.Type()))
 			}
@@ -543,7 +555,9 @@ func structFromUnstructured(sv, dv reflect.Value, ctx *fromUnstructuredContext) 
 		// others collect an unknown field error in strictErrs.
 		for _, key := range sv.MapKeys() {
 			if _, ok := ctx.matchedKeys[key.String()]; !ok {
-				strictPath := strings.Join(append(ctx.parentPath, getSeparator(ctx.parentPath), key.String()), "")
+				ctx.pushKey(key.String())
+				strictPath := strings.Join(ctx.parentPath, "")
+				ctx.popPath()
 				strictErrs = append(strictErrs, fmt.Errorf(`unknown field "%s"`, strictPath))
 			}
 
