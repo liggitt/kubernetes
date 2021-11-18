@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
@@ -541,9 +542,8 @@ func TestPrune(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			pruned := PruneWithOptions(in, tt.schema, PruneOptions{
-				IsResourceRoot: tt.isResourceRoot,
-				ReturnPruned:   true,
+			pruned := PruneWithOptions(in, tt.schema, tt.isResourceRoot, PruneOptions{
+				ReturnPruned: true,
 			})
 			if !reflect.DeepEqual(in, expectedObject) {
 				var buf bytes.Buffer
@@ -558,13 +558,11 @@ func TestPrune(t *testing.T) {
 			sort.Strings(pruned)
 			sort.Strings(tt.expectedPruned)
 			if !reflect.DeepEqual(pruned, tt.expectedPruned) {
-				t.Errorf("expected pruned: %v\n got: %v\n", tt.expectedPruned, pruned)
+				t.Errorf("expected pruned:\n\t%v\ngot:\n\t%v\n", strings.Join(tt.expectedPruned, "\n\t"), strings.Join(pruned, "\n\t"))
 			}
 
 			// now check that pruned is empty when ReturnPruned is false
-			emptyPruned := PruneWithOptions(in, tt.schema, PruneOptions{
-				IsResourceRoot: tt.isResourceRoot,
-			})
+			emptyPruned := PruneWithOptions(in, tt.schema, tt.isResourceRoot, PruneOptions{})
 			if !reflect.DeepEqual(in, expectedObject) {
 				var buf bytes.Buffer
 				enc := json.NewEncoder(&buf)
