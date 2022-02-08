@@ -21,7 +21,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdDNSSuffix is used by agnhost Cobra.

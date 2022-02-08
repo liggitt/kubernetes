@@ -25,9 +25,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/util/version"
 	clientset "k8s.io/client-go/kubernetes"

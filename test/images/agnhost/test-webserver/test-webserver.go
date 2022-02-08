@@ -22,7 +22,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdTestWebserver is used by agnhost Cobra.

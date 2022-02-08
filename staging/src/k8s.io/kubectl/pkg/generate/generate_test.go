@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 type TestStruct struct {

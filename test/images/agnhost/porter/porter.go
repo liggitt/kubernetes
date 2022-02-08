@@ -31,7 +31,7 @@ import (
 	"strings"
 
 	"github.com/ishidawataru/sctp"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 const tcpPrefix = "SERVE_PORT_"

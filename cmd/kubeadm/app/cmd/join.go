@@ -24,9 +24,9 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 
 	"k8s.io/apimachinery/pkg/util/sets"

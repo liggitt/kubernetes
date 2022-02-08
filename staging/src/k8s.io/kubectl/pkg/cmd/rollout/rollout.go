@@ -18,7 +18,7 @@ package rollout
 
 import (
 	"github.com/lithammer/dedent"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"

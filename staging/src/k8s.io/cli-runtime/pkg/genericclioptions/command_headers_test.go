@@ -20,7 +20,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 var kubectlCmd = &cobra.Command{Use: "kubectl"}

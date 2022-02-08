@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"k8s.io/component-base/logs"
 )
 

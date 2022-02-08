@@ -23,7 +23,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"k8s.io/component-base/logs"
 	netutils "k8s.io/utils/net"
 )

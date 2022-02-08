@@ -29,8 +29,8 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
-	"github.com/spf13/cobra"
 
 	"k8s.io/utils/exec"
 	fakeexec "k8s.io/utils/exec/testing"

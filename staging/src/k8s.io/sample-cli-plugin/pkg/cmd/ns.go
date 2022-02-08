@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"

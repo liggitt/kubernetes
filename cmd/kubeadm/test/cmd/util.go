@@ -22,8 +22,8 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/liggitt/cobra"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 )
 
 // Forked from test/e2e/framework because the e2e framework is quite bloated

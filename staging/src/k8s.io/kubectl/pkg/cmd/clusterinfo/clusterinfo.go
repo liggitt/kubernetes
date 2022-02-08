@@ -33,7 +33,7 @@ import (
 	"k8s.io/kubectl/pkg/util/templates"
 
 	ct "github.com/daviddengcn/go-colortext"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 var (

@@ -19,8 +19,8 @@ package phases
 import (
 	"fmt"
 
+	"github.com/liggitt/cobra"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/options"
 	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/phases/workflow"

@@ -26,7 +26,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdLiveness is used by agnhost Cobra.

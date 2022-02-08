@@ -26,7 +26,7 @@ require (
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/clusterhq/flocker-go v0.0.0-20160920122132-2b8b7259d313
 	github.com/container-storage-interface/spec v1.5.0
-	github.com/coredns/corefile-migration v1.0.14
+	github.com/coredns/corefile-migration v1.0.15-0.20220208204955-c264ab27341d
 	github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/go-systemd/v22 v22.3.2
 	github.com/cpuguy83/go-md2man/v2 v2.0.1
@@ -53,6 +53,7 @@ require (
 	github.com/heketi/tests v0.0.0-20151005000721-f3775cbcefd6 // indirect
 	github.com/ishidawataru/sctp v0.0.0-20190723014705-7c296d48a2b5
 	github.com/libopenstorage/openstorage v1.0.0
+	github.com/liggitt/cobra v1.3.0
 	github.com/lithammer/dedent v1.1.0
 	github.com/lpabon/godbc v0.1.1 // indirect
 	github.com/moby/ipvs v1.0.1
@@ -71,7 +72,6 @@ require (
 	github.com/prometheus/common v0.32.1
 	github.com/quobyte/api v0.1.8
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/storageos/go-api v2.2.0+incompatible
 	github.com/stretchr/testify v1.7.0
@@ -205,13 +205,13 @@ replace (
 	github.com/containerd/cgroups => github.com/containerd/cgroups v1.0.1
 	github.com/containerd/console => github.com/containerd/console v1.0.2
 	github.com/containerd/containerd => github.com/containerd/containerd v1.4.11
-	github.com/containerd/continuity => github.com/containerd/continuity v0.1.0
+	github.com/containerd/continuity => github.com/liggitt/continuity v0.1.1-0.20220208205203-f8f297395299
 	github.com/containerd/fifo => github.com/containerd/fifo v1.0.0
 	github.com/containerd/go-runc => github.com/containerd/go-runc v1.0.0
 	github.com/containerd/ttrpc => github.com/containerd/ttrpc v1.0.2
 	github.com/containerd/typeurl => github.com/containerd/typeurl v1.0.2
 	github.com/coredns/caddy => github.com/coredns/caddy v1.1.0
-	github.com/coredns/corefile-migration => github.com/coredns/corefile-migration v1.0.14
+	github.com/coredns/corefile-migration => github.com/liggitt/corefile-migration v1.0.15-0.20220208204955-c264ab27341d
 	github.com/coreos/go-oidc => github.com/coreos/go-oidc v2.1.0+incompatible
 	github.com/coreos/go-semver => github.com/coreos/go-semver v0.3.0
 	github.com/coreos/go-systemd/v22 => github.com/coreos/go-systemd/v22 v22.3.2
@@ -329,6 +329,7 @@ replace (
 	github.com/kr/pretty => github.com/kr/pretty v0.2.1
 	github.com/kr/text => github.com/kr/text v0.2.0
 	github.com/libopenstorage/openstorage => github.com/libopenstorage/openstorage v1.0.0
+	github.com/liggitt/cobra => github.com/liggitt/cobra v1.3.0
 	github.com/liggitt/tabwriter => github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 	github.com/lithammer/dedent => github.com/lithammer/dedent v1.1.0
 	github.com/lpabon/godbc => github.com/lpabon/godbc v0.1.1
@@ -403,7 +404,6 @@ replace (
 	github.com/soheilhy/cmux => github.com/soheilhy/cmux v0.1.5
 	github.com/spf13/afero => github.com/spf13/afero v1.6.0
 	github.com/spf13/cast => github.com/spf13/cast v1.4.1
-	github.com/spf13/cobra => github.com/spf13/cobra v1.3.0
 	github.com/spf13/jwalterweatherman => github.com/spf13/jwalterweatherman v1.1.0
 	github.com/spf13/pflag => github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper => github.com/spf13/viper v1.10.0
@@ -428,9 +428,9 @@ replace (
 	go.etcd.io/etcd/client/pkg/v3 => go.etcd.io/etcd/client/pkg/v3 v3.5.1
 	go.etcd.io/etcd/client/v2 => go.etcd.io/etcd/client/v2 v2.305.1
 	go.etcd.io/etcd/client/v3 => go.etcd.io/etcd/client/v3 v3.5.0
-	go.etcd.io/etcd/pkg/v3 => go.etcd.io/etcd/pkg/v3 v3.5.0
+	go.etcd.io/etcd/pkg/v3 => github.com/liggitt/etcd/pkg/v3 v3.0.0-20220208205624-4ad1b9fd4523
 	go.etcd.io/etcd/raft/v3 => go.etcd.io/etcd/raft/v3 v3.5.0
-	go.etcd.io/etcd/server/v3 => go.etcd.io/etcd/server/v3 v3.5.0
+	go.etcd.io/etcd/server/v3 => github.com/liggitt/etcd/server/v3 v3.0.0-20220208205800-c5aadd525e88
 	go.opencensus.io => go.opencensus.io v0.23.0
 	go.opentelemetry.io/contrib => go.opentelemetry.io/contrib v0.20.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc => go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0
@@ -528,9 +528,9 @@ replace (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.27
 	sigs.k8s.io/json => sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2
 	sigs.k8s.io/kustomize/api => sigs.k8s.io/kustomize/api v0.10.1
-	sigs.k8s.io/kustomize/cmd/config => sigs.k8s.io/kustomize/cmd/config v0.10.2
-	sigs.k8s.io/kustomize/kustomize/v4 => sigs.k8s.io/kustomize/kustomize/v4 v4.4.1
-	sigs.k8s.io/kustomize/kyaml => sigs.k8s.io/kustomize/kyaml v0.13.0
+	sigs.k8s.io/kustomize/cmd/config => github.com/liggitt/kustomize/cmd/config v0.0.0-20220208203647-17b8bedcc859
+	sigs.k8s.io/kustomize/kustomize/v4 => github.com/liggitt/kustomize/kustomize/v4 v4.0.0-20220208204227-ad60fab32a3f
+	sigs.k8s.io/kustomize/kyaml => github.com/liggitt/kustomize/kyaml v0.0.0-20220208204027-201e5cc8ba12
 	sigs.k8s.io/structured-merge-diff/v4 => sigs.k8s.io/structured-merge-diff/v4 v4.2.1
 	sigs.k8s.io/yaml => sigs.k8s.io/yaml v1.2.0
 )

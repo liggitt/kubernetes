@@ -21,7 +21,7 @@ import (
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/russross/blackfriday"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 const Indentation = `  `

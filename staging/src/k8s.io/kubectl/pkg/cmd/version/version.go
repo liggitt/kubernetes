@@ -21,7 +21,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"sigs.k8s.io/yaml"
 
 	apimachineryversion "k8s.io/apimachinery/pkg/version"

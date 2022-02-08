@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/kubernetes/test/images/agnhost/dns"
 	"k8s.io/kubernetes/test/images/resource-consumer/common"

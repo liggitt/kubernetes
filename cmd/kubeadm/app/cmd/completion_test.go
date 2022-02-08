@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 const shellsError = "Unexpected empty completion shells list"

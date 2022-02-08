@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"sigs.k8s.io/kustomize/api/konfig"
 	"sigs.k8s.io/kustomize/api/krusty"
 	"sigs.k8s.io/kustomize/api/types"

@@ -20,7 +20,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
 	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/phases/workflow"

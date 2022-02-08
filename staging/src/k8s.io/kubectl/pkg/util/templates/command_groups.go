@@ -17,7 +17,7 @@ limitations under the License.
 package templates
 
 import (
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 type CommandGroup struct {

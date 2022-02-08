@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"github.com/spf13/pflag"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 

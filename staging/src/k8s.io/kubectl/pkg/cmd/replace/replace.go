@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/klog/v2"
 

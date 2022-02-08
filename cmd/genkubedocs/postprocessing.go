@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // MarkdownPostProcessing goes though the generated files

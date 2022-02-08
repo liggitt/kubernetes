@@ -23,7 +23,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"github.com/spf13/pflag"
 	internalapi "k8s.io/cri-api/pkg/apis"
 	"k8s.io/klog/v2"

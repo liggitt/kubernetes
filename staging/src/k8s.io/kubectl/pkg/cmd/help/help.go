@@ -19,7 +19,7 @@ package help
 import (
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
@@ -49,7 +49,7 @@ func RunHelp(cmd *cobra.Command, args []string) {
 
 	// NOTE(andreykurilin): actually, I did not find any cases when foundCmd can be nil,
 	//   but let's make this check since it is included in original code of initHelpCmd
-	//   from github.com/spf13/cobra
+	//   from github.com/liggitt/cobra
 	if foundCmd == nil {
 		cmd.Printf("Unknown help topic %#q.\n", args)
 		cmd.Root().Usage()

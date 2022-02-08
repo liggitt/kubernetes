@@ -32,7 +32,7 @@ import (
 	utilnode "k8s.io/kubernetes/pkg/util/node"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"github.com/spf13/pflag"
 
 	v1 "k8s.io/api/core/v1"

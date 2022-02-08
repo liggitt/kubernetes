@@ -34,7 +34,7 @@ import (
 	"time"
 
 	"github.com/ishidawataru/sctp"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/sets"

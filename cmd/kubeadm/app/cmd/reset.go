@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
-	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 
 	"k8s.io/apimachinery/pkg/util/sets"

@@ -26,7 +26,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"

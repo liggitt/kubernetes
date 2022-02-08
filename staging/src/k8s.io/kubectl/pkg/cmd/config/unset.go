@@ -22,7 +22,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"k8s.io/kubectl/pkg/util/templates"
 
 	"k8s.io/client-go/tools/clientcmd"

@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/spf13/cobra/doc"
+	"github.com/liggitt/cobra/doc"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/kubectl/pkg/cmd"
 	"k8s.io/kubernetes/cmd/genutils"

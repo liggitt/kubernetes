@@ -26,7 +26,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/kubernetes/test/images/agnhost/net/common"
 	"k8s.io/kubernetes/test/images/agnhost/net/nat"

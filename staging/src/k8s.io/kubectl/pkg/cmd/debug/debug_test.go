@@ -18,7 +18,7 @@ package debug
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"strings"
 	"testing"
 	"time"

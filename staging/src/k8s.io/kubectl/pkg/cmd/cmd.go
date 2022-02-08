@@ -25,7 +25,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"

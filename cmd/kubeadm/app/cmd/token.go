@@ -25,9 +25,9 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"

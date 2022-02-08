@@ -153,7 +153,7 @@ __%[1]s_handle_completion_types() {
         # Type: menu-complete/menu-complete-backward and insert-completions
         # If the user requested inserting one completion at a time, or all
         # completions at once on the command-line we must remove the descriptions.
-        # https://github.com/spf13/cobra/issues/1508
+        # https://github.com/liggitt/cobra/issues/1508
         local tab comp
         tab=$(printf '\t')
         while IFS='' read -r comp; do

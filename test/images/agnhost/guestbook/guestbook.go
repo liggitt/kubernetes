@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 )

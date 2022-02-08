@@ -22,7 +22,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdPause is used by agnhost Cobra.

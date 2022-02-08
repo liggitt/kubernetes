@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

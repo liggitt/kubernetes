@@ -28,7 +28,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdServeHostname is used by agnhost Cobra.

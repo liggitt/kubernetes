@@ -19,8 +19,8 @@ package upgrade
 import (
 	"fmt"
 
+	"github.com/liggitt/cobra"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/version"

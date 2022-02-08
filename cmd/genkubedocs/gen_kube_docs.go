@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/spf13/cobra/doc"
+	"github.com/liggitt/cobra/doc"
 	"github.com/spf13/pflag"
 	"k8s.io/kubernetes/cmd/genutils"
 	apiservapp "k8s.io/kubernetes/cmd/kube-apiserver/app"

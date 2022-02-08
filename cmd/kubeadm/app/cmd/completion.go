@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	"k8s.io/klog/v2"
 )

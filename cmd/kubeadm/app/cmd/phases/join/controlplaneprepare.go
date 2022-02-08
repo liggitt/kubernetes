@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/liggitt/cobra"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"

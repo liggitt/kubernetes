@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 

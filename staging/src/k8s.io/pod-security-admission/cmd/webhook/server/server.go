@@ -29,7 +29,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"

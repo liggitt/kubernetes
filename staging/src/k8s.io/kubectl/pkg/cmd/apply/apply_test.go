@@ -30,7 +30,7 @@ import (
 	"testing"
 
 	openapi_v2 "github.com/googleapis/gnostic/openapiv2"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

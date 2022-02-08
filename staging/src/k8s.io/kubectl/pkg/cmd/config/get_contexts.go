@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	"github.com/liggitt/tabwriter"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"

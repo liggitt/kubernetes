@@ -19,7 +19,7 @@ package server
 import (
 	"io"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/apiextensions-apiserver/pkg/cmd/server/options"
 	genericapiserver "k8s.io/apiserver/pkg/server"

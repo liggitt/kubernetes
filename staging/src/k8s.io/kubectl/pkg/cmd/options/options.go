@@ -22,7 +22,7 @@ import (
 	"k8s.io/kubectl/pkg/util/i18n"
 	"k8s.io/kubectl/pkg/util/templates"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 var (

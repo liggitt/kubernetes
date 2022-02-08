@@ -19,8 +19,8 @@ package cmd
 import (
 	"io"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
-	"github.com/spf13/cobra"
 
 	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/alpha"
 	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/options"

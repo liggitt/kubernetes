@@ -32,7 +32,7 @@ func main() {
 Cobra provides its own program that will create your application and add any
 commands you want. It's the easiest way to incorporate Cobra into your application.
 
-For complete details on using the Cobra generator, please read [The Cobra Generator README](https://github.com/spf13/cobra/blob/master/cobra/README.md)
+For complete details on using the Cobra generator, please read [The Cobra Generator README](https://github.com/liggitt/cobra/blob/master/cobra/README.md)
 
 ## Using the Cobra Library
 
@@ -76,7 +76,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"github.com/spf13/viper"
 )
 
@@ -171,7 +171,7 @@ package cmd
 import (
   "fmt"
 
-  "github.com/spf13/cobra"
+  "github.com/liggitt/cobra"
 )
 
 func init() {
@@ -198,7 +198,7 @@ package cmd
 import (
   "fmt"
 
-  "github.com/spf13/cobra"
+  "github.com/liggitt/cobra"
 )
 
 func init() {
@@ -355,7 +355,7 @@ import (
   "fmt"
   "strings"
 
-  "github.com/spf13/cobra"
+  "github.com/liggitt/cobra"
 )
 
 func main() {
@@ -522,7 +522,7 @@ package main
 import (
   "fmt"
 
-  "github.com/spf13/cobra"
+  "github.com/liggitt/cobra"
 )
 
 func main() {

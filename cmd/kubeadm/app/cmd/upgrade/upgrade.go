@@ -19,7 +19,7 @@ package upgrade
 import (
 	"io"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"github.com/spf13/pflag"
 
 	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/options"

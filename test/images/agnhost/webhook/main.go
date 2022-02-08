@@ -22,7 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	v1 "k8s.io/api/admission/v1"
 	"k8s.io/api/admission/v1beta1"

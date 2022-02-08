@@ -24,9 +24,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	flag "github.com/spf13/pflag"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -21,8 +21,8 @@ import (
 	"io"
 	"text/tabwriter"
 
+	"github.com/liggitt/cobra"
 	"github.com/lithammer/dedent"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"k8s.io/apimachinery/pkg/util/duration"

@@ -16,8 +16,8 @@
 
 ## v1.1.1
 
-* **Fix:** yaml.v2 2.3.0 contained a unintended breaking change. This release reverts to yaml.v2 v2.2.8 which has recent critical CVE fixes, but does not have the breaking changes. See https://github.com/spf13/cobra/pull/1259 for context.
-* **Fix:** correct internal formatting for go-md2man v2 (which caused man page generation to be broken). See https://github.com/spf13/cobra/issues/1049 for context.
+* **Fix:** yaml.v2 2.3.0 contained a unintended breaking change. This release reverts to yaml.v2 v2.2.8 which has recent critical CVE fixes, but does not have the breaking changes. See https://github.com/liggitt/cobra/pull/1259 for context.
+* **Fix:** correct internal formatting for go-md2man v2 (which caused man page generation to be broken). See https://github.com/liggitt/cobra/issues/1049 for context.
 
 ## v1.1.0
 

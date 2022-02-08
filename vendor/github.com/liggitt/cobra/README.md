@@ -1,3 +1,5 @@
+# THIS IS A TEST COPY OF COBRA TO EXPLORE ISOLATING THE VIPER DEPENDENCY. DO NOT USE IT.
+
 ![cobra logo](https://cloud.githubusercontent.com/assets/173412/10886352/ad566232-814f-11e5-9cd0-aa101788c117.png)
 
 Cobra is both a library for creating powerful modern CLI applications as well as a program to generate applications and command files.
@@ -6,9 +8,9 @@ Cobra is used in many Go projects such as [Kubernetes](http://kubernetes.io/),
 [Hugo](https://gohugo.io), and [Github CLI](https://github.com/cli/cli) to
 name a few. [This list](./projects_using_cobra.md) contains a more extensive list of projects using Cobra.
 
-[![](https://img.shields.io/github/workflow/status/spf13/cobra/Test?longCache=tru&label=Test&logo=github%20actions&logoColor=fff)](https://github.com/spf13/cobra/actions?query=workflow%3ATest)
-[![GoDoc](https://godoc.org/github.com/spf13/cobra?status.svg)](https://godoc.org/github.com/spf13/cobra)
-[![Go Report Card](https://goreportcard.com/badge/github.com/spf13/cobra)](https://goreportcard.com/report/github.com/spf13/cobra)
+[![](https://img.shields.io/github/workflow/status/spf13/cobra/Test?longCache=tru&label=Test&logo=github%20actions&logoColor=fff)](https://github.com/liggitt/cobra/actions?query=workflow%3ATest)
+[![GoDoc](https://godoc.org/github.com/liggitt/cobra?status.svg)](https://godoc.org/github.com/liggitt/cobra)
+[![Go Report Card](https://goreportcard.com/badge/github.com/liggitt/cobra)](https://goreportcard.com/report/github.com/liggitt/cobra)
 [![Slack](https://img.shields.io/badge/Slack-cobra-brightgreen)](https://gophers.slack.com/archives/CD3LP1199)
 
 # Overview
@@ -66,7 +68,7 @@ have children commands and optionally run an action.
 
 In the example above, 'server' is the command.
 
-[More about cobra.Command](https://pkg.go.dev/github.com/spf13/cobra#Command)
+[More about cobra.Command](https://pkg.go.dev/github.com/liggitt/cobra#Command)
 
 ## Flags
 
@@ -86,22 +88,22 @@ Using Cobra is easy. First, use `go get` to install the latest version
 of the library. This command will install the `cobra` generator executable
 along with the library and its dependencies:
 
-    go get -u github.com/spf13/cobra
+    go get -u github.com/liggitt/cobra
 
 Next, include Cobra in your application:
 
 ```go
-import "github.com/spf13/cobra"
+import "github.com/liggitt/cobra"
 ```
 
 # Usage
 Cobra provides its own program that will create your application and add any
 commands you want. It's the easiest way to incorporate Cobra into your application.
 
-For complete details on using the Cobra generator, please read [The Cobra Generator README](https://github.com/spf13/cobra/blob/master/cobra/README.md)
+For complete details on using the Cobra generator, please read [The Cobra Generator README](https://github.com/liggitt/cobra/blob/master/cobra/README.md)
 
 For complete details on using the Cobra library, please read the [The Cobra User Guide](user_guide.md).
 
 # License
 
-Cobra is released under the Apache 2.0 license. See [LICENSE.txt](https://github.com/spf13/cobra/blob/master/LICENSE.txt)
+Cobra is released under the Apache 2.0 license. See [LICENSE.txt](https://github.com/liggitt/cobra/blob/master/LICENSE.txt)

@@ -24,7 +24,7 @@ import (
 	"os"
 	goruntime "runtime"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/authentication/authenticator"

@@ -20,7 +20,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdFakeGitServer is used by agnhost Cobra.

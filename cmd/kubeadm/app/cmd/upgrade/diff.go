@@ -21,9 +21,9 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/liggitt/cobra"
 	"github.com/pkg/errors"
 	"github.com/pmezard/go-difflib/difflib"
-	"github.com/spf13/cobra"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/version"

@@ -17,7 +17,7 @@ limitations under the License.
 package alpha
 
 import (
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // NewCmdAlpha returns "kubeadm alpha" command.

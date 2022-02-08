@@ -26,7 +26,7 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 const (

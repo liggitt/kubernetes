@@ -12,7 +12,7 @@ require (
 	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.2
 	github.com/googleapis/gnostic v0.5.5
-	github.com/spf13/cobra v1.3.0
+	github.com/liggitt/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	go.etcd.io/etcd/client/pkg/v3 v3.5.1
@@ -35,6 +35,9 @@ require (
 )
 
 replace (
+	github.com/spf13/viper => github.com/spf13/viper v1.10.0
+	go.etcd.io/etcd/pkg/v3 => github.com/liggitt/etcd/pkg/v3 v3.0.0-20220208205624-4ad1b9fd4523
+	go.etcd.io/etcd/server/v3 => github.com/liggitt/etcd/server/v3 v3.0.0-20220208205800-c5aadd525e88
 	k8s.io/api => ../api
 	k8s.io/apiextensions-apiserver => ../apiextensions-apiserver
 	k8s.io/apimachinery => ../apimachinery

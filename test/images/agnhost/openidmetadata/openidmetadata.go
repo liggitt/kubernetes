@@ -31,7 +31,7 @@ import (
 	"time"
 
 	oidc "github.com/coreos/go-oidc"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"golang.org/x/oauth2"
 	"gopkg.in/square/go-jose.v2/jwt"
 	"k8s.io/apimachinery/pkg/util/wait"

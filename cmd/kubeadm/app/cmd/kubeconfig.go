@@ -20,8 +20,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/liggitt/cobra"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 
 	"k8s.io/klog/v2"
 

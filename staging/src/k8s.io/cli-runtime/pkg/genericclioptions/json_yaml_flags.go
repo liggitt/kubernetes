@@ -19,7 +19,7 @@ package genericclioptions
 import (
 	"strings"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 
 	"k8s.io/cli-runtime/pkg/printers"
 )

@@ -25,7 +25,7 @@ import (
 
 	"k8s.io/kubectl/pkg/util/term"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	flag "github.com/spf13/pflag"
 )
 

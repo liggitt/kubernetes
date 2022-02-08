@@ -18,6 +18,7 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/googleapis/gnostic v0.5.5
 	github.com/jonboulle/clockwork v0.2.2
+	github.com/liggitt/cobra v1.3.0
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 	github.com/lithammer/dedent v1.1.0
 	github.com/mitchellh/go-wordwrap v1.0.0
@@ -26,7 +27,6 @@ require (
 	github.com/onsi/gomega v1.10.1
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/russross/blackfriday v1.5.2
-	github.com/spf13/cobra v1.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
@@ -47,6 +47,7 @@ require (
 )
 
 replace (
+	github.com/spf13/viper => github.com/spf13/viper v1.10.0
 	k8s.io/api => ../api
 	k8s.io/apimachinery => ../apimachinery
 	k8s.io/cli-runtime => ../cli-runtime
@@ -56,4 +57,7 @@ replace (
 	k8s.io/component-helpers => ../component-helpers
 	k8s.io/kubectl => ../kubectl
 	k8s.io/metrics => ../metrics
+	sigs.k8s.io/kustomize/cmd/config => github.com/liggitt/kustomize/cmd/config v0.0.0-20220208203647-17b8bedcc859
+	sigs.k8s.io/kustomize/kustomize/v4 => github.com/liggitt/kustomize/kustomize/v4 v4.0.0-20220208204227-ad60fab32a3f
+	sigs.k8s.io/kustomize/kyaml => github.com/liggitt/kustomize/kyaml v0.0.0-20220208204027-201e5cc8ba12
 )

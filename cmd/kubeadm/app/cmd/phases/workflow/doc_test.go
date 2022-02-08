@@ -19,8 +19,8 @@ package workflow
 import (
 	"fmt"
 
+	"github.com/liggitt/cobra"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 )
 
 var myWorkflowRunner = NewRunner()

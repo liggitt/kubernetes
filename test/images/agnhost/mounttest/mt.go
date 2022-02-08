@@ -22,7 +22,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdMounttest is used by agnhost Cobra.

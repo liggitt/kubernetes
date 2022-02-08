@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-systemd/v22/daemon"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
 	"k8s.io/mount-utils"

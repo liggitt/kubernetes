@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/ishidawataru/sctp"
-	"github.com/spf13/cobra"
+	"github.com/liggitt/cobra"
 )
 
 // CmdConnect is used by agnhost Cobra.
