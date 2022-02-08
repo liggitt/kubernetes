@@ -22,10 +22,12 @@ fmt:
 lint:
 	$(info ******************** running lint tools ********************)
 	golangci-lint run -v
+	cd cobra && golangci-lint run -v
 
 test: install_deps
 	$(info ******************** running tests ********************)
 	richgo test -v ./...
+	cd cobra && richgo test -v ./...
 
 cobra_generator: install_deps
 	$(info ******************** building generator ********************)
@@ -35,6 +37,7 @@ cobra_generator: install_deps
 install_deps:
 	$(info ******************** downloading dependencies ********************)
 	go get -v ./...
+	cd cobra && go get -v ./...
 
 clean:
 	rm -rf $(BIN)

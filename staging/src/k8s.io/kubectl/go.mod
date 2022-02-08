@@ -18,7 +18,7 @@ require (
 	github.com/google/go-cmp v0.5.6
 	github.com/googleapis/gnostic v0.5.5
 	github.com/jonboulle/clockwork v0.2.2
-	github.com/liggitt/cobra v1.3.0
+	github.com/liggitt/cobra v1.5.0
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 	github.com/lithammer/dedent v1.1.0
 	github.com/mitchellh/go-wordwrap v1.0.0
@@ -47,7 +47,6 @@ require (
 )
 
 replace (
-	github.com/spf13/viper => github.com/spf13/viper v1.10.0
 	k8s.io/api => ../api
 	k8s.io/apimachinery => ../apimachinery
 	k8s.io/cli-runtime => ../cli-runtime

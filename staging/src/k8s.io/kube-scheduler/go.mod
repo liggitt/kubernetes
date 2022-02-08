@@ -13,7 +13,6 @@ require (
 )
 
 replace (
-	github.com/spf13/viper => github.com/spf13/viper v1.10.0
 	k8s.io/api => ../api
 	k8s.io/apimachinery => ../apimachinery
 	k8s.io/client-go => ../client-go

@@ -23,10 +23,12 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 	github.com/pquerna/cachecontrol v0.0.0-20171018203845-0dec1b30a021 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
+	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	go.etcd.io/etcd/api/v3 v3.5.1
 	go.etcd.io/etcd/client/pkg/v3 v3.5.1
+	go.etcd.io/etcd/client/v2 v2.305.1 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.0
 	go.etcd.io/etcd/server/v3 v3.5.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.20.0
@@ -57,7 +59,6 @@ require (
 )
 
 replace (
-	github.com/spf13/viper => github.com/spf13/viper v1.10.0
 	go.etcd.io/etcd/pkg/v3 => github.com/liggitt/etcd/pkg/v3 v3.0.0-20220208205624-4ad1b9fd4523
 	go.etcd.io/etcd/server/v3 => github.com/liggitt/etcd/server/v3 v3.0.0-20220208205800-c5aadd525e88
 	k8s.io/api => ../api

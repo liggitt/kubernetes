@@ -495,7 +495,7 @@ github.com/libopenstorage/openstorage/api/spec
 github.com/libopenstorage/openstorage/pkg/parser
 github.com/libopenstorage/openstorage/pkg/units
 github.com/libopenstorage/openstorage/volume
-# github.com/liggitt/cobra v1.3.0 => github.com/liggitt/cobra v1.3.0
+# github.com/liggitt/cobra v1.5.0 => github.com/liggitt/cobra v1.5.0
 ## explicit
 github.com/liggitt/cobra
 github.com/liggitt/cobra/doc
@@ -2605,7 +2605,7 @@ sigs.k8s.io/yaml
 # github.com/kr/pretty => github.com/kr/pretty v0.2.1
 # github.com/kr/text => github.com/kr/text v0.2.0
 # github.com/libopenstorage/openstorage => github.com/libopenstorage/openstorage v1.0.0
-# github.com/liggitt/cobra => github.com/liggitt/cobra v1.3.0
+# github.com/liggitt/cobra => github.com/liggitt/cobra v1.5.0
 # github.com/liggitt/tabwriter => github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 # github.com/lithammer/dedent => github.com/lithammer/dedent v1.1.0
 # github.com/lpabon/godbc => github.com/lpabon/godbc v0.1.1
