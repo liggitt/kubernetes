@@ -757,7 +757,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterPluginAsExtensions(
 					podtopologyspread.Name,
-					podtopologyspread.New,
+					frameworkruntime.FactoryAdapter(feature.Features{}, podtopologyspread.New),
 					"PreFilter",
 					"Filter",
 				),
@@ -804,7 +804,7 @@ func TestGenericScheduler(t *testing.T) {
 				st.RegisterQueueSortPlugin(queuesort.Name, queuesort.New),
 				st.RegisterPluginAsExtensions(
 					podtopologyspread.Name,
-					podtopologyspread.New,
+					frameworkruntime.FactoryAdapter(feature.Features{}, podtopologyspread.New),
 					"PreFilter",
 					"Filter",
 				),

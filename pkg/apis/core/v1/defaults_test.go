@@ -23,6 +23,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1587,6 +1589,53 @@ func TestSetDefaultObjectFieldSelectorAPIVersion(t *testing.T) {
 	apiVersion := s2.Containers[0].Env[0].ValueFrom.FieldRef.APIVersion
 	if apiVersion != "v1" {
 		t.Errorf("Expected default APIVersion v1, got: %v", apiVersion)
+	}
+}
+
+func TestSetDefaultMinDomains(t *testing.T) {
+	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.MinDomainsInPodTopologySpread, true)()
+	pod := &v1.Pod{
+		Spec: v1.PodSpec{
+			TopologySpreadConstraints: []v1.TopologySpreadConstraint{
+				{
+					MaxSkew:           3,
+					TopologyKey:       "zone",
+					WhenUnsatisfiable: v1.ScheduleAnyway,
+					MinDomains:        nil,
+				},
+				{
+					MaxSkew:           4,
+					TopologyKey:       "hostname",
+					WhenUnsatisfiable: v1.ScheduleAnyway,
+					MinDomains:        utilpointer.Int32(10),
+				},
+			},
+		},
+	}
+
+	corev1.SetDefaults_Pod(pod)
+
+	wantPod := &v1.Pod{
+		Spec: v1.PodSpec{
+			EnableServiceLinks: utilpointer.Bool(true),
+			TopologySpreadConstraints: []v1.TopologySpreadConstraint{
+				{
+					MaxSkew:           3,
+					TopologyKey:       "zone",
+					WhenUnsatisfiable: v1.ScheduleAnyway,
+					MinDomains:        utilpointer.Int32(1),
+				},
+				{
+					MaxSkew:           4,
+					TopologyKey:       "hostname",
+					WhenUnsatisfiable: v1.ScheduleAnyway,
+					MinDomains:        utilpointer.Int32(10),
+				},
+			},
+		},
+	}
+	if diff := cmp.Diff(wantPod, pod); diff != "" {
+		t.Errorf("unexpected pod (-want, +got):\n%s", diff)
 	}
 }
 
