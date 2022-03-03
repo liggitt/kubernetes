@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/component-base/featuregate"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	corev1 "k8s.io/kubernetes/pkg/apis/core/v1"
@@ -45,6 +46,10 @@ import (
 // TestWorkloadDefaults detects changes to defaults within PodTemplateSpec.
 // Defaulting changes within this type can cause spurious rollouts of workloads on API server update.
 func TestWorkloadDefaults(t *testing.T) {
+	for _, featureString := range utilfeature.DefaultFeatureGate.KnownFeatures() {
+		feature := featuregate.Feature(strings.Split(featureString, "=")[0])
+		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, feature, true)
+	}
 	rc := &v1.ReplicationController{Spec: v1.ReplicationControllerSpec{Template: &v1.PodTemplateSpec{}}}
 	template := rc.Spec.Template
 	// New defaults under PodTemplateSpec are only acceptable if they would not be applied when reading data from a previous release.
@@ -179,6 +184,10 @@ func TestWorkloadDefaults(t *testing.T) {
 // TestPodDefaults detects changes to defaults within PodSpec.
 // Defaulting changes within this type (*especially* within containers) can cause kubelets to restart containers on API server update.
 func TestPodDefaults(t *testing.T) {
+	for _, featureString := range utilfeature.DefaultFeatureGate.KnownFeatures() {
+		feature := featuregate.Feature(strings.Split(featureString, "=")[0])
+		defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, feature, true)
+	}
 	pod := &v1.Pod{}
 	// New defaults under PodSpec are only acceptable if they would not be applied when reading data from a previous release.
 	// Forbidden: adding a new field `MyField *bool` and defaulting it to a non-nil value
