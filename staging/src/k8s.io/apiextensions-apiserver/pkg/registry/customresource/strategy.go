@@ -18,7 +18,6 @@ package customresource
 
 import (
 	"context"
-
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	structuralschema "k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema/cel"
@@ -174,8 +173,12 @@ func (a customResourceStrategy) Validate(ctx context.Context, obj runtime.Object
 
 		// validate x-kubernetes-validations rules
 		if celValidator, ok := a.celValidators[v]; ok {
-			err, _ := celValidator.Validate(ctx, nil, a.structuralSchemas[v], u.Object, cel.RuntimeCELCostBudget)
-			errs = append(errs, err...)
+			if has, err := hasBlockingErr(errs); has {
+				errs = append(errs, err)
+			} else {
+				err, _ := celValidator.Validate(ctx, nil, a.structuralSchemas[v], u.Object, cel.RuntimeCELCostBudget)
+				errs = append(errs, err...)
+			}
 		}
 	}
 
@@ -227,8 +230,12 @@ func (a customResourceStrategy) ValidateUpdate(ctx context.Context, obj, old run
 
 	// validate x-kubernetes-validations rules
 	if celValidator, ok := a.celValidators[v]; ok {
-		err, _ := celValidator.Validate(ctx, nil, a.structuralSchemas[v], uNew.Object, cel.RuntimeCELCostBudget)
-		errs = append(errs, err...)
+		if has, err := hasBlockingErr(errs); has {
+			errs = append(errs, err)
+		} else {
+			err, _ := celValidator.Validate(ctx, nil, a.structuralSchemas[v], uNew.Object, cel.RuntimeCELCostBudget)
+			errs = append(errs, err...)
+		}
 	}
 
 	return errs
@@ -270,4 +277,14 @@ func (a customResourceStrategy) MatchCustomResourceDefinitionStorage(label label
 		Field:    field,
 		GetAttrs: a.GetAttrs,
 	}
+}
+
+// OpenAPIv3 type/maxLength/maxItems/MaxProperties/required/wrong type field validation failures are viewed as blocking err for CEL validation
+func hasBlockingErr(errs field.ErrorList) (bool, *field.Error) {
+	for _, err := range errs {
+		if err.Type.IsCelBlockingErr() {
+			return true, field.Invalid(nil, nil, "Skipping x-kubernetes-validations rules due to OpenAPIv3 errors preventing the rules from safely executed")
+		}
+	}
+	return false, nil
 }

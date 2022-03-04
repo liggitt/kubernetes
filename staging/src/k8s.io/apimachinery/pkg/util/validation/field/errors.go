@@ -123,6 +123,18 @@ const (
 	// ErrorTypeInternal is used to report other errors that are not related
 	// to user input.  See InternalError().
 	ErrorTypeInternal ErrorType = "InternalError"
+	// TooLongFailCode is for MaxLengthExceed error
+	// This error is CEL blocking errors. The CEL validation will be skipped when this error occurred.
+	TooLongFailCode ErrorType = "MaxLengthExceed"
+	// MaxItemsFailCode is for MaxItemsExceed error
+	// This error is CEL blocking errors. The CEL validation will be skipped when this error occurred.
+	MaxItemsFailCode ErrorType = "MaxItemsExceed"
+	// TooManyPropertiesCode is for MaxPropertiesExceed error
+	// This error is CEL blocking errors. The CEL validation will be skipped when this error occurred.
+	TooManyPropertiesCode ErrorType = "MaxPropertiesExceed"
+	// InvalidTypeCode is for type invalid error
+	// This error is CEL blocking errors. The CEL validation will be skipped when this error occurred.
+	InvalidTypeCode ErrorType = "TypeInvalid"
 )
 
 // String converts a ErrorType into its corresponding canonical error message.
@@ -146,8 +158,46 @@ func (t ErrorType) String() string {
 		return "Too many"
 	case ErrorTypeInternal:
 		return "Internal error"
+	case TooLongFailCode:
+		return "Invalid value"
+	case MaxItemsFailCode:
+		return "Invalid value"
+	case TooManyPropertiesCode:
+		return "Invalid value"
+	case InvalidTypeCode:
+		return "Invalid value"
 	default:
 		panic(fmt.Sprintf("unrecognized validation error: %q", string(t)))
+	}
+}
+
+// TooLongFail returns a *Error indicating "MaxLength exceed".
+func TooLongFail(field *Path, value interface{}, detail string) *Error {
+	return &Error{TooLongFailCode, field.String(), value, detail}
+}
+
+// MaxItemsFail returns a *Error indicating "MaxItems exceed"
+func MaxItemsFail(field *Path, value interface{}, detail string) *Error {
+	return &Error{MaxItemsFailCode, field.String(), value, detail}
+}
+
+// TooManyProperties returns a *Error indicating "MaxProperties exceed"
+func TooManyProperties(field *Path, value interface{}, detail string) *Error {
+	return &Error{TooManyPropertiesCode, field.String(), value, detail}
+}
+
+// TypeInvalid returns a *Error indicating "type is invalid"
+func TypeInvalid(field *Path, value interface{}, detail string) *Error {
+	return &Error{InvalidTypeCode, field.String(), value, detail}
+}
+
+// IsCelBlockingErr returns if the error is a CEL blocking error or not
+func (t ErrorType) IsCelBlockingErr() bool {
+	switch t {
+	case ErrorTypeRequired, TooLongFailCode, MaxItemsFailCode, TooManyPropertiesCode, InvalidTypeCode:
+		return true
+	default:
+		return false
 	}
 }
 
