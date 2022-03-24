@@ -26,38 +26,55 @@ import (
 	"k8s.io/component-base/metrics"
 )
 
-var _ utilnet.RoundTripperWrapper = &x509MissingSANErrorMetricsRTWrapper{}
+var _ utilnet.RoundTripperWrapper = &x509DeprecatedCertificateMetricsRTWrapper{}
 
-type x509MissingSANErrorMetricsRTWrapper struct {
+type x509DeprecatedCertificateMetricsRTWrapper struct {
 	rt http.RoundTripper
 
-	counter *metrics.Counter
+	missingSAN *metrics.Counter
+
+	sha1 *metrics.Counter
 }
 
-// NewMissingSANRoundTripperWrapperConstructor returns a RoundTripper wrapper that's usable
-// within ClientConfig.Wrap that increases the `metricCounter` whenever:
+// NewDeprecatedCertificateRoundTripperWrapperConstructor returns a RoundTripper wrapper that's usable within ClientConfig.Wrap.
+//
+// It increases the `missingSAN` counter whenever:
 // 1. we get a x509.HostnameError with string `x509: certificate relies on legacy Common Name field`
 //    which indicates an error caused by the deprecation of Common Name field when veryfing remote
 //    hostname
 // 2. the server certificate in response contains no SAN. This indicates that this binary run
 //    with the GODEBUG=x509ignoreCN=0 in env
-func NewMissingSANRoundTripperWrapperConstructor(metricCounter *metrics.Counter) func(rt http.RoundTripper) http.RoundTripper {
+//
+// It increases the `sha1` counter whenever:
+// 1. we get a x509.InsecureAlgorithmError with string `SHA1`
+//    which indicates an error caused by an insecure SHA1 signature
+// 2. the server certificate in response contains a SHA1WithRSA or ECDSAWithSHA1 signature.
+//    This indicates that this binary run with the GODEBUG=x509sha1=1 in env
+func NewDeprecatedCertificateRoundTripperWrapperConstructor(missingSAN, sha1 *metrics.Counter) func(rt http.RoundTripper) http.RoundTripper {
 	return func(rt http.RoundTripper) http.RoundTripper {
-		return &x509MissingSANErrorMetricsRTWrapper{
-			rt:      rt,
-			counter: metricCounter,
+		return &x509DeprecatedCertificateMetricsRTWrapper{
+			rt:         rt,
+			missingSAN: missingSAN,
+			sha1:       sha1,
 		}
 	}
 }
 
-func (w *x509MissingSANErrorMetricsRTWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (w *x509DeprecatedCertificateMetricsRTWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
 	resp, err := w.rt.RoundTrip(req)
-	checkForHostnameError(err, w.counter)
-	checkRespForNoSAN(resp, w.counter)
+
+	if err != nil {
+		checkForHostnameError(err, w.missingSAN)
+		checkForSHA1InsecureAlgorithmError(err, w.sha1)
+	} else if resp != nil {
+		checkRespForNoSAN(resp, w.missingSAN)
+		checkRespForSHA1(resp, w.sha1)
+	}
+
 	return resp, err
 }
 
-func (w *x509MissingSANErrorMetricsRTWrapper) WrappedRoundTripper() http.RoundTripper {
+func (w *x509DeprecatedCertificateMetricsRTWrapper) WrappedRoundTripper() http.RoundTripper {
 	return w.rt
 }
 
@@ -89,4 +106,30 @@ func hasSAN(c *x509.Certificate) bool {
 		}
 	}
 	return false
+}
+
+// checkForSHA1InsecureAlgorithmError increases the metricCounter when we're running w/o GODEBUG=x509sha1=1
+// and the client reports an InsecureAlgorithmError about a SHA1 signature
+func checkForSHA1InsecureAlgorithmError(err error, metricCounter *metrics.Counter) {
+	var insecureAlgorithmError x509.InsecureAlgorithmError
+	if err == nil {
+		return
+	}
+	if !errors.As(err, &insecureAlgorithmError) {
+		return
+	}
+	if strings.Contains(err.Error(), "SHA1") {
+		// increase the count of registered failures due to Go 1.18 x509 sha1 signature deprecation
+		metricCounter.Inc()
+	}
+}
+
+// checkRespForSHA1 increases the metricCounter when the server response contains
+// a leaf certificate with a deprecated SHA1 signature
+func checkRespForSHA1(resp *http.Response, metricCounter *metrics.Counter) {
+	if resp != nil && resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
+		if serverCert := resp.TLS.PeerCertificates[0]; serverCert.SignatureAlgorithm == x509.SHA1WithRSA || serverCert.SignatureAlgorithm == x509.ECDSAWithSHA1 {
+			metricCounter.Inc()
+		}
+	}
 }
