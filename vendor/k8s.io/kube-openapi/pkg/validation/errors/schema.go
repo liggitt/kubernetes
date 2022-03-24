@@ -181,6 +181,7 @@ func TooManyProperties(name, in string, n int64) *Validation {
 		Name:    name,
 		In:      in,
 		Value:   n,
+		Valid:   n,
 		message: msg,
 	}
 }
@@ -279,6 +280,7 @@ func TooManyItems(name, in string, max int64, value interface{}) *Validation {
 		Name:    name,
 		In:      in,
 		Value:   value,
+		Valid:   max,
 		message: msg,
 	}
 }
@@ -294,6 +296,7 @@ func TooFewItems(name, in string, min int64, value interface{}) *Validation {
 		Name:    name,
 		In:      in,
 		Value:   value,
+		Valid:   min,
 		message: msg,
 	}
 }
@@ -513,6 +516,7 @@ func TooLong(name, in string, max int64, value interface{}) *Validation {
 		Name:    name,
 		In:      in,
 		Value:   value,
+		Valid:   max,
 		message: msg,
 	}
 }

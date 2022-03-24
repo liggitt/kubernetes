@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	utilpointer "k8s.io/utils/pointer"
 	kjson "sigs.k8s.io/json"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -413,6 +414,51 @@ func TestValidateCustomResource(t *testing.T) {
 					`field.nestedint: Unsupported value: "x": supported values: "1", "2"`,
 					`field.nestedstring: Invalid value: "boolean": field.nestedstring in body must be of type string: "boolean"`,
 					`field.nestedstring: Unsupported value: true: supported values: "a", "b"`,
+				}},
+			},
+		},
+		{name: "maxProperties",
+			schema: apiextensions.JSONSchemaProps{
+				Properties: map[string]apiextensions.JSONSchemaProps{
+					"fieldX": {
+						Type:          "object",
+						MaxProperties: utilpointer.Int64(2),
+					},
+				},
+			},
+			failingObjects: []failingObject{
+				{object: map[string]interface{}{"fieldX": map[string]interface{}{"a": true, "b": true, "c": true}}, expectErrs: []string{
+					`fieldX: Too many: must have at most 2 items`,
+				}},
+			},
+		},
+		{name: "maxItems",
+			schema: apiextensions.JSONSchemaProps{
+				Properties: map[string]apiextensions.JSONSchemaProps{
+					"fieldX": {
+						Type:          "array",
+						MaxItems: utilpointer.Int64(2),
+					},
+				},
+			},
+			failingObjects: []failingObject{
+				{object: map[string]interface{}{"fieldX": []interface{}{"a", "b", "c"}}, expectErrs: []string{
+					`fieldX: Too many: must have at most 2 items`,
+				}},
+			},
+		},
+		{name: "maxLength",
+			schema: apiextensions.JSONSchemaProps{
+				Properties: map[string]apiextensions.JSONSchemaProps{
+					"fieldX": {
+						Type:          "string",
+						MaxLength: utilpointer.Int64(2),
+					},
+				},
+			},
+			failingObjects: []failingObject{
+				{object: map[string]interface{}{"fieldX": "abc"}, expectErrs: []string{
+					`fieldX: Too many: may not be longer than 2`,
 				}},
 			},
 		},

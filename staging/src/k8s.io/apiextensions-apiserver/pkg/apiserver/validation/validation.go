@@ -18,6 +18,7 @@ package validation
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -84,21 +85,25 @@ func ValidateCustomResource(fldPath *field.Path, customResource interface{}, val
 				if err.Value != nil {
 					value = err.Value
 				}
-				allErrs = append(allErrs, field.TooLongFail(errPath, value, err.Error()))
+				max := int64(-1)
+				if i, ok := err.Valid.(int64); ok {
+					max = i
+				}
+				allErrs = append(allErrs, field.TooLongMaxLength(errPath, value, int(max)))
 
 			case openapierrors.MaxItemsFailCode:
-				value := interface{}("")
-				if err.Value != nil {
-					value = err.Value
+				max := int64(-1)
+				if i, ok := err.Valid.(int64); ok {
+					max = i
 				}
-				allErrs = append(allErrs, field.MaxItemsFail(errPath, value, err.Error()))
+				allErrs = append(allErrs, field.TooMany(errPath, -1, int(max)))
 
 			case openapierrors.TooManyPropertiesCode:
-				value := interface{}("")
-				if err.Value != nil {
-					value = err.Value
+				max := int64(-1)
+				if i, ok := err.Valid.(int64); ok {
+					max = i
 				}
-				allErrs = append(allErrs, field.TooManyProperties(errPath, value, err.Error()))
+				allErrs = append(allErrs, field.TooMany(errPath, -1, int(max)))
 
 			case openapierrors.InvalidTypeCode:
 				value := interface{}("")
