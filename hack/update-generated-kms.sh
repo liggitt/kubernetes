@@ -25,5 +25,6 @@ KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 # If the output set is changed update that function.
 
 "${KUBE_ROOT}/build/run.sh" hack/update-generated-kms-dockerized.sh "$@"
+APIROOTS="k8s.io/apiserver/pkg/storage/value/encrypt/envelope/kmsv2/v2alpha1" hack/update-generated-protobuf.sh "$@"
 
 # ex: ts=2 sw=2 et filetype=sh
