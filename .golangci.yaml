@@ -22,9 +22,9 @@ linters:
   # - varcheck
     - ineffassign
     - logcheck
-    - staticcheck
-    - stylecheck
-    - unused
+    # - staticcheck
+    # - stylecheck
+    # - unused
 
 linters-settings: # please keep this alphabetized
   custom:

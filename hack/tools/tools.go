@@ -26,6 +26,7 @@ import (
 	_ "github.com/google/go-flow-levee/cmd/levee"
 	_ "honnef.co/go/tools/cmd/staticcheck"
 	_ "sigs.k8s.io/logtools/logcheck"
+	_ "sigs.k8s.io/logtools/logcheck/plugin"
 
 	// benchmarking tools
 	_ "github.com/cespare/prettybench"
