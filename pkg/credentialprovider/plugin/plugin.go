@@ -38,6 +38,7 @@ import (
 	"k8s.io/klog/v2"
 	credentialproviderapi "k8s.io/kubelet/pkg/apis/credentialprovider"
 	"k8s.io/kubelet/pkg/apis/credentialprovider/install"
+	credentialproviderv1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1"
 	credentialproviderv1alpha1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1alpha1"
 	credentialproviderv1beta1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1beta1"
 	"k8s.io/kubernetes/pkg/credentialprovider"
@@ -59,6 +60,7 @@ var (
 	apiVersions = map[string]schema.GroupVersion{
 		credentialproviderv1alpha1.SchemeGroupVersion.String(): credentialproviderv1alpha1.SchemeGroupVersion,
 		credentialproviderv1beta1.SchemeGroupVersion.String():  credentialproviderv1beta1.SchemeGroupVersion,
+		credentialproviderv1.SchemeGroupVersion.String():       credentialproviderv1.SchemeGroupVersion,
 	}
 )
 
