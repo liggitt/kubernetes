@@ -18,7 +18,6 @@ limitations under the License.
 package kmsv2
 
 import (
-	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -32,14 +31,6 @@ import (
 	kmstypes "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/kmsv2/v2alpha1"
 	"k8s.io/apiserver/pkg/storage/value/encrypt/envelope/metrics"
 	"k8s.io/utils/lru"
-)
-
-var (
-	// encryptedProtoEncodingPrefix serves as a magic number for an encrypted encoded protobuf message on this serializer. All
-	// proto messages serialized by this schema will be preceded by the bytes 0x65 0x6b 0x38 0x73, with the fifth
-	// byte being reserved for the encoding style. The only encoding style defined is 0x00, which means that
-	// the rest of the byte stream is a message of type k8s.io.kubernetes.pkg.runtime.Unknown (proto2).
-	encryptedProtoEncodingPrefix = []byte{'e', 'k', '8', 's', 0}
 )
 
 const (
@@ -70,7 +61,6 @@ type envelopeTransformer struct {
 	cacheEnabled bool
 
 	pluginName string
-	prefix     []byte
 }
 
 // EncryptResponse is the response from the Envelope service when encrypting data.
@@ -114,7 +104,6 @@ func NewEnvelopeTransformer(envelopeService Service, cacheSize int, baseTransfor
 		cacheEnabled:        cacheSize > 0,
 		cacheSize:           cacheSize,
 		pluginName:          pluginName,
-		prefix:              encryptedProtoEncodingPrefix,
 	}, nil
 }
 
@@ -220,29 +209,13 @@ func (t *envelopeTransformer) getTransformer(encKey []byte) value.Transformer {
 
 // doEncode encodes the EncryptedObject to a byte array.
 func (t *envelopeTransformer) doEncode(request *kmstypes.EncryptedObject) ([]byte, error) {
-	data, err := request.Marshal()
-	if err != nil {
-		return nil, err
-	}
-	// add the encoding prefix to the data
-	return append(t.prefix, data...), nil
+	return request.Marshal()
 }
 
 // doDecode decodes the byte array to an EncryptedObject.
 func (t *envelopeTransformer) doDecode(originalData []byte) (*kmstypes.EncryptedObject, error) {
-	prefixLen := len(t.prefix)
-	switch {
-	case len(originalData) == 0:
-		return nil, fmt.Errorf("empty data")
-	case len(originalData) < prefixLen || !bytes.Equal(t.prefix, originalData[:prefixLen]):
-		return nil, fmt.Errorf("provided data does not appear to be a protobuf message, expected prefix %v", t.prefix)
-	case len(originalData) == prefixLen:
-		return nil, fmt.Errorf("empty body")
-	}
-
-	data := originalData[prefixLen:]
 	o := &kmstypes.EncryptedObject{}
-	if err := o.Unmarshal(data); err != nil {
+	if err := o.Unmarshal(originalData); err != nil {
 		return nil, err
 	}
 

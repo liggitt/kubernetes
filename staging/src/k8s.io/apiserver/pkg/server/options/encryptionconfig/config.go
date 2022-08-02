@@ -53,11 +53,17 @@ const (
 	aesGCMTransformerPrefixV1    = "k8s:enc:aesgcm:v1:"
 	secretboxTransformerPrefixV1 = "k8s:enc:secretbox:v1:"
 	kmsTransformerPrefixV1       = "k8s:enc:kms:v1:"
-	kmsTransformerPrefixV2       = "k8s:enc:kms:v2:"
 	kmsPluginHealthzNegativeTTL  = 3 * time.Second
 	kmsPluginHealthzPositiveTTL  = 20 * time.Second
 	kmsAPIVersionV1              = "v1"
 	kmsAPIVersionV2              = "v2"
+)
+
+var (
+	// encryptedProtoEncodingPrefix serves as a magic number for an encrypted encoded protobuf message. All
+	// proto messages serialized by this schema will be preceded by the bytes 0x65 0x6b 0x38 0x73, with the fifth
+	// byte being reserved for the encoding style.
+	encryptedProtoEncodingPrefix = []byte{'e', 'k', '8', 's', 0}
 )
 
 type kmsPluginHealthzResponse struct {
@@ -363,7 +369,7 @@ func prefixTransformers(config *apiserverconfig.ResourceConfiguration) ([]value.
 				if envelopeService, err = envelopeKMSv2ServiceFactory(provider.KMS.Endpoint, provider.KMS.Timeout.Duration); err != nil {
 					return nil, fmt.Errorf("could not configure KMSv2 plugin %q, error: %v", provider.KMS.Name, err)
 				}
-				transformer, err = envelopekmsv2PrefixTransformer(provider.KMS, envelopeService, kmsTransformerPrefixV2)
+				transformer, err = envelopekmsv2PrefixTransformer(provider.KMS, envelopeService, encryptedProtoEncodingPrefix)
 			default:
 				return nil, fmt.Errorf("could not configure KMS plugin %q, unsupported KMS API version %q", provider.KMS.Name, provider.KMS.APIVersion)
 			}
@@ -502,7 +508,7 @@ func envelopePrefixTransformer(config *apiserverconfig.KMSConfiguration, envelop
 	}, nil
 }
 
-func envelopekmsv2PrefixTransformer(config *apiserverconfig.KMSConfiguration, envelopeService envelopekmsv2.Service, prefix string) (value.PrefixTransformer, error) {
+func envelopekmsv2PrefixTransformer(config *apiserverconfig.KMSConfiguration, envelopeService envelopekmsv2.Service, prefix []byte) (value.PrefixTransformer, error) {
 	// using AES-GCM by default for encrypting data with KMSv2
 	envelopeTransformer, err := envelopekmsv2.NewEnvelopeTransformer(envelopeService, int(*config.CacheSize), aestransformer.NewGCMTransformer, config.Name)
 	if err != nil {
@@ -510,7 +516,7 @@ func envelopekmsv2PrefixTransformer(config *apiserverconfig.KMSConfiguration, en
 	}
 	return value.PrefixTransformer{
 		Transformer: envelopeTransformer,
-		Prefix:      []byte(prefix + config.Name + ":"),
+		Prefix:      prefix,
 	}, nil
 }
 

@@ -21,13 +21,13 @@ package v2alpha1
 // EncryptedObject is the representation of data stored in etcd after envelope encryption.
 type EncryptedObject struct {
 	// EncryptedData is the encrypted data.
-	EncryptedData []byte `json:"data" protobuf:"bytes,2,opt,name=encryptedData"`
+	EncryptedData []byte `protobuf:"bytes,1,opt,name=encryptedData"`
 	// KeyID is the KMS key ID used for encryption operations.
-	KeyID string `protobuf:"bytes,3,opt,name=keyID" json:"keyID,omitempty"`
+	KeyID string `protobuf:"bytes,2,opt,name=keyID"`
 	// PluginName is the name of the KMS plugin used for encryption.
-	PluginName string `protobuf:"bytes,4,opt,name=pluginName" json:"pluginName,omitempty"`
+	PluginName string `protobuf:"bytes,3,opt,name=pluginName"`
 	// EncryptedDEK is the encrypted DEK.
-	EncryptedDEK []byte `protobuf:"bytes,5,opt,name=encryptedDEK" json:"encryptedDEK,omitempty"`
+	EncryptedDEK []byte `protobuf:"bytes,4,opt,name=encryptedDEK"`
 	// Annotations is additional metadata that was provided by the KMS plugin.
-	Annotations map[string][]byte `protobuf:"bytes,6,rep,name=annotations" json:"annotations,omitempty"`
+	Annotations map[string][]byte `protobuf:"bytes,5,rep,name=annotations"`
 }

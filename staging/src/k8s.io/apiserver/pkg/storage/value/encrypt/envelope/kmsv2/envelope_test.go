@@ -208,7 +208,6 @@ func TestEncodeDecode(t *testing.T) {
 func TestDecodeError(t *testing.T) {
 	et := &envelopeTransformer{
 		pluginName: "testplugin",
-		prefix:     encryptedProtoEncodingPrefix,
 	}
 
 	testCases := []struct {
@@ -216,26 +215,6 @@ func TestDecodeError(t *testing.T) {
 		originalData  func() []byte
 		expectedError error
 	}{
-		{
-			desc:          "original data is empty",
-			originalData:  func() []byte { return nil },
-			expectedError: fmt.Errorf("empty data"),
-		},
-		{
-			desc:          "original data is too short",
-			originalData:  func() []byte { return []byte{0x01, 0x02, 0x03} },
-			expectedError: fmt.Errorf("provided data does not appear to be a protobuf message, expected prefix %v", et.prefix),
-		},
-		{
-			desc:          "original data missing prefix",
-			originalData:  func() []byte { return []byte{'e', 'k', '8', 'a', 'b', 'c'} },
-			expectedError: fmt.Errorf("provided data does not appear to be a protobuf message, expected prefix %v", et.prefix),
-		},
-		{
-			desc:          "original data equals prefix",
-			originalData:  func() []byte { return encryptedProtoEncodingPrefix },
-			expectedError: fmt.Errorf("empty body"),
-		},
 		{
 			desc: "encrypted data is nil",
 			originalData: func() []byte {

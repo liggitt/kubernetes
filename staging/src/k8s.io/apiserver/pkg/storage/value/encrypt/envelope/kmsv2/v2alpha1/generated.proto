@@ -27,18 +27,18 @@ option go_package = "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/kmsv2/v
 // EncryptedObject is the representation of data stored in etcd after envelope encryption.
 message EncryptedObject {
   // EncryptedData is the encrypted data.
-  optional bytes encryptedData = 2;
+  optional bytes encryptedData = 1;
 
   // KeyID is the KMS key ID used for encryption operations.
-  optional string keyID = 3;
+  optional string keyID = 2;
 
   // PluginName is the name of the KMS plugin used for encryption.
-  optional string pluginName = 4;
+  optional string pluginName = 3;
 
   // EncryptedDEK is the encrypted DEK.
-  optional bytes encryptedDEK = 5;
+  optional bytes encryptedDEK = 4;
 
   // Annotations is additional metadata that was provided by the KMS plugin.
-  map<string, bytes> annotations = 6;
+  map<string, bytes> annotations = 5;
 }
 

@@ -39,7 +39,8 @@ func (identityTransformer) TransformFromStorage(ctx context.Context, data []byte
 	// identityTransformer has to return an error if the data is encoded using another transformer.
 	// JSON data starts with '{'. Protobuf data has a prefix 'k8s[\x00-\xFF]'.
 	// Prefix 'k8s:enc:' is reserved for encrypted data on disk.
-	if bytes.HasPrefix(data, []byte("k8s:enc:")) {
+	// Prefix {'e', 'k', '8', 's', 0} is reserved for encrypted data with kmsv2.
+	if bytes.HasPrefix(data, []byte("k8s:enc:")) || bytes.HasPrefix(data, []byte{'e', 'k', '8', 's', 0}) {
 		return []byte{}, false, fmt.Errorf("identity transformer tried to read encrypted data")
 	}
 	return data, false, nil
