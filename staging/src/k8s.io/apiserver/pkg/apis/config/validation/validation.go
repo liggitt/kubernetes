@@ -27,16 +27,17 @@ import (
 )
 
 const (
-	moreThanOneElementErr    = "more than one provider specified in a single element, should split into different list elements"
-	keyLenErrFmt             = "secret is not of the expected length, got %d, expected one of %v"
-	unsupportedSchemeErrFmt  = "unsupported scheme %q for KMS provider, only unix is supported"
-	atLeastOneRequiredErrFmt = "at least one %s is required"
-	invalidURLErrFmt         = "invalid endpoint for kms provider, error: parse %s: net/url: invalid control character in URL"
-	mandatoryFieldErrFmt     = "%s is a mandatory field for a %s"
-	base64EncodingErr        = "secrets must be base64 encoded"
-	zeroOrNegativeErrFmt     = "%s should be a positive value"
-	nonZeroErrFmt            = "%s should be a positive value, or negative to disable"
-	encryptionConfigNilErr   = "EncryptionConfiguration can't be nil"
+	moreThanOneElementErr          = "more than one provider specified in a single element, should split into different list elements"
+	keyLenErrFmt                   = "secret is not of the expected length, got %d, expected one of %v"
+	unsupportedSchemeErrFmt        = "unsupported scheme %q for KMS provider, only unix is supported"
+	unsupportedKMSAPIVersionErrFmt = "unsupported apiVersion %s for KMS provider, only v1 and v2 are supported"
+	atLeastOneRequiredErrFmt       = "at least one %s is required"
+	invalidURLErrFmt               = "invalid endpoint for kms provider, error: parse %s: net/url: invalid control character in URL"
+	mandatoryFieldErrFmt           = "%s is a mandatory field for a %s"
+	base64EncodingErr              = "secrets must be base64 encoded"
+	zeroOrNegativeErrFmt           = "%s should be a positive value"
+	nonZeroErrFmt                  = "%s should be a positive value, or negative to disable"
+	encryptionConfigNilErr         = "EncryptionConfiguration can't be nil"
 )
 
 var (
@@ -180,6 +181,7 @@ func validateKMSConfiguration(c *config.KMSConfiguration, fieldPath *field.Path)
 	allErrs = append(allErrs, validateKMSTimeout(c, fieldPath.Child("timeout"))...)
 	allErrs = append(allErrs, validateKMSEndpoint(c, fieldPath.Child("endpoint"))...)
 	allErrs = append(allErrs, validateKMSCacheSize(c, fieldPath.Child("cachesize"))...)
+	allErrs = append(allErrs, validateKMSAPIVersion(c, fieldPath.Child("apiVersion"))...)
 	return allErrs
 }
 
@@ -214,6 +216,15 @@ func validateKMSEndpoint(c *config.KMSConfiguration, fieldPath *field.Path) fiel
 
 	if u.Scheme != "unix" {
 		return append(allErrs, field.Invalid(fieldPath, c.Endpoint, fmt.Sprintf(unsupportedSchemeErrFmt, u.Scheme)))
+	}
+
+	return allErrs
+}
+
+func validateKMSAPIVersion(c *config.KMSConfiguration, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if c.APIVersion != "v1" && c.APIVersion != "v2" {
+		allErrs = append(allErrs, field.Invalid(fieldPath, c.APIVersion, fmt.Sprintf(unsupportedKMSAPIVersionErrFmt, "apiVersion")))
 	}
 
 	return allErrs
