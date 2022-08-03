@@ -28,6 +28,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -41,10 +43,6 @@ import (
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 )
 
-var (
-	encryptedProtoEncodingPrefix = []byte{'e', 'k', '8', 's', 0}
-)
-
 type envelopekmsv2 struct {
 	providerName string
 	rawEnvelope  []byte
@@ -52,7 +50,7 @@ type envelopekmsv2 struct {
 }
 
 func (r envelopekmsv2) prefix() string {
-	return fmt.Sprintf("%s", encryptedProtoEncodingPrefix)
+	return fmt.Sprintf("k8s:enc:kms:v2:%s:", r.providerName)
 }
 
 func (r envelopekmsv2) prefixLen() int {
@@ -61,7 +59,7 @@ func (r envelopekmsv2) prefixLen() int {
 
 func (r envelopekmsv2) cipherTextDEK() ([]byte, error) {
 	o := &kmstypes.EncryptedObject{}
-	if err := o.Unmarshal(r.rawEnvelope[r.startOfPayload(r.providerName):]); err != nil {
+	if err := proto.Unmarshal(r.rawEnvelope[r.startOfPayload(r.providerName):], o); err != nil {
 		return nil, err
 	}
 	return o.EncryptedDEK, nil
@@ -73,7 +71,7 @@ func (r envelopekmsv2) startOfPayload(_ string) int {
 
 func (r envelopekmsv2) cipherTextPayload() ([]byte, error) {
 	o := &kmstypes.EncryptedObject{}
-	if err := o.Unmarshal(r.rawEnvelope[r.startOfPayload(r.providerName):]); err != nil {
+	if err := proto.Unmarshal(r.rawEnvelope[r.startOfPayload(r.providerName):], o); err != nil {
 		return nil, err
 	}
 	return o.EncryptedData, nil

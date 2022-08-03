@@ -188,7 +188,6 @@ func TestEncodeDecode(t *testing.T) {
 	obj := &kmstypes.EncryptedObject{
 		EncryptedData: []byte{0x01, 0x02, 0x03},
 		KeyID:         "1",
-		PluginName:    "testplugin",
 		EncryptedDEK:  []byte{0x04, 0x05, 0x06},
 	}
 
@@ -200,6 +199,8 @@ func TestEncodeDecode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("envelopeTransformer: error while decoding data: %s", err)
 	}
+	// reset internal field modified by marshaling obj
+	obj.XXX_sizecache = 0
 	if !reflect.DeepEqual(got, obj) {
 		t.Fatalf("envelopeTransformer: decoded data does not match original data. Got: %v, want %v", got, obj)
 	}
@@ -261,7 +262,6 @@ func TestDecodeError(t *testing.T) {
 					EncryptedData: []byte{0x01, 0x02, 0x03},
 					KeyID:         "1",
 					EncryptedDEK:  []byte{0x04, 0x05, 0x06},
-					PluginName:    "testplugin0",
 				})
 				return data
 			},

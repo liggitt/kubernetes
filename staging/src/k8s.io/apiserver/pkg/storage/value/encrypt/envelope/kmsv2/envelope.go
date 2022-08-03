@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/storage/value"
 	kmstypes "k8s.io/apiserver/pkg/storage/value/encrypt/envelope/kmsv2/v2alpha1"
@@ -168,7 +169,6 @@ func (t *envelopeTransformer) TransformToStorage(ctx context.Context, data []byt
 
 	encObject := &kmstypes.EncryptedObject{
 		KeyID:         resp.KeyID,
-		PluginName:    t.pluginName,
 		EncryptedDEK:  resp.Ciphertext,
 		EncryptedData: result,
 		Annotations:   resp.Annotations,
@@ -209,13 +209,13 @@ func (t *envelopeTransformer) getTransformer(encKey []byte) value.Transformer {
 
 // doEncode encodes the EncryptedObject to a byte array.
 func (t *envelopeTransformer) doEncode(request *kmstypes.EncryptedObject) ([]byte, error) {
-	return request.Marshal()
+	return proto.Marshal(request)
 }
 
 // doDecode decodes the byte array to an EncryptedObject.
 func (t *envelopeTransformer) doDecode(originalData []byte) (*kmstypes.EncryptedObject, error) {
 	o := &kmstypes.EncryptedObject{}
-	if err := o.Unmarshal(originalData); err != nil {
+	if err := proto.Unmarshal(originalData, o); err != nil {
 		return nil, err
 	}
 
@@ -228,9 +228,6 @@ func (t *envelopeTransformer) doDecode(originalData []byte) (*kmstypes.Encrypted
 	}
 	if o.EncryptedDEK == nil {
 		return nil, fmt.Errorf("encrypted dek is nil after unmarshal")
-	}
-	if o.PluginName != t.pluginName {
-		return nil, fmt.Errorf("pluginName mismatch, expected %s, got %s", t.pluginName, o.PluginName)
 	}
 	return o, nil
 }
