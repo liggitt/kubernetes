@@ -19,6 +19,7 @@ package bootstrap
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/sha512"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -331,6 +332,12 @@ func requestNodeCertificate(ctx context.Context, client clientset.Interface, pri
 		certificatesv1.UsageDigitalSignature,
 		certificatesv1.UsageKeyEncipherment,
 		certificatesv1.UsageClientAuth,
+	}
+	if _, ok := privateKey.(*rsa.PrivateKey); !ok {
+		usages = []certificatesv1.KeyUsage{
+			certificatesv1.UsageDigitalSignature,
+			certificatesv1.UsageClientAuth,
+		}
 	}
 
 	// The Signer interface contains the Public() method to get the public key.
