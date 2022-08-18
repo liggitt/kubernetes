@@ -17,15 +17,18 @@ limitations under the License.
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -40,6 +43,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -51,6 +55,8 @@ import (
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/cert"
 	"k8s.io/client-go/util/connrotation"
+	"k8s.io/kubectl/pkg/cmd/apply"
+	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 	kubeapiservertesting "k8s.io/kubernetes/cmd/kube-apiserver/app/testing"
 	"k8s.io/kubernetes/test/integration/framework"
 )
@@ -430,6 +436,91 @@ func v1beta1TestsFromV1Tests(v1Tests []execPluginClientTestData) []execPluginCli
 		v1beta1Tests = append(v1beta1Tests, v1beta1Test)
 	}
 	return v1beta1Tests
+}
+
+func TestApplyMultipleItemsWithExecPlugin(t *testing.T) {
+	result, clientAuthorizedToken, _, _ := startTestServer(t)
+	actualMetrics := captureMetrics(t)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tmp := t.TempDir()
+	err = ioutil.WriteFile(filepath.Join(tmp, "kubeconfig"), []byte(`
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: "`+result.ClientConfig.Host+`"
+    insecure-skip-tls-verify: true
+  name: test
+contexts:
+- context:
+    cluster: test
+    user: test
+  name: test
+current-context: test
+users:
+- name: test
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1
+      env:
+      - name: EXEC_PLUGIN_OUTPUT
+        value: '{"kind": "ExecCredential", "apiVersion": "client.authentication.k8s.io/v1", "status": {"token": "`+clientAuthorizedToken+`"}}'
+      args: ["--random-arg-to-avoid-authenticator-cache-hits","`+rand.String(10)+`"]
+      command: "`+filepath.Join(cwd, "testdata", "exec-plugin.sh")+`"
+      interactiveMode: IfAvailable
+`), os.FileMode(0644))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	originalArgs := os.Args
+	originalKubeconfig, wasSet := os.LookupEnv("KUBECONFIG")
+	t.Cleanup(func() {
+		os.Args = originalArgs
+		if wasSet {
+			os.Setenv("KUBECONFIG", originalKubeconfig)
+		}
+	})
+
+	defer cmdutil.DefaultBehaviorOnFatal()
+	cmdutil.BehaviorOnFatal(func(msg string, code int) {
+		t.Error(msg, code)
+	})
+
+	clientGetter := genericclioptions.NewConfigFlags(true)
+	f := cmdutil.NewFactory(clientGetter)
+	stdin := &bytes.Buffer{}
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	iostreams := genericclioptions.IOStreams{In: stdin, Out: stdout, ErrOut: stderr}
+	cmd := apply.NewCmdApply("kubectl", f, iostreams)
+	clientGetter.AddFlags(cmd.Flags())
+	os.Args = []string{"apply", "--kubeconfig", filepath.Join(tmp, "kubeconfig"), "--filename", "testdata/exec-plugin-apply.yaml"}
+	fmt.Println("before apply")
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("after apply")
+
+	// t.Log(stdout.String())
+	// t.Log(stderr.String())
+
+	if len(actualMetrics.calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(actualMetrics.calls))
+	}
+
+	client := clientset.NewForConfigOrDie(result.ClientConfig)
+	if _, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), "exec-test1", metav1.GetOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), "exec-test10", metav1.GetOptions{}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestExecPluginViaClient(t *testing.T) {

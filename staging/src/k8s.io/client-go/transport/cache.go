@@ -80,6 +80,8 @@ func (c *tlsTransportCache) get(config *Config) (http.RoundTripper, error) {
 		if t, ok := c.transports[key]; ok {
 			return t, nil
 		}
+	} else {
+		fmt.Println("creating transport")
 	}
 
 	// Get the TLS options for this client config
