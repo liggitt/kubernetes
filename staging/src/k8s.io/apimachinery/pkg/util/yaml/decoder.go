@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 	"unicode"
 
 	jsonutil "k8s.io/apimachinery/pkg/util/json"
@@ -306,41 +305,55 @@ func NewYAMLReader(r *bufio.Reader) *YAMLReader {
 	}
 }
 
+var byteSeparator = []byte(separator)
+
 // Read returns a full YAML document.
 func (r *YAMLReader) Read() ([]byte, error) {
 	var buffer bytes.Buffer
+	seenDocumentContent := false
 	for {
 		line, err := r.reader.Read()
 		if err != nil && err != io.EOF {
 			return nil, err
 		}
 
-		sep := len([]byte(separator))
-		if i := bytes.Index(line, []byte(separator)); i == 0 {
+		switch {
+		case bytes.HasPrefix(line, byteSeparator):
 			// We have a potential document terminator
-			i += sep
-			trimmed := strings.TrimSpace(string(line[i:]))
+			trimmed := bytes.TrimSpace(line[len(byteSeparator):])
 			// We only allow comments and spaces following the yaml doc separator, otherwise we'll return an error
-			if len(trimmed) > 0 && string(trimmed[0]) != "#" {
+			if len(trimmed) > 0 && trimmed[0] != '#' {
 				return nil, YAMLSyntaxError{
 					err: fmt.Errorf("invalid Yaml document separator: %s", trimmed),
 				}
 			}
-			if buffer.Len() != 0 {
+			if seenDocumentContent {
+				// We've already seen document content ahead of the document separator, return that content now
 				return buffer.Bytes(), nil
 			}
 			if err == io.EOF {
 				return nil, err
 			}
-		}
-		if err == io.EOF {
+			// Accumulate the observed line
+			seenDocumentContent = true
+			buffer.Write(line)
+		case err == io.EOF:
 			if buffer.Len() != 0 {
-				// If we're at EOF, we have a final, non-terminated line. Return it.
+				// If we're at EOF, we have a final, non-terminated document. Return it.
 				return buffer.Bytes(), nil
 			}
 			return nil, err
+		default:
+			// If we haven't yet observed document content, see if this line
+			// contains something other than whitespace or a comment
+			if !seenDocumentContent {
+				if trimmed := bytes.TrimSpace(line); len(trimmed) > 0 && trimmed[0] != '#' {
+					seenDocumentContent = true
+				}
+			}
+			// Accumulate the observed line
+			buffer.Write(line)
 		}
-		buffer.Write(line)
 	}
 }
 
