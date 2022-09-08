@@ -43,6 +43,7 @@ import (
 	credentialproviderv1beta1 "k8s.io/kubelet/pkg/apis/credentialprovider/v1beta1"
 	"k8s.io/kubernetes/pkg/credentialprovider"
 	kubeletconfig "k8s.io/kubernetes/pkg/kubelet/apis/config"
+	kubeletconfigv1 "k8s.io/kubernetes/pkg/kubelet/apis/config/v1"
 	kubeletconfigv1alpha1 "k8s.io/kubernetes/pkg/kubelet/apis/config/v1alpha1"
 	kubeletconfigv1beta1 "k8s.io/kubernetes/pkg/kubelet/apis/config/v1beta1"
 	"k8s.io/utils/clock"
@@ -69,6 +70,7 @@ func init() {
 	kubeletconfig.AddToScheme(scheme)
 	kubeletconfigv1alpha1.AddToScheme(scheme)
 	kubeletconfigv1beta1.AddToScheme(scheme)
+	kubeletconfigv1.AddToScheme(scheme)
 }
 
 // RegisterCredentialProviderPlugins is called from kubelet to register external credential provider
