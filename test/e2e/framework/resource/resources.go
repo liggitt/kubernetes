@@ -17,6 +17,7 @@ limitations under the License.
 package resource
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	scaleclient "k8s.io/client-go/scale"
 	"k8s.io/kubernetes/test/e2e/framework"
@@ -62,16 +64,34 @@ func ScaleResource(
 }
 
 // DeleteResourceAndWaitForGC deletes only given resource and waits for GC to delete the pods.
+// This is a wrapper around DeleteResourceAndWaitForGCWithDynamicClient.
 func DeleteResourceAndWaitForGC(c clientset.Interface, kind schema.GroupKind, ns, name string) error {
-	ginkgo.By(fmt.Sprintf("deleting %v %s in namespace %s, will wait for the garbage collector to delete the pods", kind, name, ns))
+	return DeleteResourceAndWaitForGCWithDynamicClient(c, nil, nil, false, schema.GroupVersionResource{}, kind, ns, name)
+}
 
-	rtObject, err := GetRuntimeObjectForKind(c, kind, ns, name)
+// DeleteResourceAndWaitForGCWithDynamicClient deletes only given resource and waits for GC to delete the pods.
+// Enables to provide a custom resourece client, e.g. to fetch a CRD object.
+func DeleteResourceAndWaitForGCWithDynamicClient(c clientset.Interface, dynamicClient dynamic.Interface, scaleClient scaleclient.ScalesGetter, isCustomScaleSubresource bool, gvr schema.GroupVersionResource, kind schema.GroupKind, ns, name string) error {
+	ginkgo.By(fmt.Sprintf("deleting %v %s in namespace %s, will wait for the garbage collector to delete the pods", kind, name, ns))
+	var resourceClient dynamic.ResourceInterface
+	if dynamicClient != nil && !gvr.Empty() {
+		resourceClient = dynamicClient.Resource(gvr).Namespace(ns)
+	}
+	rtObject, err := GetRuntimeObjectForKind(c, resourceClient, kind, ns, name)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			framework.Logf("%v %s not found: %v", kind, name, err)
 			return nil
 		}
 		return err
+	}
+	if isCustomScaleSubresource && scaleClient != nil {
+		scaleObj, err := scaleClient.Scales(ns).Get(context.TODO(), gvr.GroupResource(), name, metav1.GetOptions{})
+		if err != nil {
+			framework.Logf("error while trying to get scale subresource of kind %v with name %v: %v", kind, name, err)
+			return nil
+		}
+		rtObject = scaleObj
 	}
 	selector, err := GetSelectorFromRuntimeObject(rtObject)
 	if err != nil {
@@ -88,10 +108,10 @@ func DeleteResourceAndWaitForGC(c clientset.Interface, kind schema.GroupKind, ns
 	}
 
 	defer ps.Stop()
-	falseVar := false
-	deleteOption := metav1.DeleteOptions{OrphanDependents: &falseVar}
+	propagationPolicy := metav1.DeletePropagationForeground
+	deleteOption := metav1.DeleteOptions{PropagationPolicy: &propagationPolicy}
 	startTime := time.Now()
-	if err := testutils.DeleteResourceWithRetries(c, kind, ns, name, deleteOption); err != nil {
+	if err := testutils.DeleteResourceWithRetriesWithDynamicClient(c, dynamicClient, gvr, kind, ns, name, deleteOption); err != nil {
 		return err
 	}
 	deleteTime := time.Since(startTime)
@@ -176,7 +196,7 @@ func waitForPodsInactive(ps *testutils.PodStore, interval, timeout time.Duration
 
 // WaitForControlledPodsRunning waits up to 10 minutes for pods to become Running.
 func WaitForControlledPodsRunning(c clientset.Interface, ns, name string, kind schema.GroupKind) error {
-	rtObject, err := GetRuntimeObjectForKind(c, kind, ns, name)
+	rtObject, err := GetRuntimeObjectForKind(c, nil, kind, ns, name)
 	if err != nil {
 		return err
 	}
@@ -197,7 +217,7 @@ func WaitForControlledPodsRunning(c clientset.Interface, ns, name string, kind s
 
 // WaitForControlledPods waits up to podListTimeout for getting pods of the specified controller name and return them.
 func WaitForControlledPods(c clientset.Interface, ns, name string, kind schema.GroupKind) (pods *v1.PodList, err error) {
-	rtObject, err := GetRuntimeObjectForKind(c, kind, ns, name)
+	rtObject, err := GetRuntimeObjectForKind(c, nil, kind, ns, name)
 	if err != nil {
 		return nil, err
 	}
