@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 )
 
@@ -45,7 +44,7 @@ var (
 
 // GetRuntimeObjectForKind returns a runtime.Object based on its GroupKind,
 // namespace and name.
-func GetRuntimeObjectForKind(c clientset.Interface, resourceClient dynamic.ResourceInterface, kind schema.GroupKind, ns, name string) (runtime.Object, error) {
+func GetRuntimeObjectForKind(c clientset.Interface, kind schema.GroupKind, ns, name string) (runtime.Object, error) {
 	switch kind {
 	case kindReplicationController:
 		return c.CoreV1().ReplicationControllers(ns).Get(context.TODO(), name, metav1.GetOptions{})
@@ -58,11 +57,7 @@ func GetRuntimeObjectForKind(c clientset.Interface, resourceClient dynamic.Resou
 	case kindBatchJob:
 		return c.BatchV1().Jobs(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	default:
-		if resourceClient != nil {
-			return resourceClient.Get(context.TODO(), name, metav1.GetOptions{})
-		} else {
-			return nil, fmt.Errorf("Invalid resource client when getting runtime object of kind: %v with name: %s", kind, name)
-		}
+		return nil, fmt.Errorf("Unsupported kind when getting runtime object: %v", kind)
 	}
 }
 

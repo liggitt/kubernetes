@@ -539,7 +539,7 @@ func (rc *ResourceConsumer) CleanUp() {
 	kind := rc.kind.GroupKind()
 	if kind.Kind == crdKind {
 		gvr := schema.GroupVersionResource{Group: crdGroup, Version: crdVersion, Resource: crdNamePlural}
-		framework.ExpectNoError(e2eresource.DeleteResourceAndWaitForGCWithDynamicClient(rc.clientSet, rc.dynamicClient, rc.scaleClient, true, gvr, kind, rc.nsName, rc.name))
+		framework.ExpectNoError(e2eresource.DeleteCustomResourceAndWaitForGC(rc.clientSet, rc.dynamicClient, rc.scaleClient, gvr, rc.nsName, rc.name))
 		// Delete CRD kind.
 		err := rc.apiExtensionClient.ApiextensionsV1().CustomResourceDefinitions().Delete(context.TODO(), crdNamePlural+"."+crdGroup, metav1.DeleteOptions{})
 		if err != nil && !apierrors.IsNotFound(err) {

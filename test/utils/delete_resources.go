@@ -25,7 +25,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	clientset "k8s.io/client-go/kubernetes"
 	appsinternal "k8s.io/kubernetes/pkg/apis/apps"
 	batchinternal "k8s.io/kubernetes/pkg/apis/batch"
@@ -33,7 +32,7 @@ import (
 	extensionsinternal "k8s.io/kubernetes/pkg/apis/extensions"
 )
 
-func deleteResource(c clientset.Interface, resourceClient dynamic.ResourceInterface, kind schema.GroupKind, namespace, name string, options metav1.DeleteOptions) error {
+func DeleteResource(c clientset.Interface, kind schema.GroupKind, namespace, name string, options metav1.DeleteOptions) error {
 	switch kind {
 	case api.Kind("Pod"):
 		return c.CoreV1().Pods(namespace).Delete(context.TODO(), name, options)
@@ -54,25 +53,13 @@ func deleteResource(c clientset.Interface, resourceClient dynamic.ResourceInterf
 	case api.Kind("Service"):
 		return c.CoreV1().Services(namespace).Delete(context.TODO(), name, options)
 	default:
-		if resourceClient != nil {
-			return resourceClient.Delete(context.TODO(), name, options)
-		} else {
-			return fmt.Errorf("Invalid resource client when deleting object of kind: %v with name: %s", kind, name)
-		}
+		return fmt.Errorf("unsupported kind when deleting: %v", kind)
 	}
 }
 
 func DeleteResourceWithRetries(c clientset.Interface, kind schema.GroupKind, namespace, name string, options metav1.DeleteOptions) error {
-	return DeleteResourceWithRetriesWithDynamicClient(c, nil, schema.GroupVersionResource{}, kind, namespace, name, options)
-}
-
-func DeleteResourceWithRetriesWithDynamicClient(c clientset.Interface, dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, kind schema.GroupKind, namespace, name string, options metav1.DeleteOptions) error {
-	var resourceClient dynamic.ResourceInterface
-	if dynamicClient != nil && !gvr.Empty() {
-		resourceClient = dynamicClient.Resource(gvr).Namespace(namespace)
-	}
 	deleteFunc := func() (bool, error) {
-		err := deleteResource(c, resourceClient, kind, namespace, name, options)
+		err := DeleteResource(c, kind, namespace, name, options)
 		if err == nil || apierrors.IsNotFound(err) {
 			return true, nil
 		}
