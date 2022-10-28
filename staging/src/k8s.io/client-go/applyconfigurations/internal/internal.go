@@ -261,7 +261,7 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         list:
           elementType:
-            namedType: io.k8s.api.admissionregistration.v1beta1.RuleWithOperations
+            namedType: io.k8s.api.admissionregistration.v1.RuleWithOperations
           elementRelationship: atomic
     - name: sideEffects
       type:
@@ -290,36 +290,6 @@ var schemaYAML = typed.YAMLObject(`types:
           elementRelationship: associative
           keys:
           - name
-- name: io.k8s.api.admissionregistration.v1beta1.RuleWithOperations
-  map:
-    fields:
-    - name: apiGroups
-      type:
-        list:
-          elementType:
-            scalar: string
-          elementRelationship: atomic
-    - name: apiVersions
-      type:
-        list:
-          elementType:
-            scalar: string
-          elementRelationship: atomic
-    - name: operations
-      type:
-        list:
-          elementType:
-            scalar: string
-          elementRelationship: atomic
-    - name: resources
-      type:
-        list:
-          elementType:
-            scalar: string
-          elementRelationship: atomic
-    - name: scope
-      type:
-        scalar: string
 - name: io.k8s.api.admissionregistration.v1beta1.ServiceReference
   map:
     fields:
@@ -370,7 +340,7 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         list:
           elementType:
-            namedType: io.k8s.api.admissionregistration.v1beta1.RuleWithOperations
+            namedType: io.k8s.api.admissionregistration.v1.RuleWithOperations
           elementRelationship: atomic
     - name: sideEffects
       type:
