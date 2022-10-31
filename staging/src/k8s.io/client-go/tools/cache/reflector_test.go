@@ -17,10 +17,12 @@ limitations under the License.
 package cache
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
+	goruntime "runtime"
 	"strconv"
 	"syscall"
 	"testing"
@@ -28,6 +30,8 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1087,5 +1091,250 @@ func TestReflectorResourceVersionUpdate(t *testing.T) {
 	expectedRVs := []string{"10", "20", "30", "40"}
 	if !reflect.DeepEqual(s.resourceVersions, expectedRVs) {
 		t.Errorf("Expected series of resource version updates of %#v but got: %#v", expectedRVs, s.resourceVersions)
+	}
+}
+
+const (
+	fakePodItemsNum = 1000
+	exemptPodName   = "pod-5"
+	detectedPodName = "pod-0"
+)
+
+func BenchmarkExtractPodList(b *testing.B) {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := meta.ExtractList(getPodListItems(fakePodItemsNum))
+		if err != nil {
+			b.Fatalf("extract pod list: %v", err)
+		}
+	}
+	b.StopTimer()
+}
+
+func getPodListItems(numItems int) *v1.PodList {
+	out := &v1.PodList{
+		Items: make([]v1.Pod, numItems),
+	}
+
+	for i := range out.Items {
+		out.Items[i] = v1.Pod{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Pod",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("pod-%d", i),
+				Namespace: "default",
+				Labels: map[string]string{
+					"label-key-1": "label-value-1",
+				},
+				Annotations: map[string]string{
+					"annotations-key-1": "annotations-value-1",
+				},
+			},
+			Spec: v1.PodSpec{
+				Overhead: v1.ResourceList{
+					v1.ResourceCPU:    resource.MustParse("3"),
+					v1.ResourceMemory: resource.MustParse("8"),
+				},
+				NodeSelector: map[string]string{
+					"foo": "bar",
+					"baz": "quux",
+				},
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{MatchExpressions: []v1.NodeSelectorRequirement{{Key: `foo`}}},
+							},
+						},
+						PreferredDuringSchedulingIgnoredDuringExecution: []v1.PreferredSchedulingTerm{
+							{Preference: v1.NodeSelectorTerm{MatchExpressions: []v1.NodeSelectorRequirement{{Key: `foo`}}}},
+						},
+					},
+				},
+				TopologySpreadConstraints: []v1.TopologySpreadConstraint{
+					{TopologyKey: `foo`},
+				},
+				HostAliases: []v1.HostAlias{
+					{IP: "1.1.1.1"},
+					{IP: "2.2.2.2"},
+				},
+				ImagePullSecrets: []v1.LocalObjectReference{
+					{Name: "secret1"},
+					{Name: "secret2"},
+				},
+				Containers: []v1.Container{
+					{
+						Name:  "foobar",
+						Image: "alpine",
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("1"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("5"),
+							},
+							Limits: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("2"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("10"),
+							},
+						},
+					},
+					{
+						Name:  "foobar2",
+						Image: "alpine",
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("4"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("12"),
+							},
+							Limits: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("8"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("24"),
+							},
+						},
+					},
+				},
+				InitContainers: []v1.Container{
+					{
+						Name:  "small-init",
+						Image: "alpine",
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("1"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("5"),
+							},
+							Limits: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("1"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("5"),
+							},
+						},
+					},
+					{
+						Name:  "big-init",
+						Image: "alpine",
+						Resources: v1.ResourceRequirements{
+							Requests: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("40"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("120"),
+							},
+							Limits: v1.ResourceList{
+								v1.ResourceName(v1.ResourceCPU):    resource.MustParse("80"),
+								v1.ResourceName(v1.ResourceMemory): resource.MustParse("240"),
+							},
+						},
+					},
+				},
+				Hostname: fmt.Sprintf("node-%d", i),
+			},
+			Status: v1.PodStatus{
+				Phase: v1.PodRunning,
+				ContainerStatuses: []v1.ContainerStatus{
+					{
+						ContainerID: "docker://numbers",
+						Image:       "alpine",
+						Name:        "foobar",
+						Ready:       false,
+					},
+					{
+						ContainerID: "docker://numbers",
+						Image:       "alpine",
+						Name:        "foobar2",
+						Ready:       false,
+					},
+				},
+				InitContainerStatuses: []v1.ContainerStatus{
+					{
+						ContainerID: "docker://numbers",
+						Image:       "alpine",
+						Name:        "small-init",
+						Ready:       false,
+					},
+					{
+						ContainerID: "docker://numbers",
+						Image:       "alpine",
+						Name:        "big-init",
+						Ready:       false,
+					},
+				},
+				Conditions: []v1.PodCondition{
+					{
+						Type:               v1.PodScheduled,
+						Status:             v1.ConditionTrue,
+						Reason:             "successfully",
+						Message:            "sync pod successfully",
+						LastProbeTime:      metav1.Now(),
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			},
+		}
+	}
+
+	return out
+}
+
+func TestReflectorListExtract(t *testing.T) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), wait.ForeverTestTimeout)
+	defer cancel()
+
+	store := NewStore(func(obj interface{}) (string, error) {
+		pod, ok := obj.(*v1.Pod)
+		if !ok {
+			return "", fmt.Errorf("expect *v1.Pod, but got %T", obj)
+		}
+		return pod.GetName(), nil
+	})
+
+	reflector := NewReflector(&testLW{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return getPodListItems(fakePodItemsNum), nil
+		},
+	}, &v1.Pod{}, store, 0)
+
+	if err := reflector.list(ctx.Done()); err != nil {
+		t.Fatal(err)
+	}
+
+	// We will not delete exemptPod,
+	// in order to see if the existence of this Pod causes other Pods that are not used to be unable to properly clear.
+	_, exist, err := store.GetByKey(exemptPodName)
+	if err != nil || !exist {
+		t.Fatalf("%s should exist in pod store", exemptPodName)
+	}
+	firstPod, exist, err := store.GetByKey(detectedPodName)
+	if err != nil || !exist {
+		t.Fatalf("%s should exist in pod store", detectedPodName)
+	}
+
+	// we will pay attention to whether the memory occupied by the first Pod is released
+	// Golang's can only be SetFinalizer for the first element of the array,
+	// so pod-0 will be the object of our attention
+	detectedPodAlreadyBeCleared := make(chan struct{})
+	goruntime.SetFinalizer(firstPod, func(obj interface{}) {
+		close(detectedPodAlreadyBeCleared)
+	})
+
+	storedObjectKeys := store.ListKeys()
+	for _, k := range storedObjectKeys {
+		// delete all Pods except the exempted Pods.
+		if k == exemptPodName {
+			continue
+		}
+		obj, exist, err := store.GetByKey(k)
+		if err != nil || !exist {
+			t.Fatalf("%s should exist in pod store", k)
+		}
+
+		if err := store.Delete(obj); err != nil {
+			t.Fatalf("delete object: %v", err)
+		}
+		goruntime.GC()
+	}
+	select {
+	case <-detectedPodAlreadyBeCleared:
+		return
+	case <-ctx.Done():
+		t.Fatalf("first Pod is not used, but still occupies memory")
 	}
 }
