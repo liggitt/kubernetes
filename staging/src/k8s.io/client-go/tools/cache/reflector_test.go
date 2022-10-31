@@ -1104,7 +1104,7 @@ func BenchmarkExtractPodList(b *testing.B) {
 	list := getPodListItems(fakePodItemsNum)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := meta.ExtractList(list)
+		_, err := meta.ExtractListWithAlloc(list)
 		if err != nil {
 			b.Fatalf("extract pod list: %v", err)
 		}

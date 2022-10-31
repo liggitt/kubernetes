@@ -174,7 +174,7 @@ func BenchmarkExtractSampleList(b *testing.B) {
 	list := getSampleList(fakeObjectItemsNum)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := ExtractList(list)
+		_, err := ExtractListWithAlloc(list)
 		if err != nil {
 			b.Fatalf("extract pod list: %v", err)
 		}
@@ -186,7 +186,7 @@ func BenchmarkExtractFooList(b *testing.B) {
 	list := getFooList(fakeObjectItemsNum)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := ExtractList(list)
+		_, err := ExtractListWithAlloc(list)
 		if err != nil {
 			b.Fatalf("extract pod list: %v", err)
 		}
@@ -198,7 +198,7 @@ func BenchmarkExtractRawExtensionList(b *testing.B) {
 	list := getRawExtensionList(fakeObjectItemsNum)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := ExtractList(list)
+		_, err := ExtractListWithAlloc(list)
 		if err != nil {
 			b.Fatalf("extract pod list: %v", err)
 		}

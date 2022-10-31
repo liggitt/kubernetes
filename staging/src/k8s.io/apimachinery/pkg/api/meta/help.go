@@ -168,6 +168,18 @@ func EachListItem(obj runtime.Object, fn func(runtime.Object) error) error {
 // ExtractList returns obj's Items element as an array of runtime.Objects.
 // Returns an error if obj is not a List type (does not have an Items member).
 func ExtractList(obj runtime.Object) ([]runtime.Object, error) {
+	return extractList(obj, false)
+}
+
+// ExtractListWithAlloc returns obj's Items element as an array of runtime.Objects.
+// the difference from ExtractList is that an object of the same type is regenerated and assigned a value,
+// so that the returned Object list and obj have independent life cycles.
+// Returns an error if obj is not a List type (does not have an Items member).
+func ExtractListWithAlloc(obj runtime.Object) ([]runtime.Object, error) {
+	return extractList(obj, true)
+}
+
+func extractList(obj runtime.Object, allocNew bool) ([]runtime.Object, error) {
 	itemsPtr, err := GetItemsPtr(obj)
 	if err != nil {
 		return nil, err
@@ -195,9 +207,18 @@ func ExtractList(obj runtime.Object) ([]runtime.Object, error) {
 			item := raw.Interface().(runtime.Object)
 			list[i] = item
 		default:
-			var found bool
-			if list[i], found = raw.Addr().Interface().(runtime.Object); !found {
-				return nil, fmt.Errorf("%v: item[%v]: Expected object, got %#v(%s)", obj, i, raw.Interface(), raw.Kind())
+			if allocNew {
+				if !reflect.PointerTo(raw.Type()).Implements(objectType) {
+					return nil, fmt.Errorf("%v: item[%v]: Expected object, got %#v(%s)", obj, i, raw.Interface(), raw.Kind())
+				}
+				new := reflect.New(raw.Type())
+				new.Elem().Set(raw)
+				list[i] = new.Interface().(runtime.Object)
+			} else {
+				var found bool
+				if list[i], found = raw.Addr().Interface().(runtime.Object); !found {
+					return nil, fmt.Errorf("%v: item[%v]: Expected object, got %#v(%s)", obj, i, raw.Interface(), raw.Kind())
+				}
 			}
 		}
 	}
