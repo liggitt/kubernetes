@@ -179,8 +179,9 @@ func ExtractList(obj runtime.Object) ([]runtime.Object, error) {
 	list := make([]runtime.Object, items.Len())
 	for i := range list {
 		raw := items.Index(i)
-		switch item := raw.Interface().(type) {
-		case runtime.RawExtension:
+		switch {
+		case raw.Type() == rawExtensionObject:
+			item := raw.Interface().(runtime.RawExtension)
 			switch {
 			case item.Object != nil:
 				list[i] = item.Object
@@ -190,7 +191,8 @@ func ExtractList(obj runtime.Object) ([]runtime.Object, error) {
 			default:
 				list[i] = nil
 			}
-		case runtime.Object:
+		case raw.Type().Implements(objectType):
+			item := raw.Interface().(runtime.Object)
 			list[i] = item
 		default:
 			var found bool
@@ -202,8 +204,12 @@ func ExtractList(obj runtime.Object) ([]runtime.Object, error) {
 	return list, nil
 }
 
-// objectSliceType is the type of a slice of Objects
-var objectSliceType = reflect.TypeOf([]runtime.Object{})
+var (
+	// objectSliceType is the type of a slice of Objects
+	objectSliceType    = reflect.TypeOf([]runtime.Object{})
+	objectType         = reflect.TypeOf((*runtime.Object)(nil)).Elem()
+	rawExtensionObject = reflect.TypeOf(runtime.RawExtension{})
+)
 
 // LenList returns the length of this list or 0 if it is not a list.
 func LenList(list runtime.Object) int {
