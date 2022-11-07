@@ -18,6 +18,7 @@ package validatingadmissionpolicybinding
 
 import (
 	"context"
+
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -27,28 +28,33 @@ import (
 	"k8s.io/kubernetes/pkg/apis/admissionregistration/validation"
 )
 
-// ValidatingAdmissionPolicyBindingStrategy implements verification logic for ValidatingAdmissionPolicyBinding.
-type ValidatingAdmissionPolicyBindingStrategy struct {
+// validatingAdmissionPolicyBindingStrategy implements verification logic for ValidatingAdmissionPolicyBinding.
+type validatingAdmissionPolicyBindingStrategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
 }
 
-// Strategy is the default logic that applies when creating and updating ValidatingAdmissionPolicyBinding objects.
-var Strategy = ValidatingAdmissionPolicyBindingStrategy{legacyscheme.Scheme, names.SimpleNameGenerator}
+// NewStrategy is the default logic that applies when creating and updating ValidatingAdmissionPolicyBinding objects.
+func NewStrategy() *validatingAdmissionPolicyBindingStrategy {
+	return &validatingAdmissionPolicyBindingStrategy{
+		ObjectTyper:   legacyscheme.Scheme,
+		NameGenerator: names.SimpleNameGenerator,
+	}
+}
 
 // NamespaceScoped returns false because ValidatingAdmissionPolicyBinding is cluster-scoped resource.
-func (ValidatingAdmissionPolicyBindingStrategy) NamespaceScoped() bool {
+func (v *validatingAdmissionPolicyBindingStrategy) NamespaceScoped() bool {
 	return false
 }
 
 // PrepareForCreate clears the status of an ValidatingAdmissionPolicyBinding before creation.
-func (ValidatingAdmissionPolicyBindingStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
+func (v *validatingAdmissionPolicyBindingStrategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	ic := obj.(*admissionregistration.ValidatingAdmissionPolicyBinding)
 	ic.Generation = 1
 }
 
 // PrepareForUpdate clears fields that are not allowed to be set by end users on update.
-func (ValidatingAdmissionPolicyBindingStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+func (v *validatingAdmissionPolicyBindingStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newIC := obj.(*admissionregistration.ValidatingAdmissionPolicyBinding)
 	oldIC := old.(*admissionregistration.ValidatingAdmissionPolicyBinding)
 
@@ -61,36 +67,36 @@ func (ValidatingAdmissionPolicyBindingStrategy) PrepareForUpdate(ctx context.Con
 }
 
 // Validate validates a new ValidatingAdmissionPolicyBinding.
-func (ValidatingAdmissionPolicyBindingStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (v *validatingAdmissionPolicyBindingStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	return validation.ValidateValidatingAdmissionPolicyBinding(obj.(*admissionregistration.ValidatingAdmissionPolicyBinding))
 }
 
 // WarningsOnCreate returns warnings for the creation of the given object.
-func (ValidatingAdmissionPolicyBindingStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
+func (v *validatingAdmissionPolicyBindingStrategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
 	return nil
 }
 
 // Canonicalize normalizes the object after validation.
-func (ValidatingAdmissionPolicyBindingStrategy) Canonicalize(obj runtime.Object) {
+func (v *validatingAdmissionPolicyBindingStrategy) Canonicalize(obj runtime.Object) {
 }
 
 // AllowCreateOnUpdate is true for ValidatingAdmissionPolicyBinding; this means you may create one with a PUT request.
-func (ValidatingAdmissionPolicyBindingStrategy) AllowCreateOnUpdate() bool {
+func (v *validatingAdmissionPolicyBindingStrategy) AllowCreateOnUpdate() bool {
 	return false
 }
 
 // ValidateUpdate is the default update validation for an end user.
-func (ValidatingAdmissionPolicyBindingStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (v *validatingAdmissionPolicyBindingStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	return validation.ValidateValidatingAdmissionPolicyBindingUpdate(obj.(*admissionregistration.ValidatingAdmissionPolicyBinding), old.(*admissionregistration.ValidatingAdmissionPolicyBinding))
 }
 
 // WarningsOnUpdate returns warnings for the given update.
-func (ValidatingAdmissionPolicyBindingStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
+func (v *validatingAdmissionPolicyBindingStrategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
 	return nil
 }
 
 // AllowUnconditionalUpdate is the default update policy for ValidatingAdmissionPolicyBinding objects. Status update should
 // only be allowed if version match.
-func (ValidatingAdmissionPolicyBindingStrategy) AllowUnconditionalUpdate() bool {
+func (v *validatingAdmissionPolicyBindingStrategy) AllowUnconditionalUpdate() bool {
 	return false
 }
