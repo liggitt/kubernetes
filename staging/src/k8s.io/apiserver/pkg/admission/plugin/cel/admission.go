@@ -116,11 +116,11 @@ func (c *celAdmissionPlugin) InspectFeatureGates(featureGates featuregate.Featur
 
 // ValidateInitialization - once clientset and informer factory are provided, creates and starts the admission controller
 func (c *celAdmissionPlugin) ValidateInitialization() error {
-	if !c.enabled {
-		return nil
-	}
 	if !c.inspectedFeatureGates {
 		return fmt.Errorf("%s did not see feature gates", PluginName)
+	}
+	if !c.enabled {
+		return nil
 	}
 	if c.informerFactory == nil {
 		return errors.New("missing informer factory")
