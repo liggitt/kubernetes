@@ -36,16 +36,13 @@ import (
 // REST implements a RESTStorage for policyBinding against etcd
 type REST struct {
 	*genericregistry.Store
-	authorizer       authorizer.Authorizer
-	resourceResolver resolver.ResourceResolver
-	policyGetter     PolicyGetter
 }
 
 var groupResource = admissionregistration.Resource("validatingadmissionpolicybindings")
 
 // NewREST returns a RESTStorage object that will work against policyBinding.
 func NewREST(optsGetter generic.RESTOptionsGetter, authorizer authorizer.Authorizer, policyGetter PolicyGetter, resourceResolver resolver.ResourceResolver) (*REST, error) {
-	r := &REST{authorizer: authorizer, policyGetter: policyGetter, resourceResolver: resourceResolver}
+	r := &REST{}
 	strategy := validatingadmissionpolicybinding.NewStrategy(authorizer, policyGetter, resourceResolver)
 	store := &genericregistry.Store{
 		NewFunc:     func() runtime.Object { return &admissionregistration.ValidatingAdmissionPolicyBinding{} },
@@ -58,12 +55,7 @@ func NewREST(optsGetter generic.RESTOptionsGetter, authorizer authorizer.Authori
 		CreateStrategy: strategy,
 		UpdateStrategy: strategy,
 		DeleteStrategy: strategy,
-		BeginCreate: func(ctx context.Context, obj runtime.Object, options *metav1.CreateOptions) (genericregistry.FinishFunc, error) {
-			return r.beginCreate(ctx, obj, options)
-		},
-		BeginUpdate: func(ctx context.Context, obj, old runtime.Object, options *metav1.UpdateOptions) (genericregistry.FinishFunc, error) {
-			return r.beginUpdate(ctx, obj, old, options)
-		},
+
 		TableConvertor: printerstorage.TableConvertor{TableGenerator: printers.NewTableGenerator().With(printersinternal.AddHandlers)},
 	}
 	options := &generic.StoreOptions{RESTOptions: optsGetter}

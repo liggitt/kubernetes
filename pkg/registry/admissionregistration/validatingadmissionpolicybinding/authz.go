@@ -14,74 +14,53 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package storage
+package validatingadmissionpolicybinding
 
 import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
-	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/kubernetes/pkg/apis/admissionregistration"
 	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
 )
 
-func (r *REST) beginCreate(ctx context.Context, obj runtime.Object, options *metav1.CreateOptions) (genericregistry.FinishFunc, error) {
-	// for superuser, skip all checks
-	if rbacregistry.EscalationAllowed(ctx) {
-		return noop, nil
-	}
-
+func (v *validatingAdmissionPolicyBindingStrategy) authorizeCreate(ctx context.Context, obj runtime.Object) error {
 	binding := obj.(*admissionregistration.ValidatingAdmissionPolicyBinding)
-	if err := r.authorize(ctx, binding); err != nil {
-		return nil, errors.NewForbidden(groupResource, binding.Name, err)
-	}
-	return noop, nil
-}
-
-func (r *REST) beginUpdate(ctx context.Context, obj, old runtime.Object, options *metav1.UpdateOptions) (genericregistry.FinishFunc, error) {
-	// for superuser, skip all checks
-	if rbacregistry.EscalationAllowed(ctx) {
-		return noop, nil
-	}
-
-	binding := obj.(*admissionregistration.ValidatingAdmissionPolicyBinding)
-	oldBinding := old.(*admissionregistration.ValidatingAdmissionPolicyBinding)
-
-	// both nil, no change
-	if binding.Spec.ParamRef == nil && oldBinding.Spec.ParamRef == nil {
-		return noop, nil
-	}
-
-	// both non-nil but equivalent
-	if binding.Spec.ParamRef != nil && oldBinding.Spec.ParamRef != nil &&
-		binding.Spec.ParamRef.Name == oldBinding.Spec.ParamRef.Name &&
-		binding.Spec.ParamRef.Namespace == oldBinding.Spec.ParamRef.Namespace {
-		return noop, nil
-	}
-
-	// if the binding has no ParamRef, no EXTRA permissions are checked
 	if binding.Spec.ParamRef == nil {
-		return noop, nil
-	}
-
-	// changed, authorize
-	if err := r.authorize(ctx, binding); err != nil {
-		return nil, errors.NewForbidden(groupResource, binding.Name, err)
-	}
-	return noop, nil
-}
-
-func (r *REST) authorize(ctx context.Context, binding *admissionregistration.ValidatingAdmissionPolicyBinding) error {
-	if r.authorizer == nil {
+		// no paramRef in new object
 		return nil
 	}
+
+	return v.authorize(ctx, binding)
+}
+
+func (v *validatingAdmissionPolicyBindingStrategy) authorizeUpdate(ctx context.Context, obj, old runtime.Object) error {
+	binding := obj.(*admissionregistration.ValidatingAdmissionPolicyBinding)
 	if binding.Spec.ParamRef == nil {
+		// no paramRef in new object
+		return nil
+	}
+
+	oldBinding := old.(*admissionregistration.ValidatingAdmissionPolicyBinding)
+	if oldBinding.Spec.ParamRef != nil && *oldBinding.Spec.ParamRef == *binding.Spec.ParamRef && oldBinding.Spec.PolicyName == binding.Spec.PolicyName {
+		// identical paramRef and policy to old object
+		return nil
+	}
+
+	return v.authorize(ctx, binding)
+}
+
+func (v *validatingAdmissionPolicyBindingStrategy) authorize(ctx context.Context, binding *admissionregistration.ValidatingAdmissionPolicyBinding) error {
+	if v.authorizer == nil || v.resourceResolver == nil || binding.Spec.ParamRef == nil {
+		return nil
+	}
+
+	// for superuser, skip all checks
+	if rbacregistry.EscalationAllowed(ctx) {
 		return nil
 	}
 
@@ -93,13 +72,13 @@ func (r *REST) authorize(ctx context.Context, binding *admissionregistration.Val
 	// default to requiring permissions on all group/version/resources
 	resource, apiGroup, apiVersion := "*", "*", "*"
 
-	if policy, err := r.policyGetter.GetValidatingAdmissionPolicy(ctx, binding.Spec.PolicyName); err == nil && policy.Spec.ParamKind != nil {
+	if policy, err := v.policyGetter.GetValidatingAdmissionPolicy(ctx, binding.Spec.PolicyName); err == nil && policy.Spec.ParamKind != nil {
 		paramKind := policy.Spec.ParamKind
 		if gv, err := schema.ParseGroupVersion(paramKind.APIVersion); err == nil {
 			// we only need to authorize the parsed group/version
 			apiGroup = gv.Group
 			apiVersion = gv.Version
-			if gvr, err := r.resourceResolver.Resolve(gv.WithKind(paramKind.Kind)); err == nil {
+			if gvr, err := v.resourceResolver.Resolve(gv.WithKind(paramKind.Kind)); err == nil {
 				// we only need to authorize the resolved resource
 				resource = gvr.Resource
 			}
@@ -120,16 +99,12 @@ func (r *REST) authorize(ctx context.Context, binding *admissionregistration.Val
 		Resource:        resource,
 	}
 
-	d, _, err := r.authorizer.Authorize(ctx, attrs)
+	d, _, err := v.authorizer.Authorize(ctx, attrs)
 	if err != nil {
 		return err
 	}
 	if d != authorizer.DecisionAllow {
-		return fmt.Errorf(`user %v must have "get" permission on object of the referenced paramRef %s`, user, paramRef)
+		return fmt.Errorf(`user %v does not have "get" permission on the object referenced by paramRef`, user)
 	}
 	return nil
 }
-
-func noop(context.Context, bool) {}
-
-var _ genericregistry.FinishFunc = noop
