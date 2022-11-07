@@ -25,7 +25,7 @@ import (
 )
 
 func TestPolicyBindingStrategy(t *testing.T) {
-	strategy := NewStrategy()
+	strategy := NewStrategy(nil, nil, nil)
 	ctx := genericapirequest.NewDefaultContext()
 	if strategy.NamespaceScoped() {
 		t.Error("PolicyBinding strategy must be cluster scoped")

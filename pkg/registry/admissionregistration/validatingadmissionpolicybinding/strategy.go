@@ -22,23 +22,37 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/storage/names"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/apis/admissionregistration"
 	"k8s.io/kubernetes/pkg/apis/admissionregistration/validation"
+	"k8s.io/kubernetes/pkg/registry/admissionregistration/resolver"
 )
 
 // validatingAdmissionPolicyBindingStrategy implements verification logic for ValidatingAdmissionPolicyBinding.
 type validatingAdmissionPolicyBindingStrategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
+	authorizer       authorizer.Authorizer
+	policyGetter     PolicyGetter
+	resourceResolver resolver.ResourceResolver
+}
+
+type PolicyGetter interface {
+	// GetValidatingAdmissionPolicy returns a GetValidatingAdmissionPolicy
+	// by its name. There is no namespace because it is cluster-scoped.
+	GetValidatingAdmissionPolicy(ctx context.Context, name string) (*admissionregistration.ValidatingAdmissionPolicy, error)
 }
 
 // NewStrategy is the default logic that applies when creating and updating ValidatingAdmissionPolicyBinding objects.
-func NewStrategy() *validatingAdmissionPolicyBindingStrategy {
+func NewStrategy(authorizer authorizer.Authorizer, policyGetter PolicyGetter, resourceResolver resolver.ResourceResolver) *validatingAdmissionPolicyBindingStrategy {
 	return &validatingAdmissionPolicyBindingStrategy{
-		ObjectTyper:   legacyscheme.Scheme,
-		NameGenerator: names.SimpleNameGenerator,
+		ObjectTyper:      legacyscheme.Scheme,
+		NameGenerator:    names.SimpleNameGenerator,
+		authorizer:       authorizer,
+		policyGetter:     policyGetter,
+		resourceResolver: resourceResolver,
 	}
 }
 

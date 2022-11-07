@@ -25,7 +25,7 @@ import (
 )
 
 func TestValidatingAdmissionPolicyStrategy(t *testing.T) {
-	strategy := NewStrategy()
+	strategy := NewStrategy(nil, nil)
 	ctx := genericapirequest.NewDefaultContext()
 	if strategy.NamespaceScoped() {
 		t.Error("ValidatingAdmissionPolicy strategy must be cluster scoped")

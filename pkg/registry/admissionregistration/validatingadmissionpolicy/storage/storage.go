@@ -45,7 +45,7 @@ var groupResource = admissionregistration.Resource("validatingadmissionpolicies"
 // NewREST returns a RESTStorage object that will work against validatingAdmissionPolicy.
 func NewREST(optsGetter generic.RESTOptionsGetter, authorizer authorizer.Authorizer, resourceResolver resolver.ResourceResolver) (*REST, error) {
 	r := &REST{authorizer: authorizer, resourceResolver: resourceResolver}
-	strategy := validatingadmissionpolicy.NewStrategy()
+	strategy := validatingadmissionpolicy.NewStrategy(authorizer, resourceResolver)
 	store := &genericregistry.Store{
 		NewFunc:     func() runtime.Object { return &admissionregistration.ValidatingAdmissionPolicy{} },
 		NewListFunc: func() runtime.Object { return &admissionregistration.ValidatingAdmissionPolicyList{} },
