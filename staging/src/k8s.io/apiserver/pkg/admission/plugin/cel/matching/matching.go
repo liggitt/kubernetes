@@ -67,37 +67,48 @@ func (m *Matcher) ValidateInitialization() error {
 }
 
 func (m *Matcher) Matches(attr admission.Attributes, o admission.ObjectInterfaces, criteria MatchCriteria) (bool, schema.GroupVersionKind, error) {
-	matches, err := m.namespaceMatcher.MatchNamespaceSelector(criteria, attr)
+	matches, matchNsErr := m.namespaceMatcher.MatchNamespaceSelector(criteria, attr)
 	// Should not return an error here for policy which do not apply to the request, even if err is an unexpected scenario.
-	if !matches && err == nil {
+	if !matches && matchNsErr == nil {
 		return false, schema.GroupVersionKind{}, nil
 	}
 
-	matches, err = m.objectMatcher.MatchObjectSelector(criteria, attr)
+	matches, matchObjErr := m.objectMatcher.MatchObjectSelector(criteria, attr)
 	// Should not return an error here for policy which do not apply to the request, even if err is an unexpected scenario.
-	if !matches && err == nil {
+	if !matches && matchObjErr == nil {
 		return false, schema.GroupVersionKind{}, nil
 	}
 
 	matchResources := criteria.GetMatchResources()
 	matchPolicy := matchResources.MatchPolicy
-	isMatch, _, matchErr := matchesResourceRules(matchResources.ExcludeResourceRules, matchPolicy, attr, o)
-	if matchErr != nil {
-		return false, schema.GroupVersionKind{}, matchErr
-	}
-	if isMatch {
-		return false, schema.GroupVersionKind{}, nil
+	if isExcluded, _, err := matchesResourceRules(matchResources.ExcludeResourceRules, matchPolicy, attr, o); isExcluded || err != nil {
+		return false, schema.GroupVersionKind{}, err
 	}
 
+	var (
+		isMatch   bool
+		matchKind schema.GroupVersionKind
+		matchErr  error
+	)
 	if len(matchResources.ResourceRules) == 0 {
-		return true, attr.GetKind(), nil
+		isMatch = true
+		matchKind = attr.GetKind()
+	} else {
+		isMatch, matchKind, matchErr = matchesResourceRules(matchResources.ResourceRules, matchPolicy, attr, o)
 	}
-	isMatch, matchKind, matchErr := matchesResourceRules(matchResources.ResourceRules, matchPolicy, attr, o)
 	if matchErr != nil {
 		return false, schema.GroupVersionKind{}, matchErr
 	}
 	if !isMatch {
 		return false, schema.GroupVersionKind{}, nil
+	}
+
+	// now that we know this applies to this request otherwise, if there were selector errors, return them
+	if matchNsErr != nil {
+		return false, schema.GroupVersionKind{}, matchNsErr
+	}
+	if matchObjErr != nil {
+		return false, schema.GroupVersionKind{}, matchObjErr
 	}
 
 	return true, matchKind, nil

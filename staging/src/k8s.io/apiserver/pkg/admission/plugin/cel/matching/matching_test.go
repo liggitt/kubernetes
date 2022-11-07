@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	v1 "k8s.io/api/admissionregistration/v1"
-
 	"k8s.io/api/admissionregistration/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +32,7 @@ import (
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/namespace"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/predicates/object"
+	"k8s.io/apiserver/pkg/apis/example"
 )
 
 var _ MatchCriteria = &fakeCriteria{}
@@ -459,6 +459,70 @@ func TestMatcher(t *testing.T) {
 			},
 			attrs:         admission.NewAttributesRecord(nil, nil, schema.GroupVersionKind{"autoscaling", "v1", "Scale"}, "ns", "name", schema.GroupVersionResource{"apps", "v1", "deployments"}, "", admission.Create, &metav1.CreateOptions{}, false, nil),
 			expectMatches: false,
+		},
+		{
+			name: "erroring namespace selector on otherwise non-matching rule doesn't error",
+			criteria: &v1alpha1.MatchResources{
+				NamespaceSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "key ", Operator: "In", Values: []string{"bad value"}}}},
+				ObjectSelector:    &metav1.LabelSelector{},
+				ResourceRules: []v1alpha1.NamedRuleWithOperations{{
+					RuleWithOperations: v1alpha1.RuleWithOperations{
+						Rule:       v1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"deployments"}},
+						Operations: []v1alpha1.OperationType{"*"},
+					},
+				}},
+			},
+			attrs:         admission.NewAttributesRecord(&example.Pod{}, nil, schema.GroupVersionKind{"example.apiserver.k8s.io", "v1", "Pod"}, "ns", "name", schema.GroupVersionResource{"example.apiserver.k8s.io", "v1", "pods"}, "", admission.Create, &metav1.CreateOptions{}, false, nil),
+			expectMatches: false,
+			expectErr:     "",
+		},
+		{
+			name: "erroring namespace selector on otherwise matching rule errors",
+			criteria: &v1alpha1.MatchResources{
+				NamespaceSelector: &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "key", Operator: "In", Values: []string{"bad value"}}}},
+				ObjectSelector:    &metav1.LabelSelector{},
+				ResourceRules: []v1alpha1.NamedRuleWithOperations{{
+					RuleWithOperations: v1alpha1.RuleWithOperations{
+						Rule:       v1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"pods"}},
+						Operations: []v1alpha1.OperationType{"*"},
+					},
+				}},
+			},
+			attrs:         admission.NewAttributesRecord(&example.Pod{}, nil, schema.GroupVersionKind{"example.apiserver.k8s.io", "v1", "Pod"}, "ns", "name", schema.GroupVersionResource{"example.apiserver.k8s.io", "v1", "pods"}, "", admission.Create, &metav1.CreateOptions{}, false, nil),
+			expectMatches: false,
+			expectErr:     "bad value",
+		},
+		{
+			name: "erroring object selector on otherwise non-matching rule doesn't error",
+			criteria: &v1alpha1.MatchResources{
+				NamespaceSelector: &metav1.LabelSelector{},
+				ObjectSelector:    &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "key", Operator: "In", Values: []string{"bad value"}}}},
+				ResourceRules: []v1alpha1.NamedRuleWithOperations{{
+					RuleWithOperations: v1alpha1.RuleWithOperations{
+						Rule:       v1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"deployments"}},
+						Operations: []v1alpha1.OperationType{"*"},
+					},
+				}},
+			},
+			attrs:         admission.NewAttributesRecord(&example.Pod{}, nil, schema.GroupVersionKind{"example.apiserver.k8s.io", "v1", "Pod"}, "ns", "name", schema.GroupVersionResource{"example.apiserver.k8s.io", "v1", "pods"}, "", admission.Create, &metav1.CreateOptions{}, false, nil),
+			expectMatches: false,
+			expectErr:     "",
+		},
+		{
+			name: "erroring object selector on otherwise matching rule errors",
+			criteria: &v1alpha1.MatchResources{
+				NamespaceSelector: &metav1.LabelSelector{},
+				ObjectSelector:    &metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{{Key: "key", Operator: "In", Values: []string{"bad value"}}}},
+				ResourceRules: []v1alpha1.NamedRuleWithOperations{{
+					RuleWithOperations: v1alpha1.RuleWithOperations{
+						Rule:       v1alpha1.Rule{APIGroups: []string{"*"}, APIVersions: []string{"*"}, Resources: []string{"pods"}},
+						Operations: []v1alpha1.OperationType{"*"},
+					},
+				}},
+			},
+			attrs:         admission.NewAttributesRecord(&example.Pod{}, nil, schema.GroupVersionKind{"example.apiserver.k8s.io", "v1", "Pod"}, "ns", "name", schema.GroupVersionResource{"example.apiserver.k8s.io", "v1", "pods"}, "", admission.Create, &metav1.CreateOptions{}, false, nil),
+			expectMatches: false,
+			expectErr:     "bad value",
 		},
 	}
 
