@@ -17,9 +17,6 @@ limitations under the License.
 package storage
 
 import (
-	"context"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/registry/generic"
@@ -36,15 +33,13 @@ import (
 // REST implements a RESTStorage for validatingAdmissionPolicy against etcd
 type REST struct {
 	*genericregistry.Store
-	authorizer       authorizer.Authorizer
-	resourceResolver resolver.ResourceResolver
 }
 
 var groupResource = admissionregistration.Resource("validatingadmissionpolicies")
 
 // NewREST returns a RESTStorage object that will work against validatingAdmissionPolicy.
 func NewREST(optsGetter generic.RESTOptionsGetter, authorizer authorizer.Authorizer, resourceResolver resolver.ResourceResolver) (*REST, error) {
-	r := &REST{authorizer: authorizer, resourceResolver: resourceResolver}
+	r := &REST{}
 	strategy := validatingadmissionpolicy.NewStrategy(authorizer, resourceResolver)
 	store := &genericregistry.Store{
 		NewFunc:     func() runtime.Object { return &admissionregistration.ValidatingAdmissionPolicy{} },
@@ -57,13 +52,6 @@ func NewREST(optsGetter generic.RESTOptionsGetter, authorizer authorizer.Authori
 		CreateStrategy: strategy,
 		UpdateStrategy: strategy,
 		DeleteStrategy: strategy,
-
-		BeginCreate: func(ctx context.Context, obj runtime.Object, options *metav1.CreateOptions) (genericregistry.FinishFunc, error) {
-			return r.beginCreate(ctx, obj, options)
-		},
-		BeginUpdate: func(ctx context.Context, obj, old runtime.Object, options *metav1.UpdateOptions) (genericregistry.FinishFunc, error) {
-			return r.beginUpdate(ctx, obj, old, options)
-		},
 
 		TableConvertor: printerstorage.TableConvertor{TableGenerator: printers.NewTableGenerator().With(printersinternal.AddHandlers)},
 	}

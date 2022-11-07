@@ -14,21 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package storage
+package validatingadmissionpolicy
 
 import (
 	"context"
 	"testing"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/endpoints/request"
-	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/apiserver/pkg/registry/rest/resttest"
-	"k8s.io/kubernetes/pkg/apis/admissionregistration"
 	"k8s.io/kubernetes/pkg/registry/admissionregistration/resolver"
 )
 
@@ -86,27 +81,22 @@ func TestAuthorization(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			storage, server := newStorage(t, tc.auth, tc.resourceResolver)
-			defer server.Terminate(t)
-			defer storage.Store.DestroyFunc()
-			test := resttest.New(t, storage).ClusterScope()
+			strategy := NewStrategy(tc.auth, tc.resourceResolver)
 			t.Run("create", func(t *testing.T) {
-				ctx := request.WithUser(test.TestContext(), tc.userInfo)
-				_, err := storage.Create(ctx, validValidatingAdmissionPolicy(), rest.ValidateAllObjectFunc, &metav1.CreateOptions{})
-				if (err != nil) != tc.expectErr {
-					t.Errorf("expected error: %v but got error: %v", tc.expectErr, err)
+				ctx := request.WithUser(context.Background(), tc.userInfo)
+				errs := strategy.Validate(ctx, validValidatingAdmissionPolicy())
+				if len(errs) > 0 != tc.expectErr {
+					t.Errorf("expected error: %v but got error: %v", tc.expectErr, errs)
 				}
 			})
 			t.Run("update", func(t *testing.T) {
-				ctx := request.WithUser(test.TestContext(), tc.userInfo)
+				ctx := request.WithUser(context.Background(), tc.userInfo)
 				obj := validValidatingAdmissionPolicy()
-				_, _, err := storage.Update(ctx, obj.Name, rest.DefaultUpdatedObjectInfo(obj, func(ctx context.Context, newObj runtime.Object, oldObj runtime.Object) (transformedNewObj runtime.Object, err error) {
-					object := oldObj.(*admissionregistration.ValidatingAdmissionPolicy)
-					object.Labels = map[string]string{"c": "d"}
-					return object, nil
-				}), rest.ValidateAllObjectFunc, rest.ValidateAllObjectUpdateFunc, false, &metav1.UpdateOptions{})
-				if (err != nil) != tc.expectErr {
-					t.Errorf("expected error: %v but got error: %v", tc.expectErr, err)
+				objWithUpdatedParamKind := obj.DeepCopy()
+				objWithUpdatedParamKind.Spec.ParamKind.APIVersion += "1"
+				errs := strategy.ValidateUpdate(ctx, obj, objWithUpdatedParamKind)
+				if len(errs) > 0 != tc.expectErr {
+					t.Errorf("expected error: %v but got error: %v", tc.expectErr, errs)
 				}
 			})
 		})

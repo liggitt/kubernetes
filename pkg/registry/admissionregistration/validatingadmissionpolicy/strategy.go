@@ -74,7 +74,14 @@ func (v *validatingAdmissionPolicyStrategy) PrepareForUpdate(ctx context.Context
 
 // Validate validates a new validatingAdmissionPolicy.
 func (v *validatingAdmissionPolicyStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
-	return validation.ValidateValidatingAdmissionPolicy(obj.(*admissionregistration.ValidatingAdmissionPolicy))
+	errs := validation.ValidateValidatingAdmissionPolicy(obj.(*admissionregistration.ValidatingAdmissionPolicy))
+	if len(errs) == 0 {
+		// if the object is well-formed, also authorize the paramKind
+		if err := v.authorizeCreate(ctx, obj); err != nil {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "paramKind"), err.Error()))
+		}
+	}
+	return errs
 }
 
 // WarningsOnCreate returns warnings for the creation of the given object.
@@ -93,7 +100,14 @@ func (v *validatingAdmissionPolicyStrategy) AllowCreateOnUpdate() bool {
 
 // ValidateUpdate is the default update validation for an end user.
 func (v *validatingAdmissionPolicyStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	return validation.ValidateValidatingAdmissionPolicyUpdate(obj.(*admissionregistration.ValidatingAdmissionPolicy), old.(*admissionregistration.ValidatingAdmissionPolicy))
+	errs := validation.ValidateValidatingAdmissionPolicyUpdate(obj.(*admissionregistration.ValidatingAdmissionPolicy), old.(*admissionregistration.ValidatingAdmissionPolicy))
+	if len(errs) == 0 {
+		// if the object is well-formed, also authorize the paramKind
+		if err := v.authorizeUpdate(ctx, obj, old); err != nil {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "paramKind"), err.Error()))
+		}
+	}
+	return errs
 }
 
 // WarningsOnUpdate returns warnings for the given update.

@@ -14,73 +14,59 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package storage
+package validatingadmissionpolicy
 
 import (
 	"context"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
-	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/kubernetes/pkg/apis/admissionregistration"
 	rbacregistry "k8s.io/kubernetes/pkg/registry/rbac"
 )
 
-func (r *REST) beginCreate(ctx context.Context, obj runtime.Object, options *metav1.CreateOptions) (genericregistry.FinishFunc, error) {
-	// for superuser, skip all checks
-	if rbacregistry.EscalationAllowed(ctx) {
-		return noop, nil
-	}
-
+func (v *validatingAdmissionPolicyStrategy) authorizeCreate(ctx context.Context, obj runtime.Object) error {
 	policy := obj.(*admissionregistration.ValidatingAdmissionPolicy)
-	if err := r.authorize(ctx, policy); err != nil {
-		return nil, errors.NewForbidden(groupResource, policy.Name, err)
-	}
-	return noop, nil
-}
-
-func (r *REST) beginUpdate(ctx context.Context, obj, old runtime.Object, options *metav1.UpdateOptions) (genericregistry.FinishFunc, error) {
-	// for superuser, skip all checks
-	if rbacregistry.EscalationAllowed(ctx) {
-		return noop, nil
-	}
-
-	policy := obj.(*admissionregistration.ValidatingAdmissionPolicy)
-	oldPolicy := old.(*admissionregistration.ValidatingAdmissionPolicy)
-
-	// if the policy has no paramKind, no extra authorization is required
 	if policy.Spec.ParamKind == nil {
-		return noop, nil
-	}
-
-	// if the new policy has the same paramKind as the old policy, no extra authorization is required
-	if oldPolicy.Spec.ParamKind != nil && *oldPolicy.Spec.ParamKind == *policy.Spec.ParamKind {
-		return noop, nil
-	}
-
-	// changed, authorize
-	if err := r.authorize(ctx, policy); err != nil {
-		return nil, errors.NewForbidden(groupResource, policy.Name, err)
-	}
-	return noop, nil
-}
-
-func (r *REST) authorize(ctx context.Context, policy *admissionregistration.ValidatingAdmissionPolicy) error {
-	if r.authorizer == nil {
+		// no paramRef in new object
 		return nil
 	}
+
+	return v.authorize(ctx, policy)
+}
+
+func (v *validatingAdmissionPolicyStrategy) authorizeUpdate(ctx context.Context, obj, old runtime.Object) error {
+	policy := obj.(*admissionregistration.ValidatingAdmissionPolicy)
 	if policy.Spec.ParamKind == nil {
+		// no paramRef in new object
+		return nil
+	}
+
+	oldPolicy := old.(*admissionregistration.ValidatingAdmissionPolicy)
+	if oldPolicy.Spec.ParamKind != nil && *oldPolicy.Spec.ParamKind == *policy.Spec.ParamKind {
+		// identical paramKind to old object
+		return nil
+	}
+
+	return v.authorize(ctx, policy)
+}
+
+func (v *validatingAdmissionPolicyStrategy) authorize(ctx context.Context, policy *admissionregistration.ValidatingAdmissionPolicy) error {
+	if v.authorizer == nil || policy.Spec.ParamKind == nil {
+		return nil
+	}
+
+	// for superuser, skip all checks
+	if rbacregistry.EscalationAllowed(ctx) {
 		return nil
 	}
 
 	user, ok := genericapirequest.UserFrom(ctx)
 	if !ok {
-		return fmt.Errorf("cannot identify user to authorize read access to kind=%s, apiVersion=%s", policy.Spec.ParamKind.Kind, policy.Spec.ParamKind.APIVersion)
+		return fmt.Errorf("cannot identify user to authorize read access to paramKind resources")
 	}
 
 	paramKind := policy.Spec.ParamKind
@@ -90,7 +76,7 @@ func (r *REST) authorize(ctx context.Context, policy *admissionregistration.Vali
 		// we only need to authorize the parsed group/version
 		apiGroup = gv.Group
 		apiVersion = gv.Version
-		if gvr, err := r.resourceResolver.Resolve(gv.WithKind(paramKind.Kind)); err == nil {
+		if gvr, err := v.resourceResolver.Resolve(gv.WithKind(paramKind.Kind)); err == nil {
 			// we only need to authorize the resolved resource
 			resource = gvr.Resource
 		}
@@ -108,7 +94,7 @@ func (r *REST) authorize(ctx context.Context, policy *admissionregistration.Vali
 		Resource:        resource,
 	}
 
-	d, _, err := r.authorizer.Authorize(ctx, attrs)
+	d, _, err := v.authorizer.Authorize(ctx, attrs)
 	if err != nil {
 		return err
 	}
@@ -117,7 +103,3 @@ func (r *REST) authorize(ctx context.Context, policy *admissionregistration.Vali
 	}
 	return nil
 }
-
-func noop(context.Context, bool) {}
-
-var _ genericregistry.FinishFunc = noop
