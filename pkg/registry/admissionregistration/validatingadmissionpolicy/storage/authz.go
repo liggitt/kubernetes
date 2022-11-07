@@ -19,7 +19,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -75,41 +74,26 @@ func (r *REST) authorize(ctx context.Context, policy *admissionregistration.Vali
 	if r.authorizer == nil {
 		return nil
 	}
+	if policy.Spec.ParamKind == nil {
+		return nil
+	}
 
 	user, ok := genericapirequest.UserFrom(ctx)
 	if !ok {
 		return fmt.Errorf("cannot identify user to authorize read access to kind=%s, apiVersion=%s", policy.Spec.ParamKind.Kind, policy.Spec.ParamKind.APIVersion)
 	}
 
-	var resource string
-	var apiGroup string
-	var apiVersion string
-
 	paramKind := policy.Spec.ParamKind
-	gv, gvr, err := func() (schema.GroupVersion, schema.GroupVersionResource, error) {
-		gv, err := schema.ParseGroupVersion(paramKind.APIVersion)
-		if err != nil {
-			return schema.GroupVersion{}, schema.GroupVersionResource{}, err
-		}
-		gvk := gv.WithKind(paramKind.Kind)
-		gvr, err := r.resourceResolver.Resolve(gvk)
-		return gv, gvr, err
-	}()
-
-	if err != nil {
-		if len(gv.Version) == 0 {
-			klog.Infof("error parsing APIVersion in ParamKind of %s: %v", policy.Name, paramKind)
-		} else {
-			klog.Infof("error resolving paramKind of %s: %v", policy.Name, paramKind)
-		}
-		// defaults if resolution fails
-		resource = "*"
+	// default to requiring permissions on all group/version/resources
+	resource, apiGroup, apiVersion := "*", "*", "*"
+	if gv, err := schema.ParseGroupVersion(paramKind.APIVersion); err == nil {
+		// we only need to authorize the parsed group/version
 		apiGroup = gv.Group
 		apiVersion = gv.Version
-	} else {
-		resource = gvr.Resource
-		apiGroup = gvr.Group
-		apiVersion = gvr.Version
+		if gvr, err := r.resourceResolver.Resolve(gv.WithKind(paramKind.Kind)); err == nil {
+			// we only need to authorize the resolved resource
+			resource = gvr.Resource
+		}
 	}
 
 	// require that the user can read (verb "get") the referred kind.
