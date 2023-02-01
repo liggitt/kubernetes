@@ -24,6 +24,8 @@ cd "$(pwd -P)"
 KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
+kube::golang::setup_env
+
 # Explicitly opt into go modules, even though we're inside a GOPATH directory
 export GO111MODULE=on
 # Explicitly set GOFLAGS to ignore vendor, since GOFLAGS=-mod=vendor breaks dependency resolution while rebuilding vendor
@@ -37,7 +39,6 @@ if [[ "${GOPROXY:-}" == "off" ]]; then
   exit 1
 fi
 
-kube::golang::verify_go_version
 kube::util::require-jq
 
 TMP_DIR="${TMP_DIR:-$(mktemp -d /tmp/update-vendor.XXXX)}"

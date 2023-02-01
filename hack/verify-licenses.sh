@@ -27,7 +27,7 @@ source "${KUBE_ROOT}/hack/lib/init.sh"
 source "${KUBE_ROOT}/hack/lib/util.sh"
 
 
-kube::golang::verify_go_version
+kube::golang::setup_env
 kube::util::ensure-temp-dir
 
 

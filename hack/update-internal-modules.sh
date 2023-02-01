@@ -21,6 +21,8 @@ set -o pipefail
 KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
+kube::golang::setup_env
+
 # These are "internal" modules.  For various reasons, we want them to be
 # decoupled from their parent modules.
 MODULES=(
@@ -36,8 +38,6 @@ if [[ "${GOPROXY:-}" == "off" ]]; then
   kube::log::error "Cannot run hack/update-internal-modules.sh with \$GOPROXY=off"
   exit 1
 fi
-
-kube::golang::verify_go_version
 
 for mod in "${MODULES[@]}"; do
   pushd "${KUBE_ROOT}/${mod}" >/dev/null
