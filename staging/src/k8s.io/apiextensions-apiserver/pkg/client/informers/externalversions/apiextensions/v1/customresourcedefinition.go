@@ -20,6 +20,8 @@ package v1
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 	time "time"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -51,6 +53,8 @@ func NewCustomResourceDefinitionInformer(client clientset.Interface, resyncPerio
 	return NewFilteredCustomResourceDefinitionInformer(client, resyncPeriod, indexers, nil)
 }
 
+var Delay atomic.Bool
+
 // NewFilteredCustomResourceDefinitionInformer constructs a new informer for CustomResourceDefinition type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
@@ -61,19 +65,60 @@ func NewFilteredCustomResourceDefinitionInformer(client clientset.Interface, res
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ApiextensionsV1().CustomResourceDefinitions().List(context.TODO(), options)
+				result, err := client.ApiextensionsV1().CustomResourceDefinitions().List(context.TODO(), options)
+				if Delay.Load() {
+					fmt.Println("JTL: sleeping CRD list...")
+					time.Sleep(5 * time.Second)
+					fmt.Println("JTL: continuing CRD list...")
+				}
+				return result, err
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ApiextensionsV1().CustomResourceDefinitions().Watch(context.TODO(), options)
+				w, err := client.ApiextensionsV1().CustomResourceDefinitions().Watch(context.TODO(), options)
+				if Delay.Load() {
+					fmt.Println("JTL: sleeping CRD watch...")
+					time.Sleep(5 * time.Second)
+					fmt.Println("JTL: continuing CRD watch...")
+				}
+				return newDelayingWatcher(w), err
 			},
 		},
 		&apiextensionsv1.CustomResourceDefinition{},
 		resyncPeriod,
 		indexers,
 	)
+}
+
+type delayingWatcher struct {
+	watcher    watch.Interface
+	resultChan <-chan watch.Event
+}
+
+func newDelayingWatcher(watcher watch.Interface) watch.Interface {
+	source := watcher.ResultChan()
+	dest := make(chan watch.Event)
+	go func() {
+		defer close(dest)
+		for e := range source {
+			if Delay.Load() {
+				fmt.Println("JTL: sleeping CRD watch delivery...")
+				time.Sleep(5 * time.Second)
+				fmt.Println("JTL: continuing CRD watch delivery...")
+			}
+			dest <- e
+		}
+	}()
+	return &delayingWatcher{watcher: watcher, resultChan: dest}
+}
+
+func (d *delayingWatcher) ResultChan() <-chan watch.Event {
+	return d.resultChan
+}
+func (d *delayingWatcher) Stop() {
+	d.watcher.Stop()
 }
 
 func (f *customResourceDefinitionInformer) defaultInformer(client clientset.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
