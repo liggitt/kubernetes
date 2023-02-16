@@ -23,6 +23,7 @@ set -o pipefail
 
 KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 OPENAPI_ROOT_DIR="${KUBE_ROOT}/api/openapi-spec"
+OPENAPI_V3_ROOT_DIR="${KUBE_ROOT}/staging/src/k8s.io/client-go/openapi/openapitest/testdata"
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
 kube::util::require-jq
@@ -104,22 +105,23 @@ curl -w "\n" -kfsS -H 'Authorization: Bearer dummy_token' \
   | jq -S '.info.version="unversioned"' \
   > "${OPENAPI_ROOT_DIR}/swagger.json"
 
-kube::log::status "Updating " "${OPENAPI_ROOT_DIR}/v3 for OpenAPI v3"
+kube::log::status "Updating " "${OPENAPI_V3_ROOT_DIR} for OpenAPI v3"
 
-mkdir -p "${OPENAPI_ROOT_DIR}/v3"
+mkdir -p "${OPENAPI_V3_ROOT_DIR}"
 # clean up folder, note that some files start with dot like
 # ".well-known__openid-configuration_openapi.json"
-rm -r "${OPENAPI_ROOT_DIR}"/v3/{*,.*} || true
+rm -r "${OPENAPI_V3_ROOT_DIR}"/{*,.*} || true
 
-rm -rf "${OPENAPI_ROOT_DIR}/v3/*"
+rm -rf "${OPENAPI_V3_ROOT_DIR}/*"
 curl -w "\n" -kfsS -H 'Authorization: Bearer dummy_token' \
   "https://${API_HOST}:${API_PORT}/openapi/v3" \
   | jq -r '.paths | to_entries | .[].key' \
   | while read -r group; do
     kube::log::status "Updating OpenAPI spec for group ${group}"
+    # If this suffix or escaping changes, update staging/src/k8s.io/client-go/openapi/openapitest/testclient.go to match
     OPENAPI_FILENAME="${group}_openapi.json"
     OPENAPI_FILENAME_ESCAPED="${OPENAPI_FILENAME//\//__}"
-    OPENAPI_PATH="${OPENAPI_ROOT_DIR}/v3/${OPENAPI_FILENAME_ESCAPED}"
+    OPENAPI_PATH="${OPENAPI_V3_ROOT_DIR}/${OPENAPI_FILENAME_ESCAPED}"
     curl -w "\n" -kfsS -H 'Authorization: Bearer dummy_token' \
       "https://${API_HOST}:${API_PORT}/openapi/v3/{$group}" \
       | jq -S '.info.version="unversioned"' \
