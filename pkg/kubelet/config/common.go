@@ -26,7 +26,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
+	podutil "k8s.io/kubernetes/pkg/api/pod"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/core/helper"
 
@@ -127,12 +129,74 @@ func tryDecodeSinglePod(data []byte, defaultFn defaultFunc) (parsed bool, pod *v
 	if errs := validation.ValidatePodCreate(newPod, validation.PodValidationOptions{}); len(errs) > 0 {
 		return true, pod, fmt.Errorf("invalid pod: %v", errs)
 	}
+
 	v1Pod := &v1.Pod{}
 	if err := k8s_api_v1.Convert_core_Pod_To_v1_Pod(newPod, v1Pod, nil); err != nil {
 		klog.ErrorS(err, "Pod failed to convert to v1", "pod", klog.KObj(newPod))
 		return true, nil, err
 	}
+
+	// Ensure no API objects are referenced from the pod
+	if apiReferences := getAPIReferences(newPod); len(apiReferences) > 0 {
+		return true, nil, fmt.Errorf("pod %q has forbidden references to API objects: %s", pod.Name, strings.Join(apiReferences, ", "))
+	}
+
 	return true, v1Pod, nil
+}
+
+func getAPIReferences(pod *api.Pod) []string {
+	apiReferences := sets.NewString()
+	if len(pod.Spec.ServiceAccountName) > 0 {
+		apiReferences.Insert(fmt.Sprintf("ServiceAccount %q", pod.Spec.ServiceAccountName))
+	}
+	podutil.VisitPodSecretNames(pod, func(name string) (shouldContinue bool) {
+		apiReferences.Insert(fmt.Sprintf("Secret %q", name))
+		return true
+	}, podutil.AllContainers)
+	podutil.VisitPodConfigmapNames(pod, func(name string) (shouldContinue bool) {
+		apiReferences.Insert(fmt.Sprintf("ConfigMap %q", name))
+		return true
+	}, podutil.AllContainers)
+	for _, v := range pod.Spec.Volumes {
+		switch {
+		case v.AWSElasticBlockStore != nil, v.AzureDisk != nil, v.AzureFile != nil, v.CephFS != nil, v.Cinder != nil,
+			v.DownwardAPI != nil, v.EmptyDir != nil, v.FC != nil, v.FlexVolume != nil, v.Flocker != nil, v.GCEPersistentDisk != nil,
+			v.GitRepo != nil, v.Glusterfs != nil, v.HostPath != nil, v.ISCSI != nil, v.NFS != nil, v.PhotonPersistentDisk != nil,
+			v.PortworxVolume != nil, v.Quobyte != nil, v.RBD != nil, v.ScaleIO != nil, v.StorageOS != nil, v.VsphereVolume != nil:
+			// Allow volume types that don't require the Kubernetes API
+		case v.Projected != nil:
+			for _, s := range v.Projected.Sources {
+				// Reject projected volume sources that require the Kubernetes API
+				switch {
+				case s.ConfigMap != nil:
+					apiReferences.Insert(fmt.Sprintf("configMap projected volume %q", v.Name))
+				case s.Secret != nil:
+					apiReferences.Insert(fmt.Sprintf("secret projected volume %q", v.Name))
+				case s.ServiceAccountToken != nil:
+					apiReferences.Insert(fmt.Sprintf("serviceAccountToken projected volume %q", v.Name))
+				case s.DownwardAPI != nil:
+					// Allow projected volume sources that don't require the Kubernetes API
+				default:
+					// Reject unknown volume types
+					apiReferences.Insert(fmt.Sprintf("unknown source for projected volume %q", v.Name))
+				}
+			}
+		case v.ConfigMap != nil:
+			apiReferences.Insert(fmt.Sprintf("ConfigMap volume %q", v.Name))
+		case v.CSI != nil:
+			apiReferences.Insert(fmt.Sprintf("CSI volume %q", v.Name))
+		case v.Ephemeral != nil:
+			apiReferences.Insert(fmt.Sprintf("Ephemeral volume %q", v.Name))
+		case v.PersistentVolumeClaim != nil:
+			apiReferences.Insert(fmt.Sprintf("PersistentVolumeClaim volume %q", v.Name))
+		case v.Secret != nil:
+			apiReferences.Insert(fmt.Sprintf("Secret volume %q", v.Name))
+		default:
+			// Reject unknown volume types
+			apiReferences.Insert(fmt.Sprintf("unknown type for volume %q", v.Name))
+		}
+	}
+	return apiReferences.List()
 }
 
 func tryDecodePodList(data []byte, defaultFn defaultFunc) (parsed bool, pods v1.PodList, err error) {
