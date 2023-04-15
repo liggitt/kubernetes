@@ -55,7 +55,7 @@ func TestRestoreObjectMeta(t *testing.T) {
 		{"no original metadata",
 			map[string]interface{}{"spec": map[string]interface{}{}},
 			map[string]interface{}{"metadata": map[string]interface{}{}, "spec": map[string]interface{}{}},
-			map[string]interface{}{"metadata": map[string]interface{}{}, "spec": map[string]interface{}{}},
+			map[string]interface{}{"spec": map[string]interface{}{}},
 			false,
 		},
 		{"invalid original metadata",
