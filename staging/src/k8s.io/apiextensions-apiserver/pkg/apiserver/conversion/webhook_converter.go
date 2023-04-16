@@ -381,24 +381,61 @@ func validateConvertedObject(in, out *unstructured.Unstructured) error {
 
 // restoreObjectMeta deep-copies metadata from original into converted, while preserving labels and annotations from converted.
 func restoreObjectMeta(original, converted *unstructured.Unstructured) error {
-	obj, found := converted.Object["metadata"]
-	if !found {
-		return fmt.Errorf("missing metadata in converted object")
+	var (
+		originalHasMetaData bool
+		originalMetaData    map[string]interface{}
+	)
+	_, originalHasMetaData = original.Object["metadata"]
+	switch obj := original.Object["metadata"].(type) {
+	case nil:
+		originalMetaData = nil
+	case map[string]interface{}:
+		originalMetaData = obj
+	default:
+		return fmt.Errorf("invalid metadata of type %T in input object", obj)
 	}
-	responseMetaData, ok := obj.(map[string]interface{})
-	if !ok {
+
+	var (
+		responseMetaData       map[string]interface{}
+		responseHasLabels      bool
+		responseHasAnnotations bool
+	)
+	switch obj := converted.Object["metadata"].(type) {
+	case nil:
+		responseMetaData = nil
+	case map[string]interface{}:
+		responseMetaData = obj
+		_, responseHasLabels = responseMetaData["labels"]
+		_, responseHasAnnotations = responseMetaData["annotations"]
+	default:
 		return fmt.Errorf("invalid metadata of type %T in converted object", obj)
 	}
 
-	if _, ok := original.Object["metadata"]; !ok {
-		// the original will always have metadata. But just to be safe, let's clear in converted
-		// with an empty object instead of nil, to be able to add labels and annotations below.
-		converted.Object["metadata"] = map[string]interface{}{}
-	} else {
-		converted.Object["metadata"] = runtime.DeepCopyJSONValue(original.Object["metadata"])
+	if originalMetaData != nil && responseMetaData == nil {
+		return fmt.Errorf("missing metadata in converted object")
 	}
 
-	obj = converted.Object["metadata"]
+	if originalMetaData == nil && !responseHasLabels && !responseHasAnnotations {
+		// Input object did not populate metadata, and the response isn't trying to set labels or annotations.
+		// Revert to the input object metadata entry.
+		if originalHasMetaData {
+			converted.Object["metadata"] = nil
+		} else {
+			delete(converted.Object, "metadata")
+		}
+		return nil
+	}
+
+	if originalMetaData == nil {
+		// Input object did not populate metadata, but the response is trying to set labels or annotations.
+		// Populate with an empty map so we can merge.
+		converted.Object["metadata"] = map[string]interface{}{}
+	} else {
+		// Input object did populate metadata, start with a copy of that to merge in labels and annotations.
+		converted.Object["metadata"] = runtime.DeepCopyJSONValue(originalMetaData)
+	}
+
+	obj := converted.Object["metadata"]
 	convertedMetaData, ok := obj.(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("invalid metadata of type %T in input object", obj)
