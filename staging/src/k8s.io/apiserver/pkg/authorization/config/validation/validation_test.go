@@ -19,6 +19,7 @@ package validation
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/apiserver/pkg/authorization/config"
 )
@@ -38,11 +39,16 @@ const (
 	validValue            = "testing"
 )
 
+var (
+	knownTypes      = sets.NewString()
+	repeatableTypes = sets.NewString()
+)
+
 func TestValidateAuthorizationConfiguration(t *testing.T) {
 	tests := []test{}
 
 	for _, test := range tests {
-		errList := ValidateAuthorizationConfiguration(&test.configuration)
+		errList := ValidateAuthorizationConfiguration(nil, &test.configuration, knownTypes, repeatableTypes)
 		if len(errList) != len(test.expectedErrList) {
 			t.Errorf("expected %d errs, got %d", len(test.expectedErrList), len(errList))
 		}
