@@ -39,7 +39,7 @@ var defaultConfig = &api.PodSecurityConfiguration{
 
 func writeTempFile(t *testing.T, content string) string {
 	t.Helper()
-	file, err := ioutil.TempFile("", "podsecurityconfig")
+	file, err := ioutil.TempFile("", "config")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestLoadFromFile(t *testing.T) {
 	// valid file
 	{
 		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v1alpha1",
+			"apiVersion":"apiserver.config.k8s.io/v1alpha1",
 			"kind":"PodSecurityConfiguration",
 			"defaults":{"enforce":"baseline"}}`
 		expect := &api.PodSecurityConfiguration{
@@ -112,7 +112,7 @@ func TestLoadFromFile(t *testing.T) {
 	// invalid content file
 	{
 		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v99",
+			"apiVersion":"apiserver.config.k8s.io/v99",
 			"kind":"PodSecurityConfiguration",
 			"defaults":{"enforce":"baseline"}}`
 
@@ -120,7 +120,7 @@ func TestLoadFromFile(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected err, got none")
 		}
-		if !strings.Contains(err.Error(), "pod-security.admission.config.k8s.io/v99") {
+		if !strings.Contains(err.Error(), "apiserver.config.k8s.io/v99") {
 			t.Fatalf("expected apiVersion error, got %v", err)
 		}
 	}
@@ -152,7 +152,7 @@ func TestLoadFromReader(t *testing.T) {
 	// valid reader
 	{
 		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v1alpha1",
+			"apiVersion":"apiserver.config.k8s.io/v1alpha1",
 			"kind":"PodSecurityConfiguration",
 			"defaults":{"enforce":"baseline"}}`
 		expect := &api.PodSecurityConfiguration{
@@ -175,7 +175,7 @@ func TestLoadFromReader(t *testing.T) {
 	// invalid reader
 	{
 		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v99",
+			"apiVersion":"apiserver.config.k8s.io/v99",
 			"kind":"PodSecurityConfiguration",
 			"defaults":{"enforce":"baseline"}}`
 
@@ -183,7 +183,7 @@ func TestLoadFromReader(t *testing.T) {
 		if err == nil {
 			t.Fatalf("expected err, got none")
 		}
-		if !strings.Contains(err.Error(), "pod-security.admission.config.k8s.io/v99") {
+		if !strings.Contains(err.Error(), "apiserver.config.k8s.io/v99") {
 			t.Fatalf("expected apiVersion error, got %v", err)
 		}
 	}
@@ -209,7 +209,7 @@ func TestLoadFromData(t *testing.T) {
 		{
 			name: "v1alpha1 - json",
 			data: []byte(`{
-"apiVersion":"pod-security.admission.config.k8s.io/v1alpha1",
+"apiVersion":"apiserver.config.k8s.io/v1alpha1",
 "kind":"PodSecurityConfiguration",
 "defaults":{"enforce":"baseline"}}`),
 			expectConfig: &api.PodSecurityConfiguration{
@@ -223,7 +223,7 @@ func TestLoadFromData(t *testing.T) {
 		{
 			name: "v1alpha1 - yaml",
 			data: []byte(`
-apiVersion: pod-security.admission.config.k8s.io/v1alpha1
+apiVersion: apiserver.config.k8s.io/v1alpha1
 kind: PodSecurityConfiguration
 defaults:
   enforce: baseline
@@ -253,7 +253,7 @@ exemptions:
 		},
 		{
 			name:      "missing kind",
-			data:      []byte(`{"apiVersion":"pod-security.admission.config.k8s.io/v1alpha1"}`),
+			data:      []byte(`{"apiVersion":"apiserver.config.k8s.io/v1alpha1"}`),
 			expectErr: `'Kind' is missing`,
 		},
 		{
@@ -263,18 +263,18 @@ exemptions:
 		},
 		{
 			name:      "unknown version",
-			data:      []byte(`{"apiVersion":"pod-security.admission.config.k8s.io/v99","kind":"PodSecurityConfiguration"}`),
-			expectErr: `pod-security.admission.config.k8s.io/v99`,
+			data:      []byte(`{"apiVersion":"apiserver.config.k8s.io/v99","kind":"PodSecurityConfiguration"}`),
+			expectErr: `apiserver.config.k8s.io/v99`,
 		},
 		{
 			name:      "unknown kind",
-			data:      []byte(`{"apiVersion":"pod-security.admission.config.k8s.io/v1alpha1","kind":"SomeConfiguration"}`),
+			data:      []byte(`{"apiVersion":"apiserver.config.k8s.io/v1alpha1","kind":"SomeConfiguration"}`),
 			expectErr: `SomeConfiguration`,
 		},
 		{
 			name: "unknown field",
 			data: []byte(`{
-"apiVersion":"pod-security.admission.config.k8s.io/v1alpha1",
+"apiVersion":"apiserver.config.k8s.io/v1alpha1",
 "kind":"PodSecurityConfiguration",
 "deflaults":{"enforce":"baseline"}}`),
 			expectErr: `unknown field "deflaults"`,

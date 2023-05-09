@@ -22,9 +22,9 @@ import (
 	"os"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	api "k8s.io/apiserver/pkg/authorization/config"
 	"k8s.io/apiserver/pkg/authorization/config/scheme"
 	apiv1 "k8s.io/apiserver/pkg/authorization/config/v1alpha1"
-	api "k8s.io/apiserver/pkg/authorization/config"
 )
 
 func LoadFromFile(file string) (*api.PodSecurityConfiguration, error) {

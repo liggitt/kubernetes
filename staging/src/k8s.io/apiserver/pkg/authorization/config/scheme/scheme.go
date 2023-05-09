@@ -20,12 +20,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	podsecurityapi "k8s.io/apiserver/pkg/authorization/config"
-	podsecurityv1alpha1 "k8s.io/apiserver/pkg/authorization/config/v1alpha1"
+	authorizationapi "k8s.io/apiserver/pkg/authorization/config"
+	authorizationv1alpha1 "k8s.io/apiserver/pkg/authorization/config/v1alpha1"
 )
 
 var (
-	// Scheme is the runtime.Scheme to which all podsecurity api types are registered.
+	// Scheme is the runtime.Scheme to which all authorization api types are registered.
 	Scheme = runtime.NewScheme()
 
 	// Codecs provides access to encoding and decoding for the scheme.
@@ -36,9 +36,9 @@ func init() {
 	AddToScheme(Scheme)
 }
 
-// AddToScheme builds the podsecurity scheme using all known versions of the podsecurity api.
+// AddToScheme builds the authorization scheme using all known versions of the authorization api.
 func AddToScheme(scheme *runtime.Scheme) {
-	utilruntime.Must(podsecurityapi.AddToScheme(scheme))
-	utilruntime.Must(podsecurityv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(scheme.SetVersionPriority(podsecurityv1alpha1.SchemeGroupVersion))
+	utilruntime.Must(authorizationapi.AddToScheme(scheme))
+	utilruntime.Must(authorizationv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(scheme.SetVersionPriority(authorizationv1alpha1.SchemeGroupVersion))
 }
