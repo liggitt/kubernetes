@@ -18,33 +18,13 @@ package v1alpha1
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/pod-security-admission/api"
 )
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_PodSecurityDefaults(obj *PodSecurityDefaults) {
-	if len(obj.Enforce) == 0 {
-		obj.Enforce = string(api.LevelPrivileged)
-	}
-	if len(obj.Warn) == 0 {
-		obj.Warn = string(api.LevelPrivileged)
-	}
-	if len(obj.Audit) == 0 {
-		obj.Audit = string(api.LevelPrivileged)
-	}
-
-	if len(obj.EnforceVersion) == 0 {
-		obj.EnforceVersion = string(api.VersionLatest)
-	}
-	if len(obj.WarnVersion) == 0 {
-		obj.WarnVersion = string(api.VersionLatest)
-	}
-	if len(obj.AuditVersion) == 0 {
-		obj.AuditVersion = string(api.VersionLatest)
-	}
+func SetDefaults_AuthorizationConfiguration(obj *AuthorizationConfiguration) {
 }
 
 func SetDefaults_WebhookConfiguration(obj *WebhookConfiguration) {

@@ -26,7 +26,7 @@ import (
 
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	api "k8s.io/apiserver/pkg/authorization/config"
+	config "k8s.io/apiserver/pkg/authorization/config"
 )
 
 func init() {
@@ -36,119 +36,177 @@ func init() {
 // RegisterConversions adds conversion functions to the given scheme.
 // Public to allow building arbitrary schemes.
 func RegisterConversions(s *runtime.Scheme) error {
-	if err := s.AddGeneratedConversionFunc((*AuthorizationConfiguration)(nil), (*api.AuthorizationConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1alpha1_AuthorizationConfiguration_To_api_AuthorizationConfiguration(a.(*AuthorizationConfiguration), b.(*api.AuthorizationConfiguration), scope)
+	if err := s.AddGeneratedConversionFunc((*AuthorizationConfiguration)(nil), (*config.AuthorizationConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_AuthorizationConfiguration_To_config_AuthorizationConfiguration(a.(*AuthorizationConfiguration), b.(*config.AuthorizationConfiguration), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*api.AuthorizationConfiguration)(nil), (*AuthorizationConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_api_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(a.(*api.AuthorizationConfiguration), b.(*AuthorizationConfiguration), scope)
+	if err := s.AddGeneratedConversionFunc((*config.AuthorizationConfiguration)(nil), (*AuthorizationConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_config_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(a.(*config.AuthorizationConfiguration), b.(*AuthorizationConfiguration), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*PodSecurityDefaults)(nil), (*api.PodSecurityDefaults)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1alpha1_PodSecurityDefaults_To_api_PodSecurityDefaults(a.(*PodSecurityDefaults), b.(*api.PodSecurityDefaults), scope)
+	if err := s.AddGeneratedConversionFunc((*AuthorizerConfiguration)(nil), (*config.AuthorizerConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_AuthorizerConfiguration_To_config_AuthorizerConfiguration(a.(*AuthorizerConfiguration), b.(*config.AuthorizerConfiguration), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*api.PodSecurityDefaults)(nil), (*PodSecurityDefaults)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_api_PodSecurityDefaults_To_v1alpha1_PodSecurityDefaults(a.(*api.PodSecurityDefaults), b.(*PodSecurityDefaults), scope)
+	if err := s.AddGeneratedConversionFunc((*config.AuthorizerConfiguration)(nil), (*AuthorizerConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_config_AuthorizerConfiguration_To_v1alpha1_AuthorizerConfiguration(a.(*config.AuthorizerConfiguration), b.(*AuthorizerConfiguration), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*PodSecurityExemptions)(nil), (*api.PodSecurityExemptions)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1alpha1_PodSecurityExemptions_To_api_PodSecurityExemptions(a.(*PodSecurityExemptions), b.(*api.PodSecurityExemptions), scope)
+	if err := s.AddGeneratedConversionFunc((*WebhookConfiguration)(nil), (*config.WebhookConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_WebhookConfiguration_To_config_WebhookConfiguration(a.(*WebhookConfiguration), b.(*config.WebhookConfiguration), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*api.PodSecurityExemptions)(nil), (*PodSecurityExemptions)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_api_PodSecurityExemptions_To_v1alpha1_PodSecurityExemptions(a.(*api.PodSecurityExemptions), b.(*PodSecurityExemptions), scope)
+	if err := s.AddGeneratedConversionFunc((*config.WebhookConfiguration)(nil), (*WebhookConfiguration)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_config_WebhookConfiguration_To_v1alpha1_WebhookConfiguration(a.(*config.WebhookConfiguration), b.(*WebhookConfiguration), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*WebhookConnectionInfo)(nil), (*config.WebhookConnectionInfo)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_WebhookConnectionInfo_To_config_WebhookConnectionInfo(a.(*WebhookConnectionInfo), b.(*config.WebhookConnectionInfo), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*config.WebhookConnectionInfo)(nil), (*WebhookConnectionInfo)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_config_WebhookConnectionInfo_To_v1alpha1_WebhookConnectionInfo(a.(*config.WebhookConnectionInfo), b.(*WebhookConnectionInfo), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*WebhookMatchCondition)(nil), (*config.WebhookMatchCondition)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_WebhookMatchCondition_To_config_WebhookMatchCondition(a.(*WebhookMatchCondition), b.(*config.WebhookMatchCondition), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*config.WebhookMatchCondition)(nil), (*WebhookMatchCondition)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_config_WebhookMatchCondition_To_v1alpha1_WebhookMatchCondition(a.(*config.WebhookMatchCondition), b.(*WebhookMatchCondition), scope)
 	}); err != nil {
 		return err
 	}
 	return nil
 }
 
-func autoConvert_v1alpha1_AuthorizationConfiguration_To_api_AuthorizationConfiguration(in *AuthorizationConfiguration, out *api.AuthorizationConfiguration, s conversion.Scope) error {
-	if err := Convert_v1alpha1_PodSecurityDefaults_To_api_PodSecurityDefaults(&in.Defaults, &out.Defaults, s); err != nil {
+func autoConvert_v1alpha1_AuthorizationConfiguration_To_config_AuthorizationConfiguration(in *AuthorizationConfiguration, out *config.AuthorizationConfiguration, s conversion.Scope) error {
+	out.Authorizers = *(*[]config.AuthorizerConfiguration)(unsafe.Pointer(&in.Authorizers))
+	return nil
+}
+
+// Convert_v1alpha1_AuthorizationConfiguration_To_config_AuthorizationConfiguration is an autogenerated conversion function.
+func Convert_v1alpha1_AuthorizationConfiguration_To_config_AuthorizationConfiguration(in *AuthorizationConfiguration, out *config.AuthorizationConfiguration, s conversion.Scope) error {
+	return autoConvert_v1alpha1_AuthorizationConfiguration_To_config_AuthorizationConfiguration(in, out, s)
+}
+
+func autoConvert_config_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(in *config.AuthorizationConfiguration, out *AuthorizationConfiguration, s conversion.Scope) error {
+	out.Authorizers = *(*[]AuthorizerConfiguration)(unsafe.Pointer(&in.Authorizers))
+	return nil
+}
+
+// Convert_config_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration is an autogenerated conversion function.
+func Convert_config_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(in *config.AuthorizationConfiguration, out *AuthorizationConfiguration, s conversion.Scope) error {
+	return autoConvert_config_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(in, out, s)
+}
+
+func autoConvert_v1alpha1_AuthorizerConfiguration_To_config_AuthorizerConfiguration(in *AuthorizerConfiguration, out *config.AuthorizerConfiguration, s conversion.Scope) error {
+	out.Type = config.AuthorizerType(in.Type)
+	out.Webhook = (*config.WebhookConfiguration)(unsafe.Pointer(in.Webhook))
+	return nil
+}
+
+// Convert_v1alpha1_AuthorizerConfiguration_To_config_AuthorizerConfiguration is an autogenerated conversion function.
+func Convert_v1alpha1_AuthorizerConfiguration_To_config_AuthorizerConfiguration(in *AuthorizerConfiguration, out *config.AuthorizerConfiguration, s conversion.Scope) error {
+	return autoConvert_v1alpha1_AuthorizerConfiguration_To_config_AuthorizerConfiguration(in, out, s)
+}
+
+func autoConvert_config_AuthorizerConfiguration_To_v1alpha1_AuthorizerConfiguration(in *config.AuthorizerConfiguration, out *AuthorizerConfiguration, s conversion.Scope) error {
+	out.Type = string(in.Type)
+	out.Webhook = (*WebhookConfiguration)(unsafe.Pointer(in.Webhook))
+	return nil
+}
+
+// Convert_config_AuthorizerConfiguration_To_v1alpha1_AuthorizerConfiguration is an autogenerated conversion function.
+func Convert_config_AuthorizerConfiguration_To_v1alpha1_AuthorizerConfiguration(in *config.AuthorizerConfiguration, out *AuthorizerConfiguration, s conversion.Scope) error {
+	return autoConvert_config_AuthorizerConfiguration_To_v1alpha1_AuthorizerConfiguration(in, out, s)
+}
+
+func autoConvert_v1alpha1_WebhookConfiguration_To_config_WebhookConfiguration(in *WebhookConfiguration, out *config.WebhookConfiguration, s conversion.Scope) error {
+	out.Name = in.Name
+	out.AuthorizedTTL = in.AuthorizedTTL
+	out.UnauthorizedTTL = in.UnauthorizedTTL
+	out.Timeout = in.Timeout
+	out.SubjectAccessReviewVersion = in.SubjectAccessReviewVersion
+	out.FailurePolicy = in.FailurePolicy
+	if err := Convert_v1alpha1_WebhookConnectionInfo_To_config_WebhookConnectionInfo(&in.ConnectionInfo, &out.ConnectionInfo, s); err != nil {
 		return err
 	}
-	if err := Convert_v1alpha1_PodSecurityExemptions_To_api_PodSecurityExemptions(&in.Exemptions, &out.Exemptions, s); err != nil {
+	out.MatchConditions = *(*[]config.WebhookMatchCondition)(unsafe.Pointer(&in.MatchConditions))
+	return nil
+}
+
+// Convert_v1alpha1_WebhookConfiguration_To_config_WebhookConfiguration is an autogenerated conversion function.
+func Convert_v1alpha1_WebhookConfiguration_To_config_WebhookConfiguration(in *WebhookConfiguration, out *config.WebhookConfiguration, s conversion.Scope) error {
+	return autoConvert_v1alpha1_WebhookConfiguration_To_config_WebhookConfiguration(in, out, s)
+}
+
+func autoConvert_config_WebhookConfiguration_To_v1alpha1_WebhookConfiguration(in *config.WebhookConfiguration, out *WebhookConfiguration, s conversion.Scope) error {
+	out.Name = in.Name
+	out.AuthorizedTTL = in.AuthorizedTTL
+	out.UnauthorizedTTL = in.UnauthorizedTTL
+	out.Timeout = in.Timeout
+	out.SubjectAccessReviewVersion = in.SubjectAccessReviewVersion
+	out.FailurePolicy = in.FailurePolicy
+	if err := Convert_config_WebhookConnectionInfo_To_v1alpha1_WebhookConnectionInfo(&in.ConnectionInfo, &out.ConnectionInfo, s); err != nil {
 		return err
 	}
+	out.MatchConditions = *(*[]WebhookMatchCondition)(unsafe.Pointer(&in.MatchConditions))
 	return nil
 }
 
-// Convert_v1alpha1_AuthorizationConfiguration_To_api_AuthorizationConfiguration is an autogenerated conversion function.
-func Convert_v1alpha1_AuthorizationConfiguration_To_api_AuthorizationConfiguration(in *AuthorizationConfiguration, out *api.AuthorizationConfiguration, s conversion.Scope) error {
-	return autoConvert_v1alpha1_AuthorizationConfiguration_To_api_AuthorizationConfiguration(in, out, s)
+// Convert_config_WebhookConfiguration_To_v1alpha1_WebhookConfiguration is an autogenerated conversion function.
+func Convert_config_WebhookConfiguration_To_v1alpha1_WebhookConfiguration(in *config.WebhookConfiguration, out *WebhookConfiguration, s conversion.Scope) error {
+	return autoConvert_config_WebhookConfiguration_To_v1alpha1_WebhookConfiguration(in, out, s)
 }
 
-func autoConvert_api_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(in *api.AuthorizationConfiguration, out *AuthorizationConfiguration, s conversion.Scope) error {
-	if err := Convert_api_PodSecurityDefaults_To_v1alpha1_PodSecurityDefaults(&in.Defaults, &out.Defaults, s); err != nil {
-		return err
-	}
-	if err := Convert_api_PodSecurityExemptions_To_v1alpha1_PodSecurityExemptions(&in.Exemptions, &out.Exemptions, s); err != nil {
-		return err
-	}
+func autoConvert_v1alpha1_WebhookConnectionInfo_To_config_WebhookConnectionInfo(in *WebhookConnectionInfo, out *config.WebhookConnectionInfo, s conversion.Scope) error {
+	out.Type = in.Type
+	out.KubeConfigFile = (*string)(unsafe.Pointer(in.KubeConfigFile))
 	return nil
 }
 
-// Convert_api_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration is an autogenerated conversion function.
-func Convert_api_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(in *api.AuthorizationConfiguration, out *AuthorizationConfiguration, s conversion.Scope) error {
-	return autoConvert_api_AuthorizationConfiguration_To_v1alpha1_AuthorizationConfiguration(in, out, s)
+// Convert_v1alpha1_WebhookConnectionInfo_To_config_WebhookConnectionInfo is an autogenerated conversion function.
+func Convert_v1alpha1_WebhookConnectionInfo_To_config_WebhookConnectionInfo(in *WebhookConnectionInfo, out *config.WebhookConnectionInfo, s conversion.Scope) error {
+	return autoConvert_v1alpha1_WebhookConnectionInfo_To_config_WebhookConnectionInfo(in, out, s)
 }
 
-func autoConvert_v1alpha1_PodSecurityDefaults_To_api_PodSecurityDefaults(in *PodSecurityDefaults, out *api.PodSecurityDefaults, s conversion.Scope) error {
-	out.Enforce = in.Enforce
-	out.EnforceVersion = in.EnforceVersion
-	out.Audit = in.Audit
-	out.AuditVersion = in.AuditVersion
-	out.Warn = in.Warn
-	out.WarnVersion = in.WarnVersion
+func autoConvert_config_WebhookConnectionInfo_To_v1alpha1_WebhookConnectionInfo(in *config.WebhookConnectionInfo, out *WebhookConnectionInfo, s conversion.Scope) error {
+	out.Type = in.Type
+	out.KubeConfigFile = (*string)(unsafe.Pointer(in.KubeConfigFile))
 	return nil
 }
 
-// Convert_v1alpha1_PodSecurityDefaults_To_api_PodSecurityDefaults is an autogenerated conversion function.
-func Convert_v1alpha1_PodSecurityDefaults_To_api_PodSecurityDefaults(in *PodSecurityDefaults, out *api.PodSecurityDefaults, s conversion.Scope) error {
-	return autoConvert_v1alpha1_PodSecurityDefaults_To_api_PodSecurityDefaults(in, out, s)
+// Convert_config_WebhookConnectionInfo_To_v1alpha1_WebhookConnectionInfo is an autogenerated conversion function.
+func Convert_config_WebhookConnectionInfo_To_v1alpha1_WebhookConnectionInfo(in *config.WebhookConnectionInfo, out *WebhookConnectionInfo, s conversion.Scope) error {
+	return autoConvert_config_WebhookConnectionInfo_To_v1alpha1_WebhookConnectionInfo(in, out, s)
 }
 
-func autoConvert_api_PodSecurityDefaults_To_v1alpha1_PodSecurityDefaults(in *api.PodSecurityDefaults, out *PodSecurityDefaults, s conversion.Scope) error {
-	out.Enforce = in.Enforce
-	out.EnforceVersion = in.EnforceVersion
-	out.Audit = in.Audit
-	out.AuditVersion = in.AuditVersion
-	out.Warn = in.Warn
-	out.WarnVersion = in.WarnVersion
+func autoConvert_v1alpha1_WebhookMatchCondition_To_config_WebhookMatchCondition(in *WebhookMatchCondition, out *config.WebhookMatchCondition, s conversion.Scope) error {
+	out.Expression = in.Expression
 	return nil
 }
 
-// Convert_api_PodSecurityDefaults_To_v1alpha1_PodSecurityDefaults is an autogenerated conversion function.
-func Convert_api_PodSecurityDefaults_To_v1alpha1_PodSecurityDefaults(in *api.PodSecurityDefaults, out *PodSecurityDefaults, s conversion.Scope) error {
-	return autoConvert_api_PodSecurityDefaults_To_v1alpha1_PodSecurityDefaults(in, out, s)
+// Convert_v1alpha1_WebhookMatchCondition_To_config_WebhookMatchCondition is an autogenerated conversion function.
+func Convert_v1alpha1_WebhookMatchCondition_To_config_WebhookMatchCondition(in *WebhookMatchCondition, out *config.WebhookMatchCondition, s conversion.Scope) error {
+	return autoConvert_v1alpha1_WebhookMatchCondition_To_config_WebhookMatchCondition(in, out, s)
 }
 
-func autoConvert_v1alpha1_PodSecurityExemptions_To_api_PodSecurityExemptions(in *PodSecurityExemptions, out *api.PodSecurityExemptions, s conversion.Scope) error {
-	out.Usernames = *(*[]string)(unsafe.Pointer(&in.Usernames))
-	out.Namespaces = *(*[]string)(unsafe.Pointer(&in.Namespaces))
-	out.RuntimeClasses = *(*[]string)(unsafe.Pointer(&in.RuntimeClasses))
+func autoConvert_config_WebhookMatchCondition_To_v1alpha1_WebhookMatchCondition(in *config.WebhookMatchCondition, out *WebhookMatchCondition, s conversion.Scope) error {
+	out.Expression = in.Expression
 	return nil
 }
 
-// Convert_v1alpha1_PodSecurityExemptions_To_api_PodSecurityExemptions is an autogenerated conversion function.
-func Convert_v1alpha1_PodSecurityExemptions_To_api_PodSecurityExemptions(in *PodSecurityExemptions, out *api.PodSecurityExemptions, s conversion.Scope) error {
-	return autoConvert_v1alpha1_PodSecurityExemptions_To_api_PodSecurityExemptions(in, out, s)
-}
-
-func autoConvert_api_PodSecurityExemptions_To_v1alpha1_PodSecurityExemptions(in *api.PodSecurityExemptions, out *PodSecurityExemptions, s conversion.Scope) error {
-	out.Usernames = *(*[]string)(unsafe.Pointer(&in.Usernames))
-	out.Namespaces = *(*[]string)(unsafe.Pointer(&in.Namespaces))
-	out.RuntimeClasses = *(*[]string)(unsafe.Pointer(&in.RuntimeClasses))
-	return nil
-}
-
-// Convert_api_PodSecurityExemptions_To_v1alpha1_PodSecurityExemptions is an autogenerated conversion function.
-func Convert_api_PodSecurityExemptions_To_v1alpha1_PodSecurityExemptions(in *api.PodSecurityExemptions, out *PodSecurityExemptions, s conversion.Scope) error {
-	return autoConvert_api_PodSecurityExemptions_To_v1alpha1_PodSecurityExemptions(in, out, s)
+// Convert_config_WebhookMatchCondition_To_v1alpha1_WebhookMatchCondition is an autogenerated conversion function.
+func Convert_config_WebhookMatchCondition_To_v1alpha1_WebhookMatchCondition(in *config.WebhookMatchCondition, out *WebhookMatchCondition, s conversion.Scope) error {
+	return autoConvert_config_WebhookMatchCondition_To_v1alpha1_WebhookMatchCondition(in, out, s)
 }

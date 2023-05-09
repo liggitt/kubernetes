@@ -39,77 +39,7 @@ const (
 )
 
 func TestValidateAuthorizationConfiguration(t *testing.T) {
-	tests := []test{
-		// defaults
-		{
-			expectedErrList: field.ErrorList{
-				field.Invalid(exemptionsPath("namespaces", 0), invalidValueEmpty, "..."),
-				field.Invalid(exemptionsPath("namespaces", 1), invalidValueChars, "..."),
-				field.Invalid(exemptionsPath("namespaces", 2), invalidValueUppercase, "..."),
-				field.Invalid(exemptionsPath("namespaces", 3), invalidValueTooLong, "..."),
-				field.Duplicate(exemptionsPath("namespaces", 5), validValue),
-				field.Invalid(exemptionsPath("runtimeClasses", 0), invalidValueEmpty, "..."),
-				field.Invalid(exemptionsPath("runtimeClasses", 1), invalidValueChars, "..."),
-				field.Invalid(exemptionsPath("runtimeClasses", 2), invalidValueUppercase, "..."),
-				field.Duplicate(exemptionsPath("runtimeClasses", 4), validValue),
-				field.Invalid(exemptionsPath("usernames", 0), invalidValueEmpty, "..."),
-				field.Duplicate(exemptionsPath("usernames", 2), validValue),
-			},
-			configuration: api.AuthorizationConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce:        "privileged",
-					EnforceVersion: "v1.22",
-					Audit:          "baseline",
-					AuditVersion:   "v1.25",
-					Warn:           "restricted",
-					WarnVersion:    "latest",
-				},
-				Exemptions: api.PodSecurityExemptions{
-					Namespaces: []string{
-						invalidValueEmpty,
-						invalidValueChars,
-						invalidValueUppercase,
-						invalidValueTooLong,
-						validValue,
-						validValue,
-					},
-					RuntimeClasses: []string{
-						invalidValueEmpty,
-						invalidValueChars,
-						invalidValueUppercase,
-						validValue,
-						validValue,
-					},
-					Usernames: []string{
-						invalidValueEmpty,
-						validValue,
-						validValue,
-					},
-				},
-			},
-		},
-		{
-			expectedErrList: field.ErrorList{
-				field.Invalid(defaultsPath("enforce"), "baslein", "..."),
-				field.Invalid(defaultsPath("enforce-version"), "v.122", "..."),
-				field.Invalid(defaultsPath("warn"), "", "..."),
-				field.Invalid(defaultsPath("warn-version"), "", "..."),
-				field.Invalid(defaultsPath("audit"), "lorum", "..."),
-				field.Invalid(defaultsPath("audit-version"), "ipsum", "..."),
-			},
-			configuration: api.AuthorizationConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce:        "baslein",
-					EnforceVersion: "v.122",
-					Audit:          "lorum",
-					AuditVersion:   "ipsum",
-					Warn:           "",
-					WarnVersion:    "",
-				},
-				Exemptions: api.PodSecurityExemptions{},
-			},
-		},
-	}
+	tests := []test{}
 
 	for _, test := range tests {
 		errList := ValidateAuthorizationConfiguration(&test.configuration)
@@ -130,14 +60,4 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 			}
 		}
 	}
-}
-
-// defaultsPath returns the appropriate defaults path
-func defaultsPath(child string) *field.Path {
-	return field.NewPath("defaults", child)
-}
-
-// exemptionsPath returns the appropriate defaults path
-func exemptionsPath(child string, i int) *field.Path {
-	return field.NewPath("exemptions", child).Index(i)
 }

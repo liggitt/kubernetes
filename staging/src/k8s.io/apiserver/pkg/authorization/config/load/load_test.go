@@ -29,13 +29,7 @@ import (
 	api "k8s.io/apiserver/pkg/authorization/config"
 )
 
-var defaultConfig = &api.AuthorizationConfiguration{
-	Defaults: api.PodSecurityDefaults{
-		Enforce: "privileged", EnforceVersion: "latest",
-		Warn: "privileged", WarnVersion: "latest",
-		Audit: "privileged", AuditVersion: "latest",
-	},
-}
+var defaultConfig = &api.AuthorizationConfiguration{}
 
 func writeTempFile(t *testing.T, content string) string {
 	t.Helper()
@@ -80,13 +74,9 @@ func TestLoadFromFile(t *testing.T) {
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v1alpha1",
 			"kind":"AuthorizationConfiguration",
-			"defaults":{"enforce":"baseline"}}`
+			"authorizers":[{"type":"Webhook"}]}`
 		expect := &api.AuthorizationConfiguration{
-			Defaults: api.PodSecurityDefaults{
-				Enforce: "baseline", EnforceVersion: "latest",
-				Warn: "privileged", WarnVersion: "latest",
-				Audit: "privileged", AuditVersion: "latest",
-			},
+			Authorizers: []api.AuthorizerConfiguration{{Type: "Webhook"}},
 		}
 
 		config, err := LoadFromFile(writeTempFile(t, input))
@@ -100,11 +90,11 @@ func TestLoadFromFile(t *testing.T) {
 
 	// missing file
 	{
-		_, err := LoadFromFile(`bogus-missing-pod-security-policy-config-file`)
+		_, err := LoadFromFile(`bogus-missing-file`)
 		if err == nil {
 			t.Fatalf("expected err, got none")
 		}
-		if !strings.Contains(err.Error(), "bogus-missing-pod-security-policy-config-file") {
+		if !strings.Contains(err.Error(), "bogus-missing-file") {
 			t.Fatalf("expected missing file error, got %v", err)
 		}
 	}
@@ -114,7 +104,7 @@ func TestLoadFromFile(t *testing.T) {
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v99",
 			"kind":"AuthorizationConfiguration",
-			"defaults":{"enforce":"baseline"}}`
+			"authorizers":{"type":"Webhook"}}`
 
 		_, err := LoadFromFile(writeTempFile(t, input))
 		if err == nil {
@@ -154,13 +144,9 @@ func TestLoadFromReader(t *testing.T) {
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v1alpha1",
 			"kind":"AuthorizationConfiguration",
-			"defaults":{"enforce":"baseline"}}`
+			"authorizers":[{"type":"Webhook"}]}`
 		expect := &api.AuthorizationConfiguration{
-			Defaults: api.PodSecurityDefaults{
-				Enforce: "baseline", EnforceVersion: "latest",
-				Warn: "privileged", WarnVersion: "latest",
-				Audit: "privileged", AuditVersion: "latest",
-			},
+			Authorizers: []api.AuthorizerConfiguration{{Type: "Webhook"}},
 		}
 
 		config, err := LoadFromReader(bytes.NewBufferString(input))
@@ -177,7 +163,7 @@ func TestLoadFromReader(t *testing.T) {
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v99",
 			"kind":"AuthorizationConfiguration",
-			"defaults":{"enforce":"baseline"}}`
+			"authorizers":[{"type":"Webhook"}]}`
 
 		_, err := LoadFromReader(bytes.NewBufferString(input))
 		if err == nil {
@@ -211,13 +197,9 @@ func TestLoadFromData(t *testing.T) {
 			data: []byte(`{
 "apiVersion":"apiserver.config.k8s.io/v1alpha1",
 "kind":"AuthorizationConfiguration",
-"defaults":{"enforce":"baseline"}}`),
+"authorizers":[{"type":"Webhook"}]}`),
 			expectConfig: &api.AuthorizationConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce: "baseline", EnforceVersion: "latest",
-					Warn: "privileged", WarnVersion: "latest",
-					Audit: "privileged", AuditVersion: "latest",
-				},
+				Authorizers: []api.AuthorizerConfiguration{{Type: "Webhook"}},
 			},
 		},
 		{
@@ -225,25 +207,11 @@ func TestLoadFromData(t *testing.T) {
 			data: []byte(`
 apiVersion: apiserver.config.k8s.io/v1alpha1
 kind: AuthorizationConfiguration
-defaults:
-  enforce: baseline
-  enforce-version: v1.7
-exemptions:
-  usernames: ["alice","bob"]
-  namespaces: ["kube-system"]
-  runtimeClasses: ["special"]
+authorizers:
+- type: Webhook
 `),
 			expectConfig: &api.AuthorizationConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce: "baseline", EnforceVersion: "v1.7",
-					Warn: "privileged", WarnVersion: "latest",
-					Audit: "privileged", AuditVersion: "latest",
-				},
-				Exemptions: api.PodSecurityExemptions{
-					Usernames:      []string{"alice", "bob"},
-					Namespaces:     []string{"kube-system"},
-					RuntimeClasses: []string{"special"},
-				},
+				Authorizers: []api.AuthorizerConfiguration{{Type: "Webhook"}},
 			},
 		},
 		{
@@ -276,8 +244,8 @@ exemptions:
 			data: []byte(`{
 "apiVersion":"apiserver.config.k8s.io/v1alpha1",
 "kind":"AuthorizationConfiguration",
-"deflaults":{"enforce":"baseline"}}`),
-			expectErr: `unknown field "deflaults"`,
+"authorzers":[{"type":"Webhook"}]}`),
+			expectErr: `unknown field "authorzers"`,
 		},
 	}
 
