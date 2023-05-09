@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"time"
+
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -24,8 +26,11 @@ func addDefaultingFuncs(scheme *runtime.Scheme) error {
 	return RegisterDefaults(scheme)
 }
 
-func SetDefaults_AuthorizationConfiguration(obj *AuthorizationConfiguration) {
-}
-
 func SetDefaults_WebhookConfiguration(obj *WebhookConfiguration) {
+	if obj.AuthorizedTTL.Duration == 0 {
+		obj.AuthorizedTTL.Duration = 5 * time.Minute
+	}
+	if obj.UnauthorizedTTL.Duration == 0 {
+		obj.UnauthorizedTTL.Duration = 30 * time.Second
+	}
 }

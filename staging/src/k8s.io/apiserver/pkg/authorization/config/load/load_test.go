@@ -23,9 +23,11 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	api "k8s.io/apiserver/pkg/authorization/config"
 )
 
@@ -200,6 +202,22 @@ func TestLoadFromData(t *testing.T) {
 "authorizers":[{"type":"Webhook"}]}`),
 			expectConfig: &api.AuthorizationConfiguration{
 				Authorizers: []api.AuthorizerConfiguration{{Type: "Webhook"}},
+			},
+		},
+		{
+			name: "v1alpha1 - defaults",
+			data: []byte(`{
+"apiVersion":"apiserver.config.k8s.io/v1alpha1",
+"kind":"AuthorizationConfiguration",
+"authorizers":[{"type":"Webhook","webhook":{}}]}`),
+			expectConfig: &api.AuthorizationConfiguration{
+				Authorizers: []api.AuthorizerConfiguration{{
+					Type: "Webhook",
+					Webhook: &api.WebhookConfiguration{
+						AuthorizedTTL:   metav1.Duration{Duration: 5 * time.Minute},
+						UnauthorizedTTL: metav1.Duration{Duration: 30 * time.Second},
+					},
+				}},
 			},
 		},
 		{
