@@ -26,7 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"k8s.io/pod-security-admission/admission/api"
+	api "k8s.io/apiserver/pkg/authorization/config"
 )
 
 var defaultConfig = &api.PodSecurityConfiguration{
@@ -79,52 +79,6 @@ func TestLoadFromFile(t *testing.T) {
 	{
 		input := `{
 			"apiVersion":"pod-security.admission.config.k8s.io/v1alpha1",
-			"kind":"PodSecurityConfiguration",
-			"defaults":{"enforce":"baseline"}}`
-		expect := &api.PodSecurityConfiguration{
-			Defaults: api.PodSecurityDefaults{
-				Enforce: "baseline", EnforceVersion: "latest",
-				Warn: "privileged", WarnVersion: "latest",
-				Audit: "privileged", AuditVersion: "latest",
-			},
-		}
-
-		config, err := LoadFromFile(writeTempFile(t, input))
-		if err != nil {
-			t.Fatalf("unexpected err: %v", err)
-		}
-		if !reflect.DeepEqual(config, expect) {
-			t.Fatalf("unexpected config:\n%s", cmp.Diff(expect, config))
-		}
-	}
-
-	// valid v1beta1 file
-	{
-		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v1beta1",
-			"kind":"PodSecurityConfiguration",
-			"defaults":{"enforce":"baseline"}}`
-		expect := &api.PodSecurityConfiguration{
-			Defaults: api.PodSecurityDefaults{
-				Enforce: "baseline", EnforceVersion: "latest",
-				Warn: "privileged", WarnVersion: "latest",
-				Audit: "privileged", AuditVersion: "latest",
-			},
-		}
-
-		config, err := LoadFromFile(writeTempFile(t, input))
-		if err != nil {
-			t.Fatalf("unexpected err: %v", err)
-		}
-		if !reflect.DeepEqual(config, expect) {
-			t.Fatalf("unexpected config:\n%s", cmp.Diff(expect, config))
-		}
-	}
-
-	// valid v1 file
-	{
-		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v1",
 			"kind":"PodSecurityConfiguration",
 			"defaults":{"enforce":"baseline"}}`
 		expect := &api.PodSecurityConfiguration{
@@ -218,52 +172,6 @@ func TestLoadFromReader(t *testing.T) {
 		}
 	}
 
-	// valid reader
-	{
-		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v1beta1",
-			"kind":"PodSecurityConfiguration",
-			"defaults":{"enforce":"baseline"}}`
-		expect := &api.PodSecurityConfiguration{
-			Defaults: api.PodSecurityDefaults{
-				Enforce: "baseline", EnforceVersion: "latest",
-				Warn: "privileged", WarnVersion: "latest",
-				Audit: "privileged", AuditVersion: "latest",
-			},
-		}
-
-		config, err := LoadFromReader(bytes.NewBufferString(input))
-		if err != nil {
-			t.Fatalf("unexpected err: %v", err)
-		}
-		if !reflect.DeepEqual(config, expect) {
-			t.Fatalf("unexpected config:\n%s", cmp.Diff(expect, config))
-		}
-	}
-
-	// valid reader
-	{
-		input := `{
-			"apiVersion":"pod-security.admission.config.k8s.io/v1",
-			"kind":"PodSecurityConfiguration",
-			"defaults":{"enforce":"baseline"}}`
-		expect := &api.PodSecurityConfiguration{
-			Defaults: api.PodSecurityDefaults{
-				Enforce: "baseline", EnforceVersion: "latest",
-				Warn: "privileged", WarnVersion: "latest",
-				Audit: "privileged", AuditVersion: "latest",
-			},
-		}
-
-		config, err := LoadFromReader(bytes.NewBufferString(input))
-		if err != nil {
-			t.Fatalf("unexpected err: %v", err)
-		}
-		if !reflect.DeepEqual(config, expect) {
-			t.Fatalf("unexpected config:\n%s", cmp.Diff(expect, config))
-		}
-	}
-
 	// invalid reader
 	{
 		input := `{
@@ -316,86 +224,6 @@ func TestLoadFromData(t *testing.T) {
 			name: "v1alpha1 - yaml",
 			data: []byte(`
 apiVersion: pod-security.admission.config.k8s.io/v1alpha1
-kind: PodSecurityConfiguration
-defaults:
-  enforce: baseline
-  enforce-version: v1.7
-exemptions:
-  usernames: ["alice","bob"]
-  namespaces: ["kube-system"]
-  runtimeClasses: ["special"]
-`),
-			expectConfig: &api.PodSecurityConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce: "baseline", EnforceVersion: "v1.7",
-					Warn: "privileged", WarnVersion: "latest",
-					Audit: "privileged", AuditVersion: "latest",
-				},
-				Exemptions: api.PodSecurityExemptions{
-					Usernames:      []string{"alice", "bob"},
-					Namespaces:     []string{"kube-system"},
-					RuntimeClasses: []string{"special"},
-				},
-			},
-		},
-		{
-			name: "v1beta1 - json",
-			data: []byte(`{
-"apiVersion":"pod-security.admission.config.k8s.io/v1beta1",
-"kind":"PodSecurityConfiguration",
-"defaults":{"enforce":"baseline"}}`),
-			expectConfig: &api.PodSecurityConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce: "baseline", EnforceVersion: "latest",
-					Warn: "privileged", WarnVersion: "latest",
-					Audit: "privileged", AuditVersion: "latest",
-				},
-			},
-		},
-		{
-			name: "v1beta1 - yaml",
-			data: []byte(`
-apiVersion: pod-security.admission.config.k8s.io/v1beta1
-kind: PodSecurityConfiguration
-defaults:
-  enforce: baseline
-  enforce-version: v1.7
-exemptions:
-  usernames: ["alice","bob"]
-  namespaces: ["kube-system"]
-  runtimeClasses: ["special"]
-`),
-			expectConfig: &api.PodSecurityConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce: "baseline", EnforceVersion: "v1.7",
-					Warn: "privileged", WarnVersion: "latest",
-					Audit: "privileged", AuditVersion: "latest",
-				},
-				Exemptions: api.PodSecurityExemptions{
-					Usernames:      []string{"alice", "bob"},
-					Namespaces:     []string{"kube-system"},
-					RuntimeClasses: []string{"special"},
-				},
-			},
-		},
-		{
-			name: "v1 - json",
-			data: []byte(`{
-"apiVersion":"pod-security.admission.config.k8s.io/v1",
-"kind":"PodSecurityConfiguration",
-"defaults":{"enforce":"baseline"}}`),
-			expectConfig: &api.PodSecurityConfiguration{
-				Defaults: api.PodSecurityDefaults{
-					Enforce: "baseline", EnforceVersion: "latest",
-					Warn: "privileged", WarnVersion: "latest",
-					Audit: "privileged", AuditVersion: "latest",
-				},
-			},
-		},
-		{
-			name: "v1 - yaml",
-			data: []byte(`
-apiVersion: pod-security.admission.config.k8s.io/v1
 kind: PodSecurityConfiguration
 defaults:
   enforce: baseline

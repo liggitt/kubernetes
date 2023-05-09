@@ -26,7 +26,7 @@ import (
 
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	api "k8s.io/pod-security-admission/admission/api"
+	api "k8s.io/apiserver/pkg/authorization/config"
 )
 
 func init() {

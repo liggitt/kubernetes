@@ -22,7 +22,7 @@ import (
 	machinery "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	admissionapi "k8s.io/pod-security-admission/admission/api"
+	admissionapi "k8s.io/apiserver/pkg/authorization/config"
 	"k8s.io/pod-security-admission/api"
 )
 

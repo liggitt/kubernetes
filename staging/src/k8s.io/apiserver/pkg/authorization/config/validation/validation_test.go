@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/pod-security-admission/admission/api"
+	api "k8s.io/apiserver/pkg/authorization/config"
 )
 
 type (

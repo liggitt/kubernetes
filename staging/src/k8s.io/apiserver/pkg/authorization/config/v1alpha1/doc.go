@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // +k8s:deepcopy-gen=package
-// +k8s:conversion-gen=k8s.io/pod-security-admission/admission/api
+// +k8s:conversion-gen=k8s.io/apiserver/pkg/authorization/config
 // +k8s:defaulter-gen=TypeMeta
 // +groupName=pod-security.admission.config.k8s.io
 

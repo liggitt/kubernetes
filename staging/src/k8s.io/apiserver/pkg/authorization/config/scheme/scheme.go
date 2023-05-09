@@ -20,10 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	podsecurityapi "k8s.io/pod-security-admission/admission/api"
-	podsecurityv1 "k8s.io/pod-security-admission/admission/api/v1"
-	podsecurityv1alpha1 "k8s.io/pod-security-admission/admission/api/v1alpha1"
-	podsecurityv1beta1 "k8s.io/pod-security-admission/admission/api/v1beta1"
+	podsecurityapi "k8s.io/apiserver/pkg/authorization/config"
+	podsecurityv1alpha1 "k8s.io/apiserver/pkg/authorization/config/v1alpha1"
 )
 
 var (
@@ -42,7 +40,5 @@ func init() {
 func AddToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(podsecurityapi.AddToScheme(scheme))
 	utilruntime.Must(podsecurityv1alpha1.AddToScheme(scheme))
-	utilruntime.Must(podsecurityv1beta1.AddToScheme(scheme))
-	utilruntime.Must(podsecurityv1.AddToScheme(scheme))
-	utilruntime.Must(scheme.SetVersionPriority(podsecurityv1.SchemeGroupVersion, podsecurityv1beta1.SchemeGroupVersion, podsecurityv1alpha1.SchemeGroupVersion))
+	utilruntime.Must(scheme.SetVersionPriority(podsecurityv1alpha1.SchemeGroupVersion))
 }
