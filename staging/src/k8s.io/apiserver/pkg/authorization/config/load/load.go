@@ -27,7 +27,7 @@ import (
 	apiv1 "k8s.io/apiserver/pkg/authorization/config/v1alpha1"
 )
 
-func LoadFromFile(file string) (*api.PodSecurityConfiguration, error) {
+func LoadFromFile(file string) (*api.AuthorizationConfiguration, error) {
 	if len(file) == 0 {
 		// no file specified, use default config
 		return LoadFromData(nil)
@@ -41,7 +41,7 @@ func LoadFromFile(file string) (*api.PodSecurityConfiguration, error) {
 	return LoadFromData(data)
 }
 
-func LoadFromReader(reader io.Reader) (*api.PodSecurityConfiguration, error) {
+func LoadFromReader(reader io.Reader) (*api.AuthorizationConfiguration, error) {
 	if reader == nil {
 		// no reader specified, use default config
 		return LoadFromData(nil)
@@ -54,12 +54,12 @@ func LoadFromReader(reader io.Reader) (*api.PodSecurityConfiguration, error) {
 	return LoadFromData(data)
 }
 
-func LoadFromData(data []byte) (*api.PodSecurityConfiguration, error) {
+func LoadFromData(data []byte) (*api.AuthorizationConfiguration, error) {
 	if len(data) == 0 {
 		// no config provided, return default
-		externalConfig := &apiv1.PodSecurityConfiguration{}
+		externalConfig := &apiv1.AuthorizationConfiguration{}
 		scheme.Scheme.Default(externalConfig)
-		internalConfig := &api.PodSecurityConfiguration{}
+		internalConfig := &api.AuthorizationConfiguration{}
 		if err := scheme.Scheme.Convert(externalConfig, internalConfig, nil); err != nil {
 			return nil, err
 		}
@@ -70,9 +70,9 @@ func LoadFromData(data []byte) (*api.PodSecurityConfiguration, error) {
 	if err != nil {
 		return nil, err
 	}
-	configuration, ok := decodedObj.(*api.PodSecurityConfiguration)
+	configuration, ok := decodedObj.(*api.AuthorizationConfiguration)
 	if !ok {
-		return nil, fmt.Errorf("expected PodSecurityConfiguration, got %T", decodedObj)
+		return nil, fmt.Errorf("expected AuthorizationConfiguration, got %T", decodedObj)
 	}
 	return configuration, nil
 }

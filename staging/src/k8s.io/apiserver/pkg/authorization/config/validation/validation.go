@@ -26,8 +26,8 @@ import (
 	"k8s.io/pod-security-admission/api"
 )
 
-// ValidatePodSecurityConfiguration validates a given PodSecurityConfiguration.
-func ValidatePodSecurityConfiguration(configuration *admissionapi.PodSecurityConfiguration) field.ErrorList {
+// ValidateAuthorizationConfiguration validates a given AuthorizationConfiguration.
+func ValidateAuthorizationConfiguration(configuration *admissionapi.AuthorizationConfiguration) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	// validate defaults
@@ -66,7 +66,7 @@ func validateVersion(p *field.Path, value string) field.ErrorList {
 	return errs
 }
 
-func validateNamespaces(configuration *admissionapi.PodSecurityConfiguration) field.ErrorList {
+func validateNamespaces(configuration *admissionapi.AuthorizationConfiguration) field.ErrorList {
 	errs := field.ErrorList{}
 	validSet := sets.NewString()
 	for i, ns := range configuration.Exemptions.Namespaces {
@@ -86,7 +86,7 @@ func validateNamespaces(configuration *admissionapi.PodSecurityConfiguration) fi
 	return errs
 }
 
-func validateRuntimeClasses(configuration *admissionapi.PodSecurityConfiguration) field.ErrorList {
+func validateRuntimeClasses(configuration *admissionapi.AuthorizationConfiguration) field.ErrorList {
 	errs := field.ErrorList{}
 	validSet := sets.NewString()
 	for i, rc := range configuration.Exemptions.RuntimeClasses {
@@ -106,7 +106,7 @@ func validateRuntimeClasses(configuration *admissionapi.PodSecurityConfiguration
 	return errs
 }
 
-func validateUsernames(configuration *admissionapi.PodSecurityConfiguration) field.ErrorList {
+func validateUsernames(configuration *admissionapi.AuthorizationConfiguration) field.ErrorList {
 	errs := field.ErrorList{}
 	validSet := sets.NewString()
 	for i, uname := range configuration.Exemptions.Usernames {

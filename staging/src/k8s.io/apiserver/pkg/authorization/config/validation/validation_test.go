@@ -25,7 +25,7 @@ import (
 
 type (
 	test struct {
-		configuration   api.PodSecurityConfiguration
+		configuration   api.AuthorizationConfiguration
 		expectedErrList field.ErrorList
 	}
 )
@@ -38,7 +38,7 @@ const (
 	validValue            = "testing"
 )
 
-func TestValidatePodSecurityConfiguration(t *testing.T) {
+func TestValidateAuthorizationConfiguration(t *testing.T) {
 	tests := []test{
 		// defaults
 		{
@@ -55,7 +55,7 @@ func TestValidatePodSecurityConfiguration(t *testing.T) {
 				field.Invalid(exemptionsPath("usernames", 0), invalidValueEmpty, "..."),
 				field.Duplicate(exemptionsPath("usernames", 2), validValue),
 			},
-			configuration: api.PodSecurityConfiguration{
+			configuration: api.AuthorizationConfiguration{
 				Defaults: api.PodSecurityDefaults{
 					Enforce:        "privileged",
 					EnforceVersion: "v1.22",
@@ -97,7 +97,7 @@ func TestValidatePodSecurityConfiguration(t *testing.T) {
 				field.Invalid(defaultsPath("audit"), "lorum", "..."),
 				field.Invalid(defaultsPath("audit-version"), "ipsum", "..."),
 			},
-			configuration: api.PodSecurityConfiguration{
+			configuration: api.AuthorizationConfiguration{
 				Defaults: api.PodSecurityDefaults{
 					Enforce:        "baslein",
 					EnforceVersion: "v.122",
@@ -112,7 +112,7 @@ func TestValidatePodSecurityConfiguration(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		errList := ValidatePodSecurityConfiguration(&test.configuration)
+		errList := ValidateAuthorizationConfiguration(&test.configuration)
 		if len(errList) != len(test.expectedErrList) {
 			t.Errorf("expected %d errs, got %d", len(test.expectedErrList), len(errList))
 		}

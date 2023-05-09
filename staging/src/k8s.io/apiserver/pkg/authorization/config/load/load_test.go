@@ -29,7 +29,7 @@ import (
 	api "k8s.io/apiserver/pkg/authorization/config"
 )
 
-var defaultConfig = &api.PodSecurityConfiguration{
+var defaultConfig = &api.AuthorizationConfiguration{
 	Defaults: api.PodSecurityDefaults{
 		Enforce: "privileged", EnforceVersion: "latest",
 		Warn: "privileged", WarnVersion: "latest",
@@ -79,9 +79,9 @@ func TestLoadFromFile(t *testing.T) {
 	{
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v1alpha1",
-			"kind":"PodSecurityConfiguration",
+			"kind":"AuthorizationConfiguration",
 			"defaults":{"enforce":"baseline"}}`
-		expect := &api.PodSecurityConfiguration{
+		expect := &api.AuthorizationConfiguration{
 			Defaults: api.PodSecurityDefaults{
 				Enforce: "baseline", EnforceVersion: "latest",
 				Warn: "privileged", WarnVersion: "latest",
@@ -113,7 +113,7 @@ func TestLoadFromFile(t *testing.T) {
 	{
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v99",
-			"kind":"PodSecurityConfiguration",
+			"kind":"AuthorizationConfiguration",
 			"defaults":{"enforce":"baseline"}}`
 
 		_, err := LoadFromFile(writeTempFile(t, input))
@@ -153,9 +153,9 @@ func TestLoadFromReader(t *testing.T) {
 	{
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v1alpha1",
-			"kind":"PodSecurityConfiguration",
+			"kind":"AuthorizationConfiguration",
 			"defaults":{"enforce":"baseline"}}`
-		expect := &api.PodSecurityConfiguration{
+		expect := &api.AuthorizationConfiguration{
 			Defaults: api.PodSecurityDefaults{
 				Enforce: "baseline", EnforceVersion: "latest",
 				Warn: "privileged", WarnVersion: "latest",
@@ -176,7 +176,7 @@ func TestLoadFromReader(t *testing.T) {
 	{
 		input := `{
 			"apiVersion":"apiserver.config.k8s.io/v99",
-			"kind":"PodSecurityConfiguration",
+			"kind":"AuthorizationConfiguration",
 			"defaults":{"enforce":"baseline"}}`
 
 		_, err := LoadFromReader(bytes.NewBufferString(input))
@@ -194,7 +194,7 @@ func TestLoadFromData(t *testing.T) {
 		name         string
 		data         []byte
 		expectErr    string
-		expectConfig *api.PodSecurityConfiguration
+		expectConfig *api.AuthorizationConfiguration
 	}{
 		{
 			name:         "nil",
@@ -210,9 +210,9 @@ func TestLoadFromData(t *testing.T) {
 			name: "v1alpha1 - json",
 			data: []byte(`{
 "apiVersion":"apiserver.config.k8s.io/v1alpha1",
-"kind":"PodSecurityConfiguration",
+"kind":"AuthorizationConfiguration",
 "defaults":{"enforce":"baseline"}}`),
-			expectConfig: &api.PodSecurityConfiguration{
+			expectConfig: &api.AuthorizationConfiguration{
 				Defaults: api.PodSecurityDefaults{
 					Enforce: "baseline", EnforceVersion: "latest",
 					Warn: "privileged", WarnVersion: "latest",
@@ -224,7 +224,7 @@ func TestLoadFromData(t *testing.T) {
 			name: "v1alpha1 - yaml",
 			data: []byte(`
 apiVersion: apiserver.config.k8s.io/v1alpha1
-kind: PodSecurityConfiguration
+kind: AuthorizationConfiguration
 defaults:
   enforce: baseline
   enforce-version: v1.7
@@ -233,7 +233,7 @@ exemptions:
   namespaces: ["kube-system"]
   runtimeClasses: ["special"]
 `),
-			expectConfig: &api.PodSecurityConfiguration{
+			expectConfig: &api.AuthorizationConfiguration{
 				Defaults: api.PodSecurityDefaults{
 					Enforce: "baseline", EnforceVersion: "v1.7",
 					Warn: "privileged", WarnVersion: "latest",
@@ -248,7 +248,7 @@ exemptions:
 		},
 		{
 			name:      "missing apiVersion",
-			data:      []byte(`{"kind":"PodSecurityConfiguration"}`),
+			data:      []byte(`{"kind":"AuthorizationConfiguration"}`),
 			expectErr: `'apiVersion' is missing`,
 		},
 		{
@@ -258,12 +258,12 @@ exemptions:
 		},
 		{
 			name:      "unknown group",
-			data:      []byte(`{"apiVersion":"apps/v1alpha1","kind":"PodSecurityConfiguration"}`),
+			data:      []byte(`{"apiVersion":"apps/v1alpha1","kind":"AuthorizationConfiguration"}`),
 			expectErr: `apps/v1alpha1`,
 		},
 		{
 			name:      "unknown version",
-			data:      []byte(`{"apiVersion":"apiserver.config.k8s.io/v99","kind":"PodSecurityConfiguration"}`),
+			data:      []byte(`{"apiVersion":"apiserver.config.k8s.io/v99","kind":"AuthorizationConfiguration"}`),
 			expectErr: `apiserver.config.k8s.io/v99`,
 		},
 		{
@@ -275,7 +275,7 @@ exemptions:
 			name: "unknown field",
 			data: []byte(`{
 "apiVersion":"apiserver.config.k8s.io/v1alpha1",
-"kind":"PodSecurityConfiguration",
+"kind":"AuthorizationConfiguration",
 "deflaults":{"enforce":"baseline"}}`),
 			expectErr: `unknown field "deflaults"`,
 		},

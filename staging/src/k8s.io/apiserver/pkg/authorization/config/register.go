@@ -44,7 +44,7 @@ func init() {
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&PodSecurityConfiguration{},
+		&AuthorizationConfiguration{},
 	)
 	return nil
 }

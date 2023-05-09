@@ -22,7 +22,7 @@ import (
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-type PodSecurityConfiguration struct {
+type AuthorizationConfiguration struct {
 	metav1.TypeMeta
 	Defaults   PodSecurityDefaults   `json:"defaults"`
 	Exemptions PodSecurityExemptions `json:"exemptions"`
