@@ -24,8 +24,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"sigs.k8s.io/json"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestVModule(t *testing.T) {
@@ -168,7 +169,7 @@ func TestCompatibility(t *testing.T) {
 			expectAllFields: true,
 			expectConfig: LoggingConfiguration{
 				Format:         JSONLogFormat,
-				FlushFrequency: time.Nanosecond,
+				FlushFrequency: TimeOrMetaDuration{Duration: time.Nanosecond},
 				Verbosity:      VerbosityLevel(5),
 				VModule: VModuleConfiguration{
 					{
