@@ -24,21 +24,70 @@ import (
 
 type AuthorizationConfiguration struct {
 	metav1.TypeMeta
-	Defaults   PodSecurityDefaults   `json:"defaults"`
-	Exemptions PodSecurityExemptions `json:"exemptions"`
+
+	Authorizers []AuthorizerConfiguration `json:"authorizers"`
 }
 
-type PodSecurityDefaults struct {
-	Enforce        string `json:"enforce,omitempty"`
-	EnforceVersion string `json:"enforce-version,omitempty"`
-	Audit          string `json:"audit,omitempty"`
-	AuditVersion   string `json:"audit-version,omitempty"`
-	Warn           string `json:"warn,omitempty"`
-	WarnVersion    string `json:"warn-version,omitempty"`
+const (
+	TypeWebhook AuthorizerType = "Webhook"
+)
+
+type AuthorizerType string
+
+type AuthorizerConfiguration struct {
+	Type string `json:"type"`
+
+	Webhook *WebhookConfiguration `json:"webhook,omitempty"`
 }
 
-type PodSecurityExemptions struct {
-	Usernames      []string `json:"usernames,omitempty"`
-	Namespaces     []string `json:"namespaces,omitempty"`
-	RuntimeClasses []string `json:"runtimeClasses,omitempty"`
+type WebhookConfiguration struct {
+	// Name used to describe the webhook
+	// This is explicitly used in monitoring machinery for metrics
+	// Note:
+	//   - Do exercise caution when setting the value
+	//   - If not specified, the default would be set to ""
+	//   - If there are multiple webhooks in the authorizer chain,
+	//     this field is required
+	Name string `json:"name"`
+	// The duration to cache 'authorized' responses from the webhook
+	// authorizer.
+	// Same as setting `--authorization-webhook-cache-authorized-ttl` flag
+	// Default: 5m0s
+	AuthorizedTTL metav1.Duration `json:"authorizedTTL"`
+	// The duration to cache 'unauthorized' responses from the webhook
+	// authorizer.
+	// Same as setting `--authorization-webhook-cache-unauthorized-ttl` flag
+	// Default: 30s
+	UnauthorizedTTL metav1.Duration `json:"unauthorizedTTL"`
+	// Timeout for the webhook request
+	// Default: 30s
+	Timeout metav1.Duration `json:"timeout"`
+	// The API version of the authorization.k8s.io SubjectAccessReview to
+	// send to and expect from the # webhook.
+	// Same as setting `--authorization-webhook-version` flag
+	// Valid values: v1beta1, v1
+	// Required, no default value
+	SubjectAccessReviewVersion string `json:"subjectAccessReviewVersion"`
+	// Controls the authorization decision when a webhook request fails to
+	// complete or returns a malformed response.
+	// Valid values:
+	//   - NoOpinion: continue to subsequent authorizers to see if one of
+	//     them allows the request
+	//   - Deny: reject the request without consulting subsequent authorizers
+	// Default: NoOpinion
+	FailurePolicy string `json:"failurePolicy"`
+
+	ConnectionInfo WebhookConnectionInfo `json:"connectionInfo"`
+
+	MatchConditions []WebhookMatchCondition `json:"matchConditions"`
+}
+
+type WebhookConnectionInfo struct {
+	Type string `json:"type"`
+
+	KubeConfigFile *string `json:"kubeConfigFile"`
+}
+
+type WebhookMatchCondition struct {
+	Expression string `json:"expression"`
 }

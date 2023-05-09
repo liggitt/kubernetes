@@ -24,21 +24,71 @@ import (
 
 type AuthorizationConfiguration struct {
 	metav1.TypeMeta
-	Defaults   PodSecurityDefaults
-	Exemptions PodSecurityExemptions
+
+	Authorizers []AuthorizerConfiguration
 }
 
-type PodSecurityDefaults struct {
-	Enforce        string
-	EnforceVersion string
-	Audit          string
-	AuditVersion   string
-	Warn           string
-	WarnVersion    string
+const (
+	TypeWebhook AuthorizerType = "Webhook"
+)
+
+type AuthorizerType string
+
+type AuthorizerConfiguration struct {
+	Type AuthorizerType
+
+	Webhook *WebhookConfiguration
 }
 
-type PodSecurityExemptions struct {
-	Usernames      []string
-	Namespaces     []string
-	RuntimeClasses []string
+type WebhookConfiguration struct {
+	// Name used to describe the webhook
+	// This is explicitly used in monitoring machinery for metrics
+	// Note:
+	//   - Do exercise caution when setting the value
+	//   - If not specified, the default would be set to ""
+	//   - If there are multiple webhooks in the authorizer chain,
+	//     this field is required
+	Name string
+	// The duration to cache 'authorized' responses from the webhook
+	// authorizer.
+	// Same as setting `--authorization-webhook-cache-authorized-ttl` flag
+	// Default: 5m0s
+	AuthorizedTTL metav1.Duration
+	// The duration to cache 'unauthorized' responses from the webhook
+	// authorizer.
+	// Same as setting `--authorization-webhook-cache-unauthorized-ttl` flag
+	// Default: 30s
+	UnauthorizedTTL metav1.Duration
+	// Timeout for the webhook request
+	// Maximum allowed value is 30s.
+	// Required, no default value.
+	Timeout metav1.Duration
+	// The API version of the authorization.k8s.io SubjectAccessReview to
+	// send to and expect from the # webhook.
+	// Same as setting `--authorization-webhook-version` flag
+	// Valid values: v1beta1, v1
+	// Required, no default value
+	SubjectAccessReviewVersion string
+	// Controls the authorization decision when a webhook request fails to
+	// complete or returns a malformed response.
+	// Valid values:
+	//   - NoOpinion: continue to subsequent authorizers to see if one of
+	//     them allows the request
+	//   - Deny: reject the request without consulting subsequent authorizers
+	// Default: NoOpinion
+	FailurePolicy string
+
+	ConnectionInfo WebhookConnectionInfo
+
+	MatchConditions []WebhookMatchCondition
+}
+
+type WebhookConnectionInfo struct {
+	Type string
+
+	KubeConfigFile *string
+}
+
+type WebhookMatchCondition struct {
+	Expression string
 }

@@ -46,3 +46,6 @@ func SetDefaults_PodSecurityDefaults(obj *PodSecurityDefaults) {
 		obj.AuditVersion = string(api.VersionLatest)
 	}
 }
+
+func SetDefaults_WebhookConfiguration(obj *WebhookConfiguration) {
+}
