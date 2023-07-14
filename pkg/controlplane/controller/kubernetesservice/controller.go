@@ -120,6 +120,7 @@ func (c *Controller) Stop() {
 	default:
 		close(c.stopCh)
 	}
+
 	endpointPorts := createEndpointPortSpec(c.PublicServicePort, "https")
 	finishedReconciling := make(chan struct{})
 	go func() {

@@ -111,11 +111,6 @@ func TestValidateUnknownVersionInteroperabilityProxy(t *testing.T) {
 			peerAdvertiseAddress: peerreconcilers.PeerAdvertiseAddress{PeerAdvertisePort: "1"},
 			errShouldContain:     "--peer-advertise-port requires UnknownVersionInteroperabilityProxy feature to be turned on",
 		},
-		{
-			name:             "feature enabled but peerCAFile not found",
-			featureEnabled:   true,
-			errShouldContain: "--peer-ca-file is required for UnknownVersionInteroperabilityProxy feature",
-		},
 	}
 
 	for _, test := range tests {
@@ -142,29 +137,21 @@ func TestValidateUnknownVersionInteroperabilityProxy(t *testing.T) {
 }
 
 func TestValidateUnknownVersionInteroperabilityProxyFeature(t *testing.T) {
-	const conflict = "UnknownVersionInteroperabilityProxy feature requires both APIServerIdentity and StorageVersionAPI feature flag to be enabled"
+	const conflict = "UnknownVersionInteroperabilityProxy feature requires StorageVersionAPI feature flag to be enabled"
 	tests := []struct {
 		name            string
 		featuresEnabled []featuregate.Feature
 	}{
 		{
-			name:            "enabled: UnknownVersionInteroperabilityProxy, disabled: APIServerIdentity StorageVersionAPI",
-			featuresEnabled: []featuregate.Feature{features.UnknownVersionInteroperabilityProxy},
-		},
-		{
-			name:            "enabled: UnknownVersionInteroperabilityProxy, disabled: APIServerIdentity",
-			featuresEnabled: []featuregate.Feature{features.UnknownVersionInteroperabilityProxy, features.StorageVersionAPI},
-		},
-		{
 			name:            "enabled: UnknownVersionInteroperabilityProxy, disabled: StorageVersionAPI",
-			featuresEnabled: []featuregate.Feature{features.UnknownVersionInteroperabilityProxy, features.APIServerIdentity},
+			featuresEnabled: []featuregate.Feature{features.UnknownVersionInteroperabilityProxy},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, feature := range test.featuresEnabled {
-				featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, feature, true)()
+				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, feature, true)()
 			}
 			var errMessageGot string
 			if errs := validateUnknownVersionInteroperabilityProxyFeature(); len(errs) > 0 {
@@ -173,7 +160,6 @@ func TestValidateUnknownVersionInteroperabilityProxyFeature(t *testing.T) {
 			if !strings.Contains(errMessageGot, conflict) {
 				t.Errorf("Expected error message to contain: %q, but got: %q", conflict, errMessageGot)
 			}
-
 		})
 	}
 }

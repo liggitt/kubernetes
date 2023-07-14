@@ -71,21 +71,17 @@ func validateAPIPriorityAndFairness(options *Options) []error {
 
 func validateUnknownVersionInteroperabilityProxyFeature() []error {
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
-		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) && utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) {
+		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) {
 			return nil
 		}
-		return []error{fmt.Errorf("UnknownVersionInteroperabilityProxy feature requires both APIServerIdentity and StorageVersionAPI feature flag to be enabled")}
+		return []error{fmt.Errorf("UnknownVersionInteroperabilityProxy feature requires StorageVersionAPI feature flag to be enabled")}
 	}
 	return nil
 }
 
 func validateUnknownVersionInteroperabilityProxyFlags(options *Options) []error {
 	err := []error{}
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
-		if options.GenericServerRunOptions.PeerCAFile == "" {
-			err = append(err, fmt.Errorf("--peer-ca-file is required for UnknownVersionInteroperabilityProxy feature"))
-		}
-	} else {
+	if !utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
 		if options.GenericServerRunOptions.PeerCAFile != "" {
 			err = append(err, fmt.Errorf("--peer-ca-file requires UnknownVersionInteroperabilityProxy feature to be turned on"))
 		}

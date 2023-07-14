@@ -356,17 +356,17 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 
 	fs.StringVar(&s.PeerCAFile, "peer-ca-file", s.PeerCAFile,
 		"If set and the UnknownVersionInteroperabilityProxy feature gate is enabled, this file will be used to verify serving certificates of peer kube-apiservers. "+
-		"This flag is only used in clusters configured with multiple kube-apiservers for high availability.")
+			"This flag is only used in clusters configured with multiple kube-apiservers for high availability.")
 
 	fs.StringVar(&s.PeerAdvertiseAddress.PeerAdvertiseIP, "peer-advertise-ip", s.PeerAdvertiseAddress.PeerAdvertiseIP,
 		"If set and the UnknownVersionInteroperabilityProxy feature gate is enabled, this IP will be used by peer kube-apiservers to proxy requests to this kube-apiserver "+
-		"when the request cannot be handled by the peer due to version skew between the kube-apiservers. "+
-		"This flag is only used in clusters configured with multiple kube-apiservers for high availability. ")
+			"when the request cannot be handled by the peer due to version skew between the kube-apiservers. "+
+			"This flag is only used in clusters configured with multiple kube-apiservers for high availability. ")
 
 	fs.StringVar(&s.PeerAdvertiseAddress.PeerAdvertisePort, "peer-advertise-port", s.PeerAdvertiseAddress.PeerAdvertisePort,
 		"If set and the UnknownVersionInteroperabilityProxy feature gate is enabled, this port will be used by peer kube-apiservers to proxy requests to this kube-apiserver "+
-		"when the request cannot be handled by the peer due to version skew between the kube-apiservers. "+
-		"This flag is only used in clusters configured with multiple kube-apiservers for high availability. ")
+			"when the request cannot be handled by the peer due to version skew between the kube-apiservers. "+
+			"This flag is only used in clusters configured with multiple kube-apiservers for high availability. ")
 
 	utilfeature.DefaultMutableFeatureGate.AddFlag(fs)
 }

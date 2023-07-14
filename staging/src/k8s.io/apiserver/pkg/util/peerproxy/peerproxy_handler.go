@@ -82,7 +82,7 @@ type peerProxyHandler struct {
 
 type serviceableByResponse struct {
 	locallyServiceable bool
-	peerIPs            []string
+	peerEndpoints      []string
 }
 
 // responder implements rest.Responder for assisting a connector in writing objects or errors.
@@ -164,7 +164,7 @@ func (h *peerProxyHandler) Handle(handler http.Handler, serverId string, s runti
 		gv := schema.GroupVersion{Group: gvr.Group, Version: gvr.Version}
 
 		// if no apiservers were found that could serve the request, serve 404
-		if len(serviceableByResp.peerIPs) == 0 {
+		if len(serviceableByResp.peerEndpoints) == 0 {
 			klog.Errorf(fmt.Sprintf("GVR %v is not served by anything in this cluster", gvr))
 			responsewriters.ErrorNegotiated(apierrors.NewNotFound(schema.GroupResource{Group: gvr.Group, Resource: gvr.Resource},
 				fmt.Sprintf("%s.%s", gvr.Group, gvr.Resource)), s, gv, w, r)
@@ -172,24 +172,24 @@ func (h *peerProxyHandler) Handle(handler http.Handler, serverId string, s runti
 		}
 
 		// otherwise, randomly select an apiserver
-		rand := rand.Intn(len(serviceableByResp.peerIPs))
-		destServerIP := serviceableByResp.peerIPs[rand]
+		rand := rand.Intn(len(serviceableByResp.peerEndpoints))
+		destServerHostPort := serviceableByResp.peerEndpoints[rand]
 
-		if destServerIP == "" {
+		if destServerHostPort == "" {
 			klog.Errorf("failed to serve request: Found no endpoints in server leases for the remote apiserver")
 			responsewriters.ErrorNegotiated(apierrors.NewServiceUnavailable("Found no endpoints in servers leases for the remote apiserver"), s, gv, w, r)
 			return
 		}
 
 		// check ip format
-		_, _, err = net.SplitHostPort(destServerIP)
+		_, _, err = net.SplitHostPort(destServerHostPort)
 		if err != nil {
 			klog.ErrorS(err, "error getting ip and port info of the remote server while proxying")
 			responsewriters.ErrorNegotiated(apierrors.NewServiceUnavailable("Error getting ip and port info of the remote server while proxying"), s, gv, w, r)
 			return
 		}
 
-		h.proxyRequestToDestinationAPIServer(r, w, destServerIP)
+		h.proxyRequestToDestinationAPIServer(r, w, destServerHostPort)
 
 	})
 }
@@ -204,7 +204,7 @@ func (h *peerProxyHandler) findServiceableByServers(gvr schema.GroupVersionResou
 	}
 	apiservers := apiserversi.(*sync.Map)
 	response := serviceableByResponse{}
-	var peerServerIPs []string
+	var peerServerEndpoints []string
 	apiservers.Range(func(key, value interface{}) bool {
 		apiserverKey := key.(string)
 		if apiserverKey == localAPIServerId {
@@ -213,17 +213,17 @@ func (h *peerProxyHandler) findServiceableByServers(gvr schema.GroupVersionResou
 			return false
 		}
 
-		ip, err := reconciler.GetEndpoint(apiserverKey)
+		hostPort, err := reconciler.GetEndpoint(apiserverKey)
 		if err != nil {
 			// continue with iteration
 			klog.Errorf("failed to get peer ip from storage lease for server %s", apiserverKey)
 			return true
 		}
-		peerServerIPs = append(peerServerIPs, ip)
+		peerServerEndpoints = append(peerServerEndpoints, hostPort)
 		// continue with iteration
 		return true
 	})
-	response.peerIPs = peerServerIPs
+	response.peerEndpoints = peerServerEndpoints
 	return response, nil
 }
 

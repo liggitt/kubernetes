@@ -62,7 +62,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/endpoints/discovery"
-	"k8s.io/apiserver/pkg/features"
 	apiserverfeatures "k8s.io/apiserver/pkg/features"
 	peerreconcilers "k8s.io/apiserver/pkg/reconcilers"
 	"k8s.io/apiserver/pkg/registry/generic"
@@ -496,7 +495,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil
 	})
 
-	if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+	if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.UnknownVersionInteroperabilityProxy) {
 		peeraddress := getPeerAddress(c.GenericConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
 		peerEndpointCtrl := peerreconcilers.New(
 			c.GenericConfig.APIServerID,
@@ -567,8 +566,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			holderIdentity := m.GenericAPIServer.APIServerID + "_" + string(uuid.NewUUID())
 
 			peeraddress := getPeerAddress(c.GenericConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
-			// must replace ':' in <ip:port> to be able to store this as a valid label value
-			peeraddress = strings.Replace(peeraddress, ":", "_", -1)
+			// must replace ':,[]' in [ip:port] to be able to store this as a valid label value
+			peeraddress = formatAddress(peeraddress)
 			controller := lease.NewController(
 				clock.RealClock{},
 				kubeClient,
@@ -645,7 +644,7 @@ func labelAPIServerHeartbeatFunc(identity string, peeraddress string) lease.Proc
 		lease.Labels[apiv1.LabelHostname] = hostname
 
 		// Include apiserver network location <ip_port> used by peers to proxy requests between kube-apiservers
-		if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+		if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.UnknownVersionInteroperabilityProxy) {
 			if peeraddress != "" {
 				lease.Labels[apiv1.LabelPeerAdvertiseAddress] = peeraddress
 			}
@@ -799,4 +798,11 @@ func getPeerAddress(peerAdvertiseAddress peerreconcilers.PeerAdvertiseAddress, p
 	} else {
 		return net.JoinHostPort(publicAddress.String(), strconv.Itoa(publicServicePort))
 	}
+}
+
+func formatAddress(address string) string {
+	address = strings.Replace(address, ":", "_", -1) // replace : with _
+	address = strings.Replace(address, "[", "", -1)  // remove [
+	address = strings.Replace(address, "]", "", -1)  // remove ]
+	return address
 }

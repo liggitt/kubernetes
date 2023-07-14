@@ -94,7 +94,6 @@ func NewPeerEndpointLeaseReconciler(config *storagebackend.ConfigForResource, ba
 }
 
 // PeerEndpointController is the controller manager for updating the peer endpoint leases.
-
 // This provides a separate independent reconciliation loop for peer endpoint leases
 // which ensures that the peer kube-apiservers are fetching the updated endpoint info for a given apiserver
 // in the case when the peer wants to proxy the request to the given apiserver because it can not serve the
@@ -115,7 +114,6 @@ type PeerEndpointLeaseController struct {
 
 func New(serverId string, peeraddress string,
 	reconciler PeerEndpointLeaseReconciler, endpointInterval time.Duration, client kubernetes.Interface) *PeerEndpointLeaseController {
-
 	return &PeerEndpointLeaseController{
 		reconciler: reconciler,
 		serverId:   serverId,

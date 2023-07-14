@@ -89,9 +89,9 @@ import (
 )
 
 var (
-	// Hostname is function to return the hostname os this apiserver.
+	// Hostname is a function to return the hostname os this apiserver.
 	// It's exposed as variable for testing purposes to simulate scenarios where multiple apiservers
-	// exist.
+	// exist. In such cases we want to ensure unique apiserver IDs which are a hash of hostname.
 	Hostname = os.Hostname
 )
 
