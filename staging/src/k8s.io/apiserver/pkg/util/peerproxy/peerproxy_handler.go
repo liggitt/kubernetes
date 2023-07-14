@@ -335,7 +335,7 @@ func (h *peerProxyHandler) deleteSVFromMap(sv *v1alpha1.StorageVersion) {
 
 	gvr := schema.GroupVersionResource{Group: group, Resource: resource}
 	for _, gr := range sv.Status.StorageVersions {
-		for _, version := range gr.DecodableVersions {
+		for _, version := range gr.ServedVersions {
 			versionSplit := strings.Split(version, "/")
 			if len(versionSplit) == 2 {
 				version = versionSplit[1]
@@ -354,7 +354,7 @@ func (h *peerProxyHandler) addSVToMap(sv *v1alpha1.StorageVersion) {
 
 	gvr := schema.GroupVersionResource{Group: group, Resource: resource}
 	for _, gr := range sv.Status.StorageVersions {
-		for _, version := range gr.DecodableVersions {
+		for _, version := range gr.ServedVersions {
 
 			// some versions have groups included in them, so get rid of the groups
 			versionSplit := strings.Split(version, "/")
