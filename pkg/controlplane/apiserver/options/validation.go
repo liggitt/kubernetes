@@ -69,6 +69,36 @@ func validateAPIPriorityAndFairness(options *Options) []error {
 	return nil
 }
 
+func validateUnknownVersionInteroperabilityProxyFeature() []error {
+	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
+		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) && utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) {
+			return nil
+		}
+		return []error{fmt.Errorf("UnknownVersionInteroperabilityProxy feature requires both APIServerIdentity and StorageVersionAPI feature flag to be enabled")}
+	}
+	return nil
+}
+
+func validateUnknownVersionInteroperabilityProxyFlags(options *Options) []error {
+	err := []error{}
+	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
+		if options.GenericServerRunOptions.PeerCAFile == "" {
+			err = append(err, fmt.Errorf("--peer-ca-file is required for UnknownVersionInteroperabilityProxy feature"))
+		}
+	} else {
+		if options.GenericServerRunOptions.PeerCAFile != "" {
+			err = append(err, fmt.Errorf("--peer-ca-file requires UnknownVersionInteroperabilityProxy feature to be turned on"))
+		}
+		if options.GenericServerRunOptions.PeerAdvertiseAddress.PeerAdvertiseIP != "" {
+			err = append(err, fmt.Errorf("--peer-advertise-ip requires UnknownVersionInteroperabilityProxy feature to be turned on"))
+		}
+		if options.GenericServerRunOptions.PeerAdvertiseAddress.PeerAdvertisePort != "" {
+			err = append(err, fmt.Errorf("--peer-advertise-port requires UnknownVersionInteroperabilityProxy feature to be turned on"))
+		}
+	}
+	return err
+}
+
 // Validate checks Options and return a slice of found errs.
 func (s *Options) Validate() []error {
 	var errs []error
@@ -83,6 +113,8 @@ func (s *Options) Validate() []error {
 	errs = append(errs, s.APIEnablement.Validate(legacyscheme.Scheme, apiextensionsapiserver.Scheme, aggregatorscheme.Scheme)...)
 	errs = append(errs, validateTokenRequest(s)...)
 	errs = append(errs, s.Metrics.Validate()...)
+	errs = append(errs, validateUnknownVersionInteroperabilityProxyFeature()...)
+	errs = append(errs, validateUnknownVersionInteroperabilityProxyFlags(s)...)
 
 	return errs
 }
