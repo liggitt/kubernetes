@@ -30,9 +30,12 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
+	"sigs.k8s.io/yaml"
+
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -50,7 +53,6 @@ import (
 	"k8s.io/kubernetes/test/integration/etcd"
 	"k8s.io/kubernetes/test/integration/framework"
 	"k8s.io/utils/pointer"
-	"sigs.k8s.io/yaml"
 )
 
 const (
@@ -84,11 +86,14 @@ type transformTest struct {
 	secret            *corev1.Secret
 }
 
-func newTransformTest(l kubeapiservertesting.Logger, transformerConfigYAML string, reload bool, configDir string) (*transformTest, error) {
+func newTransformTest(l kubeapiservertesting.Logger, transformerConfigYAML string, reload bool, configDir string, storageConfig *storagebackend.Config) (*transformTest, error) {
+	if storageConfig == nil {
+		storageConfig = framework.SharedEtcd()
+	}
 	e := transformTest{
 		logger:            l,
 		transformerConfig: transformerConfigYAML,
-		storageConfig:     framework.SharedEtcd(),
+		storageConfig:     storageConfig,
 	}
 
 	var err error
@@ -111,7 +116,7 @@ func newTransformTest(l kubeapiservertesting.Logger, transformerConfigYAML strin
 		return nil, fmt.Errorf("error while creating rest client: %v", err)
 	}
 
-	if e.ns, err = e.createNamespace(testNamespace); err != nil {
+	if e.ns, err = e.createNamespace(testNamespace); err != nil && !errors.IsAlreadyExists(err) {
 		return nil, err
 	}
 

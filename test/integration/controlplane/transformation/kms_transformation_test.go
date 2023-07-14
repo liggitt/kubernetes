@@ -49,6 +49,7 @@ import (
 	kmsapi "k8s.io/kms/apis/v1beta1"
 	"k8s.io/kubernetes/test/integration"
 	"k8s.io/kubernetes/test/integration/etcd"
+	"k8s.io/kubernetes/test/integration/framework"
 )
 
 const (
@@ -133,7 +134,7 @@ resources:
 `
 	providerName := "kms-provider"
 	pluginMock := mock.NewBase64Plugin(t, "@kms-provider.sock")
-	test, err := newTransformTest(t, encryptionConfig, false, "")
+	test, err := newTransformTest(t, encryptionConfig, false, "", nil)
 	if err != nil {
 		t.Fatalf("failed to start KUBE API Server with encryptionConfig\n %s, error: %v", encryptionConfig, err)
 	}
@@ -295,6 +296,8 @@ resources:
 // 10. confirm that cluster wide secret read still works
 // 11. confirm that api server can restart with last applied encryption config
 func TestEncryptionConfigHotReload(t *testing.T) {
+	storageConfig := framework.SharedEtcd()
+
 	encryptionConfig := `
 kind: EncryptionConfiguration
 apiVersion: apiserver.config.k8s.io/v1
@@ -309,7 +312,7 @@ resources:
 `
 	_ = mock.NewBase64Plugin(t, "@kms-provider.sock")
 	var restarted bool
-	test, err := newTransformTest(t, encryptionConfig, true, "")
+	test, err := newTransformTest(t, encryptionConfig, true, "", storageConfig)
 	if err != nil {
 		t.Fatalf("failed to start KUBE API Server with encryptionConfig\n %s, error: %v", encryptionConfig, err)
 	}
@@ -496,11 +499,20 @@ resources:
 	previousConfigDir := test.configDir
 	test.shutdownAPIServer()
 	restarted = true
-	test, err = newTransformTest(t, "", true, previousConfigDir)
+	test, err = newTransformTest(t, "", true, previousConfigDir, storageConfig)
 	if err != nil {
 		t.Fatalf("failed to start KUBE API Server with encryptionConfig\n %s, error: %v", encryptionConfig, err)
 	}
 	defer test.cleanUp()
+
+	_, err = test.restClient.CoreV1().Secrets(testNamespace).Get(
+		context.TODO(),
+		testSecret,
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		t.Fatalf("failed to read secret, err: %v", err)
+	}
 
 	// confirm that reading cluster wide secrets still works after restart
 	if _, err = test.restClient.CoreV1().Secrets("").List(context.TODO(), metav1.ListOptions{}); err != nil {
@@ -531,7 +543,7 @@ resources:
 		_ = mock.NewBase64Plugin(t, "@encrypt-all-kms-provider.sock")
 		defer featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, "AllAlpha", true)()
 		defer featuregatetesting.SetFeatureGateDuringTest(t, feature.DefaultFeatureGate, "AllBeta", true)()
-		test, err := newTransformTest(t, encryptionConfig, false, "")
+		test, err := newTransformTest(t, encryptionConfig, false, "", nil)
 		if err != nil {
 			t.Fatalf("failed to start KUBE API Server with encryptionConfig")
 		}
@@ -642,7 +654,7 @@ resources:
 	_ = mock.NewBase64Plugin(t, "@kms-provider.sock")
 	_ = mock.NewBase64Plugin(t, "@encrypt-all-kms-provider.sock")
 
-	test, err := newTransformTest(t, encryptionConfig, false, "")
+	test, err := newTransformTest(t, encryptionConfig, false, "", nil)
 	if err != nil {
 		t.Fatalf("failed to start KUBE API Server with encryptionConfig\n %s, error: %v", encryptionConfig, err)
 	}
@@ -784,7 +796,7 @@ resources:
 `
 			_ = mock.NewBase64Plugin(t, "@kms-provider.sock")
 
-			test, err := newTransformTest(t, encryptionConfig, true, "")
+			test, err := newTransformTest(t, encryptionConfig, true, "", nil)
 			if err != nil {
 				test.cleanUp()
 				t.Fatalf("failed to start KUBE API Server with encryptionConfig\n %s, error: %v", encryptionConfig, err)
@@ -949,7 +961,7 @@ resources:
 	pluginMock1 := mock.NewBase64Plugin(t, "@kms-provider-1.sock")
 	pluginMock2 := mock.NewBase64Plugin(t, "@kms-provider-2.sock")
 
-	test, err := newTransformTest(t, encryptionConfig, false, "")
+	test, err := newTransformTest(t, encryptionConfig, false, "", nil)
 	if err != nil {
 		t.Fatalf("failed to start kube-apiserver, error: %v", err)
 	}
@@ -1005,7 +1017,7 @@ resources:
 	pluginMock1 := mock.NewBase64Plugin(t, "@kms-provider-1.sock")
 	pluginMock2 := mock.NewBase64Plugin(t, "@kms-provider-2.sock")
 
-	test, err := newTransformTest(t, encryptionConfig, true, "")
+	test, err := newTransformTest(t, encryptionConfig, true, "", nil)
 	if err != nil {
 		t.Fatalf("Failed to start kube-apiserver, error: %v", err)
 	}
