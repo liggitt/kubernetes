@@ -27,20 +27,25 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/endpoints/discovery/aggregated"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
+	"k8s.io/apiserver/pkg/features"
 	genericfeatures "k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/reconcilers"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/egressselector"
 	"k8s.io/apiserver/pkg/server/filters"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
+	"k8s.io/apiserver/pkg/storageversion"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	"k8s.io/apiserver/pkg/util/openapi"
+	utilpeerproxy "k8s.io/apiserver/pkg/util/peerproxy"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/version"
 	openapicommon "k8s.io/kube-openapi/pkg/common"
 
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/controlplane"
 	controlplaneapiserver "k8s.io/kubernetes/pkg/controlplane/apiserver/options"
 	"k8s.io/kubernetes/pkg/kubeapiserver"
@@ -159,6 +164,18 @@ func BuildGenericConfig(
 		genericConfig.FlowControl, lastErr = BuildPriorityAndFairness(s, clientgoExternalClient, versionedInformers)
 	}
 
+	if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+		genericConfig.PeerEndpointLeaseReconciler, lastErr = createPeerEndpointLeaseReconciler(*genericConfig, storageFactory)
+		if lastErr != nil {
+			return
+		}
+		genericConfig.PeerProxy, lastErr = BuildPeerProxy(versionedInformers, genericConfig.StorageVersionManager, s.ProxyClientCertFile,
+			s.ProxyClientKeyFile, s.GenericServerRunOptions.PeerCAFile, s.GenericServerRunOptions.PeerAdvertiseAddress)
+		if lastErr != nil {
+			return
+		}
+	}
+
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		genericConfig.AggregatedDiscoveryGroupManager = aggregated.NewResourceManager("apis")
 	}
@@ -191,5 +208,27 @@ func BuildPriorityAndFairness(s controlplaneapiserver.CompletedOptions, extclien
 		extclient.FlowcontrolV1beta3(),
 		s.GenericServerRunOptions.MaxRequestsInFlight+s.GenericServerRunOptions.MaxMutatingRequestsInFlight,
 		s.GenericServerRunOptions.RequestTimeout/4,
+	), nil
+}
+
+// createPeerEndpointLeaseReconciler creates a apiserver endpoint lease reconciliation loop
+// The peer endpoint leases are used to find network locations of apiservers for peer proxy
+func createPeerEndpointLeaseReconciler(c genericapiserver.Config, storageFactory serverstorage.StorageFactory) (reconcilers.PeerEndpointLeaseReconciler, error) {
+	ttl := controlplane.DefaultEndpointReconcilerTTL
+	config, err := storageFactory.NewConfig(api.Resource("apiServerIPInfo"))
+	if err != nil {
+		return nil, fmt.Errorf("Error creating storage factory config: %w", err)
+	}
+	reconciler, err := reconcilers.NewPeerEndpointLeaseReconciler(config, "/peerserverleases/", ttl)
+	return reconciler, err
+}
+
+func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, svm storageversion.Manager, proxyClientCertFile string, proxyClientKeyFile string, peerCAFile string, peerAdvertiseAddress reconcilers.PeerAdvertiseAddress) (utilpeerproxy.Interface, error) {
+	return utilpeerproxy.NewPeerProxyHandler(
+		versionedInformer,
+		svm,
+		proxyClientCertFile,
+		proxyClientKeyFile,
+		peerCAFile,
 	), nil
 }

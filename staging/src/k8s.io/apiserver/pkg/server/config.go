@@ -58,6 +58,7 @@ import (
 	apiopenapi "k8s.io/apiserver/pkg/endpoints/openapi"
 	apirequest "k8s.io/apiserver/pkg/endpoints/request"
 	genericfeatures "k8s.io/apiserver/pkg/features"
+	"k8s.io/apiserver/pkg/reconcilers"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/apiserver/pkg/server/egressselector"
@@ -70,7 +71,7 @@ import (
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
-	utilapiserverproxy "k8s.io/apiserver/pkg/util/unknownversionproxy"
+	utilpeerproxy "k8s.io/apiserver/pkg/util/peerproxy"
 	"k8s.io/client-go/informers"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/component-base/logs"
@@ -85,6 +86,13 @@ import (
 
 	// install apis
 	_ "k8s.io/apiserver/pkg/apis/apiserver/install"
+)
+
+var (
+	// Hostname is function to return the hostname os this apiserver.
+	// It's exposed as variable for testing purposes to simulate scenarios where multiple apiservers
+	// exist.
+	Hostname = os.Hostname
 )
 
 const (
@@ -127,7 +135,22 @@ type Config struct {
 	// FlowControl, if not nil, gives priority and fairness to request handling
 	FlowControl utilflowcontrol.Interface
 
-	APIServerProxy utilapiserverproxy.Interface
+	// PeerProxy, if not nil, sets proxy transport between kube-apiserver peers for requests
+	// that can not be served locally
+	PeerProxy utilpeerproxy.Interface
+
+	// PeerEndpointLeaseReconciler updates the peer endpoint leases
+	PeerEndpointLeaseReconciler reconcilers.PeerEndpointLeaseReconciler
+
+	// PeerCAFile is the ca bundle used by this kube-apiserver to verify peer apiservers'
+	// serving certs when routing a request to the peer in the case the request can not be served
+	// locally due to version skew.
+	PeerCAFile string
+
+	// PeerAdvertiseAddress is the IP for this kube-apiserver which is used by peer apiservers to route a request
+	// to this apiserver. This happens in cases where the peer is not able to serve the request due to
+	// version skew. If unset, AdvertiseAddress/BindAddress will be used.
+	PeerAdvertiseAddress reconcilers.PeerAdvertiseAddress
 
 	EnableIndex     bool
 	EnableProfiling bool
@@ -370,7 +393,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 	defaultHealthChecks := []healthz.HealthChecker{healthz.PingHealthz, healthz.LogHealthz}
 	var id string
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
-		hostname, err := os.Hostname()
+		hostname, err := Hostname()
 		if err != nil {
 			klog.Fatalf("error getting hostname for apiserver identity: %v", err)
 		}
@@ -845,6 +868,20 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		}
 	}
 
+	// Add PostStartHooks for Unknown Version Proxy filter.
+	if c.PeerProxy != nil {
+		const peerProxyFilterHookName = "unknown-version-proxy-filter"
+		if !s.isPostStartHookRegistered(peerProxyFilterHookName) {
+			err := s.AddPostStartHook(peerProxyFilterHookName, func(context PostStartHookContext) error {
+				err := c.PeerProxy.WaitForCacheSync(context.StopCh)
+				return err
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	// Add PostStartHook for maintenaing the object count tracker.
 	if c.StorageObjectCountTracker != nil {
 		const storageObjectCountTrackerHookName = "storage-object-count-tracker-hook"
@@ -900,13 +937,15 @@ func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c 
 }
 
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
-	handler := filterlatency.TrackCompleted(apiHandler)
+	handler := apiHandler
+	if c.PeerProxy != nil {
+		handler = genericfilters.WithPeerProxy(apiHandler, c.APIServerID, c.PeerProxy, c.Serializer, c.PeerEndpointLeaseReconciler)
+	}
+
+	handler = filterlatency.TrackCompleted(handler)
 	handler = genericapifilters.WithAuthorization(handler, c.Authorization.Authorizer, c.Serializer)
 	handler = filterlatency.TrackStarted(handler, c.TracerProvider, "authorization")
 
-	if c.APIServerProxy != nil {
-		handler = genericfilters.WithUnknownVersionProxy(handler, c.APIServerID, c.APIServerProxy, c.Serializer)
-	}
 	if c.FlowControl != nil {
 		workEstimatorCfg := flowcontrolrequest.DefaultWorkEstimatorConfig()
 		requestWorkEstimator := flowcontrolrequest.NewWorkEstimator(

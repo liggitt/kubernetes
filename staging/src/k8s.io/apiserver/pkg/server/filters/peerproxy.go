@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,9 +20,15 @@ import (
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/runtime"
-	utilunknownversionproxy "k8s.io/apiserver/pkg/util/unknownversionproxy"
+	"k8s.io/apiserver/pkg/reconcilers"
+	"k8s.io/apiserver/pkg/util/peerproxy"
 )
 
-func WithUnknownVersionProxy(handler http.Handler, localAPIServerId string, asi utilunknownversionproxy.Interface,  s runtime.NegotiatedSerializer) http.Handler {
-	return asi.Handle(handler, localAPIServerId, s)
+// WithPeerProxy creates a handler to proxy request to peer kube-apiservers if the request can not be
+// served locally due to version skew or if the requested API is disabled in local apiserver
+func WithPeerProxy(handler http.Handler, serverId string, ppi peerproxy.Interface, s runtime.NegotiatedSerializer, r reconcilers.PeerEndpointLeaseReconciler) http.Handler {
+	if ppi == nil {
+		return handler
+	}
+	return ppi.Handle(handler, serverId, s, r)
 }

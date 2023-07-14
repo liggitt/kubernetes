@@ -23,6 +23,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -61,7 +62,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/endpoints/discovery"
+	"k8s.io/apiserver/pkg/features"
 	apiserverfeatures "k8s.io/apiserver/pkg/features"
+	peerreconcilers "k8s.io/apiserver/pkg/reconcilers"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
@@ -493,6 +496,29 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil
 	})
 
+	if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+		peeraddress := getPeerAddress(c.GenericConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
+		peerEndpointCtrl := peerreconcilers.New(
+			c.GenericConfig.APIServerID,
+			peeraddress,
+			c.GenericConfig.PeerEndpointLeaseReconciler,
+			c.ExtraConfig.EndpointReconcilerConfig.Interval,
+			clientset)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create peer endpoint lease controller: %w", err)
+		}
+		m.GenericAPIServer.AddPostStartHookOrDie("peer-endpoint-reconciler-controller",
+			func(hookContext genericapiserver.PostStartHookContext) error {
+				peerEndpointCtrl.Start(hookContext.StopCh)
+				return nil
+			})
+		m.GenericAPIServer.AddPreShutdownHookOrDie("peer-endpoint-reconciler-controller",
+			func() error {
+				peerEndpointCtrl.Stop()
+				return nil
+			})
+	}
+
 	m.GenericAPIServer.AddPostStartHookOrDie("start-cluster-authentication-info-controller", func(hookContext genericapiserver.PostStartHookContext) error {
 		controller := clusterauthenticationtrust.NewClusterAuthenticationTrustController(m.ClusterAuthenticationInfo, clientset)
 
@@ -540,6 +566,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			leaseName := m.GenericAPIServer.APIServerID
 			holderIdentity := m.GenericAPIServer.APIServerID + "_" + string(uuid.NewUUID())
 
+			peeraddress := getPeerAddress(c.GenericConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
+			// must replace ':' in <ip:port> to be able to store this as a valid label value
+			peeraddress = strings.Replace(peeraddress, ":", "_", -1)
 			controller := lease.NewController(
 				clock.RealClock{},
 				kubeClient,
@@ -550,7 +579,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 				leaseName,
 				metav1.NamespaceSystem,
 				// TODO: receive identity label value as a parameter when post start hook is moved to generic apiserver.
-				labelAPIServerHeartbeatFunc(KubeAPIServer))
+				labelAPIServerHeartbeatFunc(KubeAPIServer, peeraddress))
 			go controller.Run(ctx)
 			return nil
 		})
@@ -598,7 +627,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	return m, nil
 }
 
-func labelAPIServerHeartbeatFunc(identity string) lease.ProcessLeaseFunc {
+func labelAPIServerHeartbeatFunc(identity string, peeraddress string) lease.ProcessLeaseFunc {
 	return func(lease *coordinationapiv1.Lease) error {
 		if lease.Labels == nil {
 			lease.Labels = map[string]string{}
@@ -614,6 +643,13 @@ func labelAPIServerHeartbeatFunc(identity string) lease.ProcessLeaseFunc {
 
 		// convenience label to easily map a lease object to a specific apiserver
 		lease.Labels[apiv1.LabelHostname] = hostname
+
+		// Include apiserver network location <ip_port> used by peers to proxy requests between kube-apiservers
+		if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+			if peeraddress != "" {
+				lease.Labels[apiv1.LabelPeerAdvertiseAddress] = peeraddress
+			}
+		}
 		return nil
 	}
 }
@@ -753,4 +789,14 @@ func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 	ret.EnableResources(legacyBetaEnabledByDefaultResources...)
 
 	return ret
+}
+
+// utility function to get the apiserver address that is used by peer apiservers to proxy
+// requests to this apiserver in case the peer is incapable of serving the request
+func getPeerAddress(peerAdvertiseAddress peerreconcilers.PeerAdvertiseAddress, publicAddress net.IP, publicServicePort int) string {
+	if peerAdvertiseAddress.PeerAdvertiseIP != "" && peerAdvertiseAddress.PeerAdvertisePort != "" {
+		return net.JoinHostPort(peerAdvertiseAddress.PeerAdvertiseIP, peerAdvertiseAddress.PeerAdvertisePort)
+	} else {
+		return net.JoinHostPort(publicAddress.String(), strconv.Itoa(publicServicePort))
+	}
 }
