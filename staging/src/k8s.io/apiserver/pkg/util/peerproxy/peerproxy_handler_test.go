@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/apitesting"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -209,7 +210,6 @@ func TestPeerProxy(t *testing.T) {
 				// need to enable feature flags first
 				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.APIServerIdentity, true)()
 				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StorageVersionAPI, true)()
-				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.UnknownVersionInteroperabilityProxy, true)()
 
 				reconciler.UpdateLease(tt.reconcilerConfig.serverId,
 					tt.reconcilerConfig.publicIP,
@@ -262,12 +262,12 @@ func newFakePeerEndpointReconciler(t *testing.T) reconcilers.PeerEndpointLeaseRe
 func newHandlerChain(t *testing.T, handler http.Handler, reconciler reconcilers.PeerEndpointLeaseReconciler, informerFinishedSync bool, svdata FakeSVMapData) http.Handler {
 	// Add peerproxy handler
 	s := serializer.NewCodecFactory(runtime.NewScheme()).WithoutConversion()
-	peerProxyHandler, err := newFakePeerProxyHandler(informerFinishedSync, reconciler, svdata)
+	peerProxyHandler, err := newFakePeerProxyHandler(informerFinishedSync, reconciler, svdata, localServerId, s)
 	if err != nil {
 		t.Fatalf("Error creating peer proxy handler: %v", err)
 	}
 	peerProxyHandler.finishedSync.Store(informerFinishedSync)
-	handler = peerProxyHandler.Handle(handler, localServerId, s, reconciler)
+	handler = peerProxyHandler.WrapHandler(handler)
 
 	// Add user info
 	handler = withFakeUser(handler)
@@ -278,7 +278,7 @@ func newHandlerChain(t *testing.T, handler http.Handler, reconciler reconcilers.
 	return handler
 }
 
-func newFakePeerProxyHandler(informerFinishedSync bool, reconciler reconcilers.PeerEndpointLeaseReconciler, svdata FakeSVMapData) (*peerProxyHandler, error) {
+func newFakePeerProxyHandler(informerFinishedSync bool, reconciler reconcilers.PeerEndpointLeaseReconciler, svdata FakeSVMapData, id string, s runtime.NegotiatedSerializer) (*peerProxyHandler, error) {
 	clientset := fake.NewSimpleClientset()
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
 	clientConfig := &transport.Config{
@@ -289,7 +289,7 @@ func newFakePeerProxyHandler(informerFinishedSync bool, reconciler reconcilers.P
 	if err != nil {
 		return nil, err
 	}
-	ppI := NewPeerProxyHandler(informerFactory, storageversion.NewDefaultManager(), proxyRoundTripper)
+	ppI := NewPeerProxyHandler(informerFactory, storageversion.NewDefaultManager(), proxyRoundTripper, id, reconciler, s)
 	if testDataExists(svdata.gvr) {
 		ppI.addToStorageVersionMap(svdata.gvr, svdata.serverId)
 	}

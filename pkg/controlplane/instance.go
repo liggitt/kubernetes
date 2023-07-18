@@ -68,6 +68,7 @@ import (
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	utilpeerproxy "k8s.io/apiserver/pkg/util/peerproxy"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -85,6 +86,7 @@ import (
 	"k8s.io/kubernetes/pkg/controlplane/controller/legacytokentracking"
 	"k8s.io/kubernetes/pkg/controlplane/controller/systemnamespaces"
 	"k8s.io/kubernetes/pkg/controlplane/reconcilers"
+	"k8s.io/kubernetes/pkg/features"
 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 	"k8s.io/kubernetes/pkg/routes"
@@ -158,6 +160,23 @@ type ExtraConfig struct {
 
 	EnableLogsSupport bool
 	ProxyTransport    *http.Transport
+
+	// PeerProxy, if not nil, sets proxy transport between kube-apiserver peers for requests
+	// that can not be served locally
+	PeerProxy utilpeerproxy.Interface
+
+	// PeerEndpointLeaseReconciler updates the peer endpoint leases
+	PeerEndpointLeaseReconciler peerreconcilers.PeerEndpointLeaseReconciler
+
+	// PeerCAFile is the ca bundle used by this kube-apiserver to verify peer apiservers'
+	// serving certs when routing a request to the peer in the case the request can not be served
+	// locally due to version skew.
+	PeerCAFile string
+
+	// PeerAdvertiseAddress is the IP for this kube-apiserver which is used by peer apiservers to route a request
+	// to this apiserver. This happens in cases where the peer is not able to serve the request due to
+	// version skew. If unset, AdvertiseAddress/BindAddress will be used.
+	PeerAdvertiseAddress peerreconcilers.PeerAdvertiseAddress
 
 	// Values to build the IP addresses used by discovery
 	// The range of IPs to be assigned to services with type=ClusterIP or greater
@@ -494,12 +513,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil
 	})
 
-	if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.UnknownVersionInteroperabilityProxy) {
-		peeraddress := getPeerAddress(c.GenericConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
+	if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
+		peeraddress := getPeerAddress(c.ExtraConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
 		peerEndpointCtrl := peerreconcilers.New(
 			c.GenericConfig.APIServerID,
 			peeraddress,
-			c.GenericConfig.PeerEndpointLeaseReconciler,
+			c.ExtraConfig.PeerEndpointLeaseReconciler,
 			c.ExtraConfig.EndpointReconcilerConfig.Interval,
 			clientset)
 		if err != nil {
@@ -515,6 +534,13 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 				peerEndpointCtrl.Stop()
 				return nil
 			})
+		// Add PostStartHooks for Unknown Version Proxy filter.
+		if c.ExtraConfig.PeerProxy != nil {
+			m.GenericAPIServer.AddPostStartHookOrDie("unknown-version-proxy-filter", func(context genericapiserver.PostStartHookContext) error {
+				err := c.ExtraConfig.PeerProxy.WaitForCacheSync(context.StopCh)
+				return err
+			})
+		}
 	}
 
 	m.GenericAPIServer.AddPostStartHookOrDie("start-cluster-authentication-info-controller", func(hookContext genericapiserver.PostStartHookContext) error {
@@ -564,7 +590,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			leaseName := m.GenericAPIServer.APIServerID
 			holderIdentity := m.GenericAPIServer.APIServerID + "_" + string(uuid.NewUUID())
 
-			peeraddress := getPeerAddress(c.GenericConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
+			peeraddress := getPeerAddress(c.ExtraConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
 			// must replace ':,[]' in [ip:port] to be able to store this as a valid label value
 			controller := lease.NewController(
 				clock.RealClock{},
@@ -646,7 +672,7 @@ func labelAPIServerHeartbeatFunc(identity string, peeraddress string) lease.Proc
 		lease.Labels[apiv1.LabelHostname] = hostname
 
 		// Include apiserver network location <ip_port> used by peers to proxy requests between kube-apiservers
-		if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.UnknownVersionInteroperabilityProxy) {
+		if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
 			if peeraddress != "" {
 				lease.Annotations[apiv1.AnnotationPeerAdvertiseAddress] = peeraddress
 			}

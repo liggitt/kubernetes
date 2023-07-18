@@ -165,15 +165,6 @@ func BuildGenericConfig(
 		genericConfig.FlowControl, lastErr = BuildPriorityAndFairness(s, clientgoExternalClient, versionedInformers)
 	}
 
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
-		genericConfig.PeerEndpointLeaseReconciler, lastErr = createPeerEndpointLeaseReconciler(*genericConfig, storageFactory)
-		if lastErr != nil {
-			return
-		}
-		genericConfig.PeerProxy, _ = BuildPeerProxy(versionedInformers, genericConfig.StorageVersionManager, s.ProxyClientCertFile,
-			s.ProxyClientKeyFile, s.PeerCAFile, s.PeerAdvertiseAddress)
-	}
-
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		genericConfig.AggregatedDiscoveryGroupManager = aggregated.NewResourceManager("apis")
 	}
@@ -209,9 +200,9 @@ func BuildPriorityAndFairness(s controlplaneapiserver.CompletedOptions, extclien
 	), nil
 }
 
-// createPeerEndpointLeaseReconciler creates a apiserver endpoint lease reconciliation loop
+// CreatePeerEndpointLeaseReconciler creates a apiserver endpoint lease reconciliation loop
 // The peer endpoint leases are used to find network locations of apiservers for peer proxy
-func createPeerEndpointLeaseReconciler(c genericapiserver.Config, storageFactory serverstorage.StorageFactory) (reconcilers.PeerEndpointLeaseReconciler, error) {
+func CreatePeerEndpointLeaseReconciler(c genericapiserver.Config, storageFactory serverstorage.StorageFactory) (reconcilers.PeerEndpointLeaseReconciler, error) {
 	ttl := controlplane.DefaultEndpointReconcilerTTL
 	config, err := storageFactory.NewConfig(api.Resource("apiServerPeerIPInfo"))
 	if err != nil {
@@ -221,7 +212,7 @@ func createPeerEndpointLeaseReconciler(c genericapiserver.Config, storageFactory
 	return reconciler, err
 }
 
-func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, svm storageversion.Manager, proxyClientCertFile string, proxyClientKeyFile string, peerCAFile string, peerAdvertiseAddress reconcilers.PeerAdvertiseAddress) (utilpeerproxy.Interface, error) {
+func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, svm storageversion.Manager, proxyClientCertFile string, proxyClientKeyFile string, peerCAFile string, peerAdvertiseAddress reconcilers.PeerAdvertiseAddress, apiServerID string, reconciler reconcilers.PeerEndpointLeaseReconciler, serializer runtime.NegotiatedSerializer) (utilpeerproxy.Interface, error) {
 	if peerCAFile == "" {
 		return nil, fmt.Errorf("error building peer proxy handler, peer-ca-file not specified")
 	}
@@ -251,5 +242,8 @@ func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, s
 		versionedInformer,
 		svm,
 		proxyRoundTripper,
+		apiServerID,
+		reconciler,
+		serializer,
 	), nil
 }

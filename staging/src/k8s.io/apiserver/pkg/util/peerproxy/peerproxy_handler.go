@@ -63,6 +63,12 @@ type peerProxyHandler struct {
 	// proxy transport
 	proxyTransport http.RoundTripper
 
+	serverId string
+
+	reconciler reconcilers.PeerEndpointLeaseReconciler
+
+	serializer runtime.NegotiatedSerializer
+
 	// SyncMap for storing an up to date copy of the storageversions and apiservers that can serve them
 	// This map is populated using the StorageVersion informer
 	// This map has key set to GVR and value being another SyncMap
@@ -101,9 +107,9 @@ func (h *peerProxyHandler) WaitForCacheSync(stopCh <-chan struct{}) error {
 	return nil
 }
 
-// Handle will fetch the apiservers that can serve the request and either serve it locally
+// WrapHandler will fetch the apiservers that can serve the request and either serve it locally
 // or route it to a peer
-func (h *peerProxyHandler) Handle(handler http.Handler, serverId string, s runtime.NegotiatedSerializer, reconciler reconcilers.PeerEndpointLeaseReconciler) http.Handler {
+func (h *peerProxyHandler) WrapHandler(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		requestInfo, ok := apirequest.RequestInfoFrom(ctx)
@@ -142,7 +148,7 @@ func (h *peerProxyHandler) Handle(handler http.Handler, serverId string, s runti
 		}
 
 		// find servers that are capable of serving this request
-		serviceableByResp, err := h.findServiceableByServers(gvr, serverId, reconciler)
+		serviceableByResp, err := h.findServiceableByServers(gvr, h.serverId, h.reconciler)
 		if err != nil {
 			// this means that resource is an aggregated API or a CR since it wasn't found in SV informer cache, pass as it is
 			handler.ServeHTTP(w, r)
@@ -158,7 +164,7 @@ func (h *peerProxyHandler) Handle(handler http.Handler, serverId string, s runti
 
 		if serviceableByResp.errorFetchingAddressFromLease {
 			klog.ErrorS(err, "error fetching ip and port of remote server while proxying")
-			responsewriters.ErrorNegotiated(apierrors.NewServiceUnavailable("Error getting ip and port info of the remote server while proxying"), s, gv, w, r)
+			responsewriters.ErrorNegotiated(apierrors.NewServiceUnavailable("Error getting ip and port info of the remote server while proxying"), h.serializer, gv, w, r)
 			return
 		}
 

@@ -29,7 +29,7 @@ import (
 
 // Interface defines how the Unknown Version Proxy filter interacts with the underlying system.
 type Interface interface {
-	Handle(handler http.Handler, serverId string, s runtime.NegotiatedSerializer, reconciler reconcilers.PeerEndpointLeaseReconciler) http.Handler
+	WrapHandler(handler http.Handler) http.Handler
 	WaitForCacheSync(stopCh <-chan struct{}) error
 	HasFinishedSync() bool
 }
@@ -37,12 +37,18 @@ type Interface interface {
 // New creates a new instance to implement unknown version proxy
 func NewPeerProxyHandler(informerFactory kubeinformers.SharedInformerFactory,
 	svm storageversion.Manager,
-	proxyTransport http.RoundTripper) *peerProxyHandler {
+	proxyTransport http.RoundTripper,
+	serverId string,
+	reconciler reconcilers.PeerEndpointLeaseReconciler,
+	serializer runtime.NegotiatedSerializer) *peerProxyHandler {
 	h := &peerProxyHandler{
 		name:                  "PeerProxyHandler",
 		storageversionManager: svm,
 		proxyTransport:        proxyTransport,
 		svMap:                 sync.Map{},
+		serverId:              serverId,
+		reconciler:            reconciler,
+		serializer:            serializer,
 	}
 	svi := informerFactory.Internal().V1alpha1().StorageVersions()
 	h.storageversionInformer = svi.Informer()

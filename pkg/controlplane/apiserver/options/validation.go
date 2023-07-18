@@ -27,6 +27,7 @@ import (
 	aggregatorscheme "k8s.io/kube-aggregator/pkg/apiserver/scheme"
 
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	"k8s.io/kubernetes/pkg/features"
 )
 
 func validateTokenRequest(options *Options) []error {
@@ -70,7 +71,7 @@ func validateAPIPriorityAndFairness(options *Options) []error {
 }
 
 func validateUnknownVersionInteroperabilityProxyFeature() []error {
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
 		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) {
 			return nil
 		}
@@ -81,7 +82,7 @@ func validateUnknownVersionInteroperabilityProxyFeature() []error {
 
 func validateUnknownVersionInteroperabilityProxyFlags(options *Options) []error {
 	err := []error{}
-	if !utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
 		if options.PeerCAFile != "" {
 			err = append(err, fmt.Errorf("--peer-ca-file requires UnknownVersionInteroperabilityProxy feature to be turned on"))
 		}
