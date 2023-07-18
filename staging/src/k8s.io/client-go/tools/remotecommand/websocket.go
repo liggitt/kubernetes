@@ -120,9 +120,27 @@ func (e *wsStreamExecutor) StreamWithContext(ctx context.Context, options Stream
 		streamer = newStreamProtocolV1(options)
 	}
 
-	creator := newWSStreamCreator(conn)
-	go creator.run()
-	return streamer.stream(creator)
+	panicChan := make(chan any, 1)
+	errorChan := make(chan error, 1)
+	go func() {
+		defer func() {
+			if p := recover(); p != nil {
+				panicChan <- p
+			}
+		}()
+		creator := newWSStreamCreator(conn)
+		go creator.run() // connection read/stream write loop in its own goroutine.
+		errorChan <- streamer.stream(creator)
+	}()
+
+	select {
+	case p := <-panicChan:
+		panic(p)
+	case err := <-errorChan:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 type wsStreamCreator struct {
@@ -210,6 +228,8 @@ func (c *wsStreamCreator) sendPings(period time.Duration) {
 	}
 }
 
+// run is executed in its own goroutine, reading the connection and demultiplexing
+// the data messages into individual streams.
 func (c *wsStreamCreator) run() {
 	// Buffer size must correspond to the same size allocated
 	// for the read buffer during websocket client creation. A
