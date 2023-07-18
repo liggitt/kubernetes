@@ -129,7 +129,7 @@ func (e *wsStreamExecutor) StreamWithContext(ctx context.Context, options Stream
 			}
 		}()
 		creator := newWSStreamCreator(conn)
-		go creator.run() // connection read/stream write loop in its own goroutine.
+		go creator.run(wsRt.DataBufferSize()) // connection read/stream write loop in its own goroutine.
 		errorChan <- streamer.stream(creator)
 	}()
 
@@ -230,11 +230,11 @@ func (c *wsStreamCreator) sendPings(period time.Duration) {
 
 // run is executed in its own goroutine, reading the connection and demultiplexing
 // the data messages into individual streams.
-func (c *wsStreamCreator) run() {
+func (c *wsStreamCreator) run(bufferSize int) {
 	// Buffer size must correspond to the same size allocated
 	// for the read buffer during websocket client creation. A
 	// difference can cause incomplete connection reads.
-	readBuffer := make([]byte, remotecommand.WebSocketBufferSize)
+	readBuffer := make([]byte, bufferSize)
 	// Set up handler for ping/pong heartbeat.
 	if err := c.conn.SetReadDeadline(time.Now().Add(pingReadDeadline)); err != nil {
 		klog.V(7).Infof("Websocket setting read deadline failed %v", err)

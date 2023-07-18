@@ -26,7 +26,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/apimachinery/pkg/util/remotecommand"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 )
@@ -58,6 +57,14 @@ func (rt *RoundTripper) TLSClientConfig() *tls.Config {
 	return rt.TLSConfig
 }
 
+func (rt *RoundTripper) Connection() *gwebsocket.Conn {
+	return rt.Conn
+}
+
+func (rt *RoundTripper) DataBufferSize() int {
+	return 32 * 1024
+}
+
 // RoundTrip connects to the remote websocket using the headers in the request and the TLS
 // configuration from the config
 func (rt *RoundTripper) RoundTrip(request *http.Request) (retResp *http.Response, retErr error) {
@@ -78,8 +85,8 @@ func (rt *RoundTripper) RoundTrip(request *http.Request) (retResp *http.Response
 		Proxy:           rt.Proxier,
 		TLSClientConfig: rt.TLSConfig,
 		Subprotocols:    protocolVersions,
-		ReadBufferSize:  remotecommand.WebSocketBufferSize + 1,
-		WriteBufferSize: remotecommand.WebSocketBufferSize + 1,
+		ReadBufferSize:  rt.DataBufferSize() + 1024, // add space for the protocol byte indicating which channel the data is for
+		WriteBufferSize: rt.DataBufferSize() + 1024, // add space for the protocol byte indicating which channel the data is for
 	}
 	switch request.URL.Scheme {
 	case "https":
@@ -102,11 +109,16 @@ func (rt *RoundTripper) RoundTrip(request *http.Request) (retResp *http.Response
 	return resp, nil
 }
 
+type ConnectionHolder interface {
+	DataBufferSize() int
+	Connection() *gwebsocket.Conn
+}
+
 // RoundTripperFor transforms the passed rest config into a wrapped roundtripper, as well
 // as a pointer to the websocket RoundTripper. The websocket RoundTripper contains the
 // websocket connection after RoundTrip() on the wrapper. Returns an error if there is
 // a problem creating the round trippers.
-func RoundTripperFor(config *restclient.Config) (http.RoundTripper, *RoundTripper, error) {
+func RoundTripperFor(config *restclient.Config) (http.RoundTripper, ConnectionHolder, error) {
 	transportCfg, err := config.TransportConfig()
 	if err != nil {
 		return nil, nil, err
@@ -134,7 +146,7 @@ func RoundTripperFor(config *restclient.Config) (http.RoundTripper, *RoundTrippe
 // Negotiate opens a connection to a remote server and attempts to negotiate
 // a WebSocket connection. Upon success, it returns the negotiated connection.
 // The round tripper rt must use the WebSocket round tripper wsRt - see RoundTripperFor.
-func Negotiate(rt http.RoundTripper, wsRt *RoundTripper, req *http.Request, protocols ...string) (*gwebsocket.Conn, error) {
+func Negotiate(rt http.RoundTripper, connectionInfo ConnectionHolder, req *http.Request, protocols ...string) (*gwebsocket.Conn, error) {
 	req.Header[httpstream.HeaderProtocolVersion] = protocols
 	resp, err := rt.RoundTrip(req)
 	if err != nil {
@@ -142,8 +154,8 @@ func Negotiate(rt http.RoundTripper, wsRt *RoundTripper, req *http.Request, prot
 	}
 	err = resp.Body.Close()
 	if err != nil {
-		wsRt.Conn.Close()
+		connectionInfo.Connection().Close()
 		return nil, fmt.Errorf("error closing response body: %v", err)
 	}
-	return wsRt.Conn, nil
+	return connectionInfo.Connection(), nil
 }

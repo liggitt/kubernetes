@@ -62,12 +62,6 @@ const (
 	StreamErr    = 3
 	StreamResize = 4
 	StreamClose  = 255
-
-	// The buffer size must be the same for the websocket client creation as
-	// well as the read buffer allocated to pipe data to the streams (in
-	// WebSocketExecutor.Run). The value chosen is the same as the default
-	// for "io.Copy()".
-	WebSocketBufferSize = 32 * 1024
 )
 
 var SupportedStreamingProtocols = []string{StreamProtocolV4Name, StreamProtocolV3Name, StreamProtocolV2Name, StreamProtocolV1Name}

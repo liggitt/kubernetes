@@ -28,6 +28,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	"k8s.io/apimachinery/pkg/util/remotecommand"
@@ -58,7 +59,7 @@ func TestWebSocketRoundTripper_RoundTripperSucceeds(t *testing.T) {
 	require.NoError(t, err)
 	// WebSocket Connection is stored in websocket RoundTripper.
 	// Compare the expected negotiated subprotocol with the actual subprotocol.
-	actualProtocol := wsRt.Conn.Subprotocol()
+	actualProtocol := wsRt.Connection().Subprotocol()
 	assert.Equal(t, requestedProtocol, actualProtocol)
 
 }
