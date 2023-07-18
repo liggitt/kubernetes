@@ -46,6 +46,7 @@ import (
 	"k8s.io/apiserver/pkg/util/peerproxy/metrics"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/transport"
 	featuregatetesting "k8s.io/component-base/featuregate/testing"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/metrics/testutil"
@@ -104,9 +105,11 @@ func TestPeerProxy(t *testing.T) {
 			informerFinishedSync: true,
 		},
 		{
-			desc:                 "404 if no serverid found",
+			// since if no server id is found, we pass request to next handler
+			//, and our last handler in local chain is an http ok handler
+			desc:                 "200 if no serverid found",
 			requestPath:          "/api/bar/baz",
-			expectedStatus:       http.StatusNotFound,
+			expectedStatus:       http.StatusOK,
 			informerFinishedSync: true,
 			svdata: FakeSVMapData{
 				gvr: schema.GroupVersionResource{
@@ -259,7 +262,10 @@ func newFakePeerEndpointReconciler(t *testing.T) reconcilers.PeerEndpointLeaseRe
 func newHandlerChain(t *testing.T, handler http.Handler, reconciler reconcilers.PeerEndpointLeaseReconciler, informerFinishedSync bool, svdata FakeSVMapData) http.Handler {
 	// Add peerproxy handler
 	s := serializer.NewCodecFactory(runtime.NewScheme()).WithoutConversion()
-	peerProxyHandler := newFakePeerProxyHandler(informerFinishedSync, reconciler, svdata)
+	peerProxyHandler, err := newFakePeerProxyHandler(informerFinishedSync, reconciler, svdata)
+	if err != nil {
+		t.Fatalf("Error creating peer proxy handler: %v", err)
+	}
 	peerProxyHandler.finishedSync.Store(informerFinishedSync)
 	handler = peerProxyHandler.Handle(handler, localServerId, s, reconciler)
 
@@ -272,14 +278,22 @@ func newHandlerChain(t *testing.T, handler http.Handler, reconciler reconcilers.
 	return handler
 }
 
-func newFakePeerProxyHandler(informerFinishedSync bool, reconciler reconcilers.PeerEndpointLeaseReconciler, svdata FakeSVMapData) *peerProxyHandler {
+func newFakePeerProxyHandler(informerFinishedSync bool, reconciler reconcilers.PeerEndpointLeaseReconciler, svdata FakeSVMapData) (*peerProxyHandler, error) {
 	clientset := fake.NewSimpleClientset()
 	informerFactory := informers.NewSharedInformerFactory(clientset, 0)
-	ppI := NewPeerProxyHandler(informerFactory, storageversion.NewDefaultManager(), "", "", "")
+	clientConfig := &transport.Config{
+		TLS: transport.TLSConfig{
+			Insecure: false,
+		}}
+	proxyRoundTripper, err := transport.New(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	ppI := NewPeerProxyHandler(informerFactory, storageversion.NewDefaultManager(), proxyRoundTripper)
 	if testDataExists(svdata.gvr) {
 		ppI.addToStorageVersionMap(svdata.gvr, svdata.serverId)
 	}
-	return ppI
+	return ppI, nil
 }
 
 func (h *peerProxyHandler) addToStorageVersionMap(gvr schema.GroupVersionResource, serverId string) {

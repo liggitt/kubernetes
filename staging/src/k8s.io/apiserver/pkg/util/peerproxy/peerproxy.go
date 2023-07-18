@@ -37,15 +37,11 @@ type Interface interface {
 // New creates a new instance to implement unknown version proxy
 func NewPeerProxyHandler(informerFactory kubeinformers.SharedInformerFactory,
 	svm storageversion.Manager,
-	proxyClientCertFile string,
-	proxyClientKeyFile string,
-	peerCAFile string) *peerProxyHandler {
+	proxyTransport http.RoundTripper) *peerProxyHandler {
 	h := &peerProxyHandler{
 		name:                  "PeerProxyHandler",
 		storageversionManager: svm,
-		proxyClientCertFile:   proxyClientCertFile,
-		proxyClientKeyFile:    proxyClientKeyFile,
-		peerCAFile:            peerCAFile,
+		proxyTransport:        proxyTransport,
 		svMap:                 sync.Map{},
 	}
 	svi := informerFactory.Internal().V1alpha1().StorageVersions()

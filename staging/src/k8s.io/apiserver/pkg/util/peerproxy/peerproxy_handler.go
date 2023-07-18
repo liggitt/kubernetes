@@ -48,7 +48,7 @@ import (
 )
 
 const (
-	PeerProxiedHeader = "peer-proxied"
+	PeerProxiedHeader = "x-kubernetes-peer-proxied"
 )
 
 type peerProxyHandler struct {
@@ -60,14 +60,8 @@ type peerProxyHandler struct {
 	// we start handling external requests
 	storageversionManager storageversion.Manager
 
-	// proxyClient[Cert|Key]File are the client cert/key used by source apiserver to establish its
-	// identity when it reroutes a request to a peer
-	proxyClientCertFile string
-	proxyClientKeyFile  string
-
-	// PeerCAFile is the ca bundle used by source apiserver to verify peer apiservers'
-	// serving certs when routing a request to the peer
-	peerCAFile string
+	// proxy transport
+	proxyTransport http.RoundTripper
 
 	// SyncMap for storing an up to date copy of the storageversions and apiservers that can serve them
 	// This map is populated using the StorageVersion informer
@@ -81,8 +75,9 @@ type peerProxyHandler struct {
 }
 
 type serviceableByResponse struct {
-	locallyServiceable bool
-	peerEndpoints      []string
+	locallyServiceable            bool
+	errorFetchingAddressFromLease bool
+	peerEndpoints                 []string
 }
 
 // responder implements rest.Responder for assisting a connector in writing objects or errors.
@@ -150,45 +145,37 @@ func (h *peerProxyHandler) Handle(handler http.Handler, serverId string, s runti
 		serviceableByResp, err := h.findServiceableByServers(gvr, serverId, reconciler)
 		if err != nil {
 			// this means that resource is an aggregated API or a CR since it wasn't found in SV informer cache, pass as it is
-			klog.Infof(fmt.Sprintf("no StorageVersion/APIServerID found for the GVR: %v skipping proxying", gvr))
 			handler.ServeHTTP(w, r)
 			return
 		}
 		// found the gvr locally, pass request to the next handler in local apiserver
 		if serviceableByResp.locallyServiceable {
-			klog.V(4).Infof("resource can be served locally, skipping proxying")
 			handler.ServeHTTP(w, r)
 			return
 		}
 
 		gv := schema.GroupVersion{Group: gvr.Group, Version: gvr.Version}
 
-		// if no apiservers were found that could serve the request, serve 404
-		if len(serviceableByResp.peerEndpoints) == 0 {
-			klog.Errorf(fmt.Sprintf("GVR %v is not served by anything in this cluster", gvr))
-			responsewriters.ErrorNegotiated(apierrors.NewNotFound(schema.GroupResource{Group: gvr.Group, Resource: gvr.Resource},
-				fmt.Sprintf("%s.%s", gvr.Group, gvr.Resource)), s, gv, w, r)
-			return
-		}
-
-		// otherwise, randomly select an apiserver
-		rand := rand.Intn(len(serviceableByResp.peerEndpoints))
-		destServerHostPort := serviceableByResp.peerEndpoints[rand]
-
-		if destServerHostPort == "" {
-			klog.Errorf("failed to serve request: Found no endpoints in server leases for the remote apiserver")
-			responsewriters.ErrorNegotiated(apierrors.NewServiceUnavailable("Found no endpoints in servers leases for the remote apiserver"), s, gv, w, r)
-			return
-		}
-
-		// check ip format
-		_, _, err = net.SplitHostPort(destServerHostPort)
-		if err != nil {
-			klog.ErrorS(err, "error getting ip and port info of the remote server while proxying")
+		if serviceableByResp.errorFetchingAddressFromLease {
+			klog.ErrorS(err, "error fetching ip and port of remote server while proxying")
 			responsewriters.ErrorNegotiated(apierrors.NewServiceUnavailable("Error getting ip and port info of the remote server while proxying"), s, gv, w, r)
 			return
 		}
 
+		// no apiservers were found that could serve the request, pass request to
+		// next handler, that should eventually serve 404
+
+		// TODO: maintain locally serviceable GVRs somewhere so that we dont have to
+		// consult the storageversion-informed map for those
+		if len(serviceableByResp.peerEndpoints) == 0 {
+			klog.Errorf(fmt.Sprintf("GVR %v is not served by anything in this cluster", gvr))
+			handler.ServeHTTP(w, r)
+			return
+		}
+
+		// otherwise, randomly select an apiserver and proxy request to it
+		rand := rand.Intn(len(serviceableByResp.peerEndpoints))
+		destServerHostPort := serviceableByResp.peerEndpoints[rand]
 		h.proxyRequestToDestinationAPIServer(r, w, destServerHostPort)
 
 	})
@@ -208,6 +195,7 @@ func (h *peerProxyHandler) findServiceableByServers(gvr schema.GroupVersionResou
 	apiservers.Range(func(key, value interface{}) bool {
 		apiserverKey := key.(string)
 		if apiserverKey == localAPIServerId {
+			response.errorFetchingAddressFromLease = true
 			response.locallyServiceable = true
 			// stop iteration
 			return false
@@ -215,14 +203,24 @@ func (h *peerProxyHandler) findServiceableByServers(gvr schema.GroupVersionResou
 
 		hostPort, err := reconciler.GetEndpoint(apiserverKey)
 		if err != nil {
+			response.errorFetchingAddressFromLease = true
+			klog.ErrorS(err, "failed to get peer ip from storage lease for server %s", apiserverKey)
 			// continue with iteration
-			klog.Errorf("failed to get peer ip from storage lease for server %s", apiserverKey)
+			return true
+		}
+		// check ip format
+		_, _, err = net.SplitHostPort(hostPort)
+		if err != nil {
+			response.errorFetchingAddressFromLease = true
+			klog.ErrorS(err, "invalid address found for server %s", apiserverKey)
+			// continue with iteration
 			return true
 		}
 		peerServerEndpoints = append(peerServerEndpoints, hostPort)
 		// continue with iteration
 		return true
 	})
+
 	response.peerEndpoints = peerServerEndpoints
 	return response, nil
 }
@@ -245,26 +243,7 @@ func (h *peerProxyHandler) proxyRequestToDestinationAPIServer(req *http.Request,
 	newReq.Header.Add(PeerProxiedHeader, "true")
 	defer cancelFn()
 
-	// create transport
-	clientConfig := &transport.Config{
-		TLS: transport.TLSConfig{
-			Insecure:   false,
-			CertFile:   h.proxyClientCertFile,
-			KeyFile:    h.proxyClientKeyFile,
-			CAFile:     h.peerCAFile,
-			ServerName: "kubernetes.default.svc",
-		},
-	}
-
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	defer cancelCtx()
-	proxyRoundTripper, transportBuildingError := transport.New(clientConfig)
-	if transportBuildingError != nil {
-		klog.Error(transportBuildingError.Error())
-		return
-	}
-
-	proxyRoundTripper = transport.NewAuthProxyRoundTripper(user.GetName(), user.GetGroups(), nil, proxyRoundTripper)
+	proxyRoundTripper := transport.NewAuthProxyRoundTripper(user.GetName(), user.GetGroups(), user.GetExtra(), h.proxyTransport)
 
 	delegate := &epmetrics.ResponseWriterDelegator{ResponseWriter: rw}
 	w := responsewriter.WrapForHTTP1Or2(delegate)
@@ -272,7 +251,7 @@ func (h *peerProxyHandler) proxyRequestToDestinationAPIServer(req *http.Request,
 	handler := proxy.NewUpgradeAwareHandler(location, proxyRoundTripper, true, false, &responder{w: w, ctx: req.Context()})
 	handler.ServeHTTP(w, newReq)
 	// Increment the count of proxied requests
-	metrics.IncPeerProxiedRequest(ctx, strconv.Itoa(delegate.Status()))
+	metrics.IncPeerProxiedRequest(req.Context(), strconv.Itoa(delegate.Status()))
 }
 
 func (r *responder) Error(w http.ResponseWriter, req *http.Request, err error) {

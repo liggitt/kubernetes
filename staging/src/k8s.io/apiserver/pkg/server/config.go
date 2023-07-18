@@ -88,11 +88,11 @@ import (
 	_ "k8s.io/apiserver/pkg/apis/apiserver/install"
 )
 
+// hostnameFunc is a function to set the hostnameFunc of this apiserver.
+// To be used for testing purpose only, to simulate scenarios where multiple apiservers
+// exist. In such cases we want to ensure unique apiserver IDs which are a hash of hostnameFunc.
 var (
-	// Hostname is a function to return the hostname os this apiserver.
-	// It's exposed as variable for testing purposes to simulate scenarios where multiple apiservers
-	// exist. In such cases we want to ensure unique apiserver IDs which are a hash of hostname.
-	Hostname = os.Hostname
+	hostnameFunc = os.Hostname
 )
 
 const (
@@ -393,7 +393,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 	defaultHealthChecks := []healthz.HealthChecker{healthz.PingHealthz, healthz.LogHealthz}
 	var id string
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
-		hostname, err := Hostname()
+		hostname, err := hostnameFunc()
 		if err != nil {
 			klog.Fatalf("error getting hostname for apiserver identity: %v", err)
 		}
@@ -1114,4 +1114,13 @@ func AuthorizeClientBearerToken(loopback *restclient.Config, authn *Authenticati
 
 	tokenAuthenticator := authenticatorfactory.NewFromTokens(tokens, authn.APIAudiences)
 	authn.Authenticator = authenticatorunion.New(tokenAuthenticator, authn.Authenticator)
+}
+
+// For testing purpose only
+func SetHostnameFuncForTests(name string) {
+	hostnameFunc = func() (host string, err error) {
+		host = name
+		err = nil
+		return
+	}
 }

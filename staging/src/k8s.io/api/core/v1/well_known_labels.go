@@ -21,7 +21,7 @@ const (
 
 	// Label value is the network location of kube-apiserver stored as <ip:port>
 	// Stored in APIServer Identity lease objects to view what address is used for peer proxy
-	LabelPeerAdvertiseAddress = "kubernetes.io/peer-advertise-address"
+	AnnotationPeerAdvertiseAddress = "kubernetes.io/peer-advertise-address"
 
 	LabelTopologyZone   = "topology.kubernetes.io/zone"
 	LabelTopologyRegion = "topology.kubernetes.io/region"

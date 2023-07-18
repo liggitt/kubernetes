@@ -25,7 +25,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/errors"
-	peerreconcilers "k8s.io/apiserver/pkg/reconcilers"
 	"k8s.io/apiserver/pkg/server"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
@@ -45,15 +44,6 @@ const (
 // ServerRunOptions contains the options while running a generic api server.
 type ServerRunOptions struct {
 	AdvertiseAddress net.IP
-	// PeerCAFile is the ca bundle used by this kube-apiserver to verify peer apiservers'
-	// serving certs when routing a request to the peer in the case the request can not be served
-	// locally due to version skew.
-	PeerCAFile string
-
-	// PeerAdvertiseAddress is the IP for this kube-apiserver which is used by peer apiservers to route a request
-	// to this apiserver. This happens in cases where the peer is not able to serve the request due to
-	// version skew.
-	PeerAdvertiseAddress peerreconcilers.PeerAdvertiseAddress
 
 	CorsAllowedOriginList       []string
 	HSTSDirectives              []string
@@ -136,8 +126,6 @@ func (s *ServerRunOptions) ApplyTo(c *server.Config) error {
 	c.PublicAddress = s.AdvertiseAddress
 	c.ShutdownSendRetryAfter = s.ShutdownSendRetryAfter
 	c.ShutdownWatchTerminationGracePeriod = s.ShutdownWatchTerminationGracePeriod
-	c.PeerCAFile = s.PeerCAFile
-	c.PeerAdvertiseAddress = s.PeerAdvertiseAddress
 
 	return nil
 }
@@ -353,20 +341,6 @@ func (s *ServerRunOptions) AddUniversalFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&s.ShutdownWatchTerminationGracePeriod, "shutdown-watch-termination-grace-period", s.ShutdownWatchTerminationGracePeriod, ""+
 		"This option, if set, represents the maximum amount of grace period the apiserver will wait "+
 		"for active watch request(s) to drain during the graceful server shutdown window.")
-
-	fs.StringVar(&s.PeerCAFile, "peer-ca-file", s.PeerCAFile,
-		"If set and the UnknownVersionInteroperabilityProxy feature gate is enabled, this file will be used to verify serving certificates of peer kube-apiservers. "+
-			"This flag is only used in clusters configured with multiple kube-apiservers for high availability.")
-
-	fs.StringVar(&s.PeerAdvertiseAddress.PeerAdvertiseIP, "peer-advertise-ip", s.PeerAdvertiseAddress.PeerAdvertiseIP,
-		"If set and the UnknownVersionInteroperabilityProxy feature gate is enabled, this IP will be used by peer kube-apiservers to proxy requests to this kube-apiserver "+
-			"when the request cannot be handled by the peer due to version skew between the kube-apiservers. "+
-			"This flag is only used in clusters configured with multiple kube-apiservers for high availability. ")
-
-	fs.StringVar(&s.PeerAdvertiseAddress.PeerAdvertisePort, "peer-advertise-port", s.PeerAdvertiseAddress.PeerAdvertisePort,
-		"If set and the UnknownVersionInteroperabilityProxy feature gate is enabled, this port will be used by peer kube-apiservers to proxy requests to this kube-apiserver "+
-			"when the request cannot be handled by the peer due to version skew between the kube-apiservers. "+
-			"This flag is only used in clusters configured with multiple kube-apiservers for high availability. ")
 
 	utilfeature.DefaultMutableFeatureGate.AddFlag(fs)
 }

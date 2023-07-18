@@ -82,13 +82,13 @@ func validateUnknownVersionInteroperabilityProxyFeature() []error {
 func validateUnknownVersionInteroperabilityProxyFlags(options *Options) []error {
 	err := []error{}
 	if !utilfeature.DefaultFeatureGate.Enabled(genericfeatures.UnknownVersionInteroperabilityProxy) {
-		if options.GenericServerRunOptions.PeerCAFile != "" {
+		if options.PeerCAFile != "" {
 			err = append(err, fmt.Errorf("--peer-ca-file requires UnknownVersionInteroperabilityProxy feature to be turned on"))
 		}
-		if options.GenericServerRunOptions.PeerAdvertiseAddress.PeerAdvertiseIP != "" {
+		if options.PeerAdvertiseAddress.PeerAdvertiseIP != "" {
 			err = append(err, fmt.Errorf("--peer-advertise-ip requires UnknownVersionInteroperabilityProxy feature to be turned on"))
 		}
-		if options.GenericServerRunOptions.PeerAdvertiseAddress.PeerAdvertisePort != "" {
+		if options.PeerAdvertiseAddress.PeerAdvertisePort != "" {
 			err = append(err, fmt.Errorf("--peer-advertise-port requires UnknownVersionInteroperabilityProxy feature to be turned on"))
 		}
 	}

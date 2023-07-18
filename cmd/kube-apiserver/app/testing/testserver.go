@@ -244,7 +244,7 @@ func StartTestServer(t Logger, instanceOptions *TestServerInstanceOptions, custo
 		}
 		s.Authentication.ClientCert.ClientCA = clientCACertFile
 		if utilfeature.DefaultFeatureGate.Enabled(features.UnknownVersionInteroperabilityProxy) {
-			s.GenericServerRunOptions.PeerCAFile = filepath.Join(s.SecureServing.ServerCert.CertDirectory, s.SecureServing.ServerCert.PairName+".crt")
+			s.PeerCAFile = filepath.Join(s.SecureServing.ServerCert.CertDirectory, s.SecureServing.ServerCert.PairName+".crt")
 		}
 	}
 

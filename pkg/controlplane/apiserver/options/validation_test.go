@@ -116,10 +116,8 @@ func TestValidateUnknownVersionInteroperabilityProxy(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			options := &Options{
-				GenericServerRunOptions: &genericoptions.ServerRunOptions{
-					PeerCAFile:           test.peerCAFile,
-					PeerAdvertiseAddress: test.peerAdvertiseAddress,
-				},
+				PeerCAFile:           test.peerCAFile,
+				PeerAdvertiseAddress: test.peerAdvertiseAddress,
 			}
 			if test.featureEnabled {
 				defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.UnknownVersionInteroperabilityProxy, true)()

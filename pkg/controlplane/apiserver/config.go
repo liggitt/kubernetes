@@ -40,7 +40,9 @@ import (
 	utilpeerproxy "k8s.io/apiserver/pkg/util/peerproxy"
 	clientgoinformers "k8s.io/client-go/informers"
 	clientgoclientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/transport"
 	"k8s.io/component-base/version"
+	"k8s.io/klog/v2"
 	openapicommon "k8s.io/kube-openapi/pkg/common"
 
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
@@ -168,11 +170,8 @@ func BuildGenericConfig(
 		if lastErr != nil {
 			return
 		}
-		genericConfig.PeerProxy, lastErr = BuildPeerProxy(versionedInformers, genericConfig.StorageVersionManager, s.ProxyClientCertFile,
-			s.ProxyClientKeyFile, s.GenericServerRunOptions.PeerCAFile, s.GenericServerRunOptions.PeerAdvertiseAddress)
-		if lastErr != nil {
-			return
-		}
+		genericConfig.PeerProxy, _ = BuildPeerProxy(versionedInformers, genericConfig.StorageVersionManager, s.ProxyClientCertFile,
+			s.ProxyClientKeyFile, s.PeerCAFile, s.PeerAdvertiseAddress)
 	}
 
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
@@ -214,20 +213,43 @@ func BuildPriorityAndFairness(s controlplaneapiserver.CompletedOptions, extclien
 // The peer endpoint leases are used to find network locations of apiservers for peer proxy
 func createPeerEndpointLeaseReconciler(c genericapiserver.Config, storageFactory serverstorage.StorageFactory) (reconcilers.PeerEndpointLeaseReconciler, error) {
 	ttl := controlplane.DefaultEndpointReconcilerTTL
-	config, err := storageFactory.NewConfig(api.Resource("apiServerIPInfo"))
+	config, err := storageFactory.NewConfig(api.Resource("apiServerPeerIPInfo"))
 	if err != nil {
-		return nil, fmt.Errorf("Error creating storage factory config: %w", err)
+		return nil, fmt.Errorf("error creating storage factory config: %w", err)
 	}
 	reconciler, err := reconcilers.NewPeerEndpointLeaseReconciler(config, "/peerserverleases/", ttl)
 	return reconciler, err
 }
 
 func BuildPeerProxy(versionedInformer clientgoinformers.SharedInformerFactory, svm storageversion.Manager, proxyClientCertFile string, proxyClientKeyFile string, peerCAFile string, peerAdvertiseAddress reconcilers.PeerAdvertiseAddress) (utilpeerproxy.Interface, error) {
+	if peerCAFile == "" {
+		return nil, fmt.Errorf("error building peer proxy handler, peer-ca-file not specified")
+	}
+	if proxyClientCertFile == "" {
+		return nil, fmt.Errorf("error building peer proxy handler, proxy-cert-file not specified")
+	}
+	if proxyClientKeyFile == "" {
+		return nil, fmt.Errorf("error building peer proxy handler, proxy-key-file not specified")
+	}
+	// create proxy client config
+	clientConfig := &transport.Config{
+		TLS: transport.TLSConfig{
+			Insecure:   false,
+			CertFile:   proxyClientCertFile,
+			KeyFile:    proxyClientKeyFile,
+			CAFile:     peerCAFile,
+			ServerName: "kubernetes.default.svc",
+		}}
+
+	// build proxy transport
+	proxyRoundTripper, transportBuildingError := transport.New(clientConfig)
+	if transportBuildingError != nil {
+		klog.Error(transportBuildingError.Error())
+		return nil, transportBuildingError
+	}
 	return utilpeerproxy.NewPeerProxyHandler(
 		versionedInformer,
 		svm,
-		proxyClientCertFile,
-		proxyClientKeyFile,
-		peerCAFile,
+		proxyRoundTripper,
 	), nil
 }

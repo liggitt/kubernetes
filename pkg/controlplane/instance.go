@@ -23,7 +23,6 @@ import (
 	"os"
 	"reflect"
 	"strconv"
-	"strings"
 	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -567,7 +566,6 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 			peeraddress := getPeerAddress(c.GenericConfig.PeerAdvertiseAddress, c.GenericConfig.PublicAddress, publicServicePort)
 			// must replace ':,[]' in [ip:port] to be able to store this as a valid label value
-			peeraddress = formatAddress(peeraddress)
 			controller := lease.NewController(
 				clock.RealClock{},
 				kubeClient,
@@ -632,6 +630,10 @@ func labelAPIServerHeartbeatFunc(identity string, peeraddress string) lease.Proc
 			lease.Labels = map[string]string{}
 		}
 
+		if lease.Annotations == nil {
+			lease.Annotations = map[string]string{}
+		}
+
 		// This label indiciates the identity of the lease object.
 		lease.Labels[IdentityLeaseComponentLabelKey] = identity
 
@@ -646,7 +648,7 @@ func labelAPIServerHeartbeatFunc(identity string, peeraddress string) lease.Proc
 		// Include apiserver network location <ip_port> used by peers to proxy requests between kube-apiservers
 		if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.UnknownVersionInteroperabilityProxy) {
 			if peeraddress != "" {
-				lease.Labels[apiv1.LabelPeerAdvertiseAddress] = peeraddress
+				lease.Annotations[apiv1.AnnotationPeerAdvertiseAddress] = peeraddress
 			}
 		}
 		return nil
@@ -798,11 +800,4 @@ func getPeerAddress(peerAdvertiseAddress peerreconcilers.PeerAdvertiseAddress, p
 	} else {
 		return net.JoinHostPort(publicAddress.String(), strconv.Itoa(publicServicePort))
 	}
-}
-
-func formatAddress(address string) string {
-	address = strings.Replace(address, ":", "_", -1) // replace : with _
-	address = strings.Replace(address, "[", "", -1)  // remove [
-	address = strings.Replace(address, "]", "", -1)  // remove ]
-	return address
 }

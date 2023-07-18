@@ -69,25 +69,19 @@ func TestPeerProxiedRequest(t *testing.T) {
 
 	// start test server with all APIs enabled
 	// override hostname to ensure unique ips
-	server.Hostname = func() (host string, err error) {
-		host = "test-server-a"
-		err = nil
-		return
-	}
-
+	server.SetHostnameFuncForTests("test-server-a")
 	serverA := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{
 		EnableCertAuth: true,
-		ProxyCA:        &proxyCA}, []string{}, etcd)
+		ProxyCA:        &proxyCA},
+		[]string{}, etcd)
 	defer serverA.TearDownFn()
 
 	// start another test server with some api disabled
 	// override hostname to ensure unique ips
-	server.Hostname = func() (host string, err error) {
-		host = "test-server-b"
-		err = nil
-		return
-	}
-	serverB := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{EnableCertAuth: true, ProxyCA: &proxyCA},
+	server.SetHostnameFuncForTests("test-server-b")
+	serverB := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{
+		EnableCertAuth: true,
+		ProxyCA:        &proxyCA},
 		[]string{fmt.Sprintf("--runtime-config=%s", "batch/v1=false")}, etcd)
 	defer serverB.TearDownFn()
 
@@ -142,11 +136,7 @@ func TestPeerProxiedRequestToThirdServerAfterFirstDies(t *testing.T) {
 
 	// start serverA with all APIs enabled
 	// override hostname to ensure unique ips
-	server.Hostname = func() (host string, err error) {
-		host = "test-server-a"
-		err = nil
-		return
-	}
+	server.SetHostnameFuncForTests("test-server-a")
 	serverA := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{EnableCertAuth: true, ProxyCA: &proxyCA}, []string{}, etcd)
 	kubeClientSetA, err := kubernetes.NewForConfig(serverA.ClientConfig)
 	require.NoError(t, err)
@@ -159,11 +149,7 @@ func TestPeerProxiedRequestToThirdServerAfterFirstDies(t *testing.T) {
 
 	// start serverB with some api disabled
 	// override hostname to ensure unique ips
-	server.Hostname = func() (host string, err error) {
-		host = "test-server-b"
-		err = nil
-		return
-	}
+	server.SetHostnameFuncForTests("test-server-b")
 	serverB := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{EnableCertAuth: true, ProxyCA: &proxyCA}, []string{
 		fmt.Sprintf("--runtime-config=%v", "batch/v1=false")}, etcd)
 	defer serverB.TearDownFn()
@@ -175,11 +161,7 @@ func TestPeerProxiedRequestToThirdServerAfterFirstDies(t *testing.T) {
 
 	// start serverC with all APIs enabled
 	// override hostname to ensure unique ips
-	server.Hostname = func() (host string, err error) {
-		host = "test-server-c"
-		err = nil
-		return
-	}
+	server.SetHostnameFuncForTests("test-server-c")
 	serverC := kastesting.StartTestServerOrDie(t, &kastesting.TestServerInstanceOptions{EnableCertAuth: true, ProxyCA: &proxyCA}, []string{}, etcd)
 	defer serverC.TearDownFn()
 
