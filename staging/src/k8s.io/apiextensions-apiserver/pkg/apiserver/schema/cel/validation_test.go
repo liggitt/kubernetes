@@ -27,6 +27,7 @@ import (
 
 	"k8s.io/klog/v2"
 	"k8s.io/kube-openapi/pkg/validation/strfmt"
+	"k8s.io/utils/pointer"
 
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apiserver/schema"
@@ -2592,10 +2593,7 @@ func TestMessageExpression(t *testing.T) {
 }
 
 func TestReasonAndFldPath(t *testing.T) {
-	forbiddenReason := func() *field.ErrorType {
-		r := field.ErrorTypeForbidden
-		return &r
-	}()
+	forbiddenReason := pointer.String(string(field.ErrorTypeForbidden))
 	tests := []struct {
 		name      string
 		schema    *schema.Structural
@@ -3313,7 +3311,7 @@ func withRuleMessageAndMessageExpression(s schema.Structural, rule, message, mes
 	return s
 }
 
-func withReasonAndFldPath(s schema.Structural, rule, jsonPath string, reason *field.ErrorType) schema.Structural {
+func withReasonAndFldPath(s schema.Structural, rule, jsonPath string, reason *string) schema.Structural {
 	s.Extensions.XValidations = apiextensions.ValidationRules{
 		{
 			Rule:      rule,

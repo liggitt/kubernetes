@@ -436,11 +436,11 @@ func ValidFieldPath(jsonPath string, schema *schema.Structural) (validFieldPath 
 	return validFieldPath, nil
 }
 
-func fieldErrorForReason(fldPath *field.Path, value interface{}, detail string, reason *field.ErrorType) *field.Error {
+func fieldErrorForReason(fldPath *field.Path, value interface{}, detail string, reason *string) *field.Error {
 	if reason == nil {
 		return field.Invalid(fldPath, value, detail)
 	}
-	switch *reason {
+	switch field.ErrorType(*reason) {
 	case field.ErrorTypeForbidden:
 		return field.Forbidden(fldPath, detail)
 	case field.ErrorTypeRequired:

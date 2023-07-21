@@ -4089,11 +4089,8 @@ func TestValidateCustomResourceDefinition(t *testing.T) {
 							Type: "object",
 							XValidations: apiextensions.ValidationRules{
 								{
-									Rule: "self.a > 0",
-									Reason: func() *field.ErrorType {
-										r := field.ErrorTypeInternal
-										return &r
-									}(),
+									Rule:      "self.a > 0",
+									Reason:    pointer.String(string(field.ErrorTypeInternal)),
 									FieldPath: ".a",
 								},
 							},
