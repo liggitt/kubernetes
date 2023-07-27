@@ -100,13 +100,17 @@ func newQueue(c clock.WithTicker, metrics queueMetrics, updatePeriod time.Durati
 		unfinishedWorkUpdatePeriod: updatePeriod,
 	}
 
-	// Don't start the goroutine for a type of noMetrics so we don't consume
-	// resources unnecessarily
-	if _, ok := metrics.(noMetrics); !ok {
-		go t.updateUnfinishedWorkLoop()
-	}
-
 	return t
+}
+
+func (t *Type) startUpdateUnfinishedWorkLoopIfNeeded() {
+	t.startUpdateUnfinishedWorkLoopIfNeededOnce.Do(func() {
+		// Don't start the goroutine for a type of noMetrics so we don't consume
+		// resources unnecessarily
+		if _, ok := t.metrics.(noMetrics); !ok {
+			go t.updateUnfinishedWorkLoop()
+		}
+	})
 }
 
 const defaultUnfinishedWorkUpdatePeriod = 500 * time.Millisecond
@@ -117,6 +121,8 @@ type Type struct {
 	// element of queue should be in the dirty set and not in the
 	// processing set.
 	queue []t
+
+	startUpdateUnfinishedWorkLoopIfNeededOnce sync.Once
 
 	// dirty defines all of the items that need to be processed.
 	dirty set
@@ -161,6 +167,7 @@ func (s set) len() int {
 
 // Add marks item as needing processing.
 func (q *Type) Add(item interface{}) {
+	q.startUpdateUnfinishedWorkLoopIfNeeded()
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 	if q.shuttingDown {

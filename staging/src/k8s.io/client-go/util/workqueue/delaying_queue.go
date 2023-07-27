@@ -109,8 +109,6 @@ func newDelayingQueue(clock clock.WithTicker, q Interface, name string, provider
 		waitingForAddCh: make(chan *waitFor, 1000),
 		metrics:         newRetryMetrics(name, provider),
 	}
-
-	go ret.waitingLoop()
 	return ret
 }
 
@@ -120,6 +118,8 @@ type delayingType struct {
 
 	// clock tracks time for delayed firing
 	clock clock.Clock
+
+	startOnce sync.Once
 
 	// stopCh lets us signal a shutdown to the waiting loop
 	stopCh chan struct{}
@@ -208,6 +208,7 @@ func (q *delayingType) AddAfter(item interface{}, duration time.Duration) {
 		return
 	}
 
+	q.ensureStarted()
 	q.metrics.retry()
 
 	// immediately add things with no delay
@@ -227,6 +228,12 @@ func (q *delayingType) AddAfter(item interface{}, duration time.Duration) {
 // Checking the queue every 10 seconds isn't expensive and we know that we'll never end up with an
 // expired item sitting for more than 10 seconds.
 const maxWait = 10 * time.Second
+
+func (q *delayingType) ensureStarted() {
+	q.startOnce.Do(func() {
+		go q.waitingLoop()
+	})
+}
 
 // waitingLoop runs until the workqueue is shutdown and keeps a check on the list of items to be added.
 func (q *delayingType) waitingLoop() {

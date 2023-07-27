@@ -612,6 +612,9 @@ func completeOpenAPI(config *openapicommon.Config, version *version.Info) {
 func (c *Config) DrainedNotify() <-chan struct{} {
 	return c.lifecycleSignals.InFlightRequestsDrained.Signaled()
 }
+func (c *Config) CleanupBeforeRun() {
+	c.lifecycleSignals.CleanupBeforeRun()
+}
 
 // Complete fills in any fields not set that are required to have valid data and can be derived
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.

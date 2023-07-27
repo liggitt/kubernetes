@@ -67,6 +67,11 @@ func BuildGenericConfig(
 	lastErr error,
 ) {
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
+	defer func() {
+		if lastErr != nil {
+			genericConfig.CleanupBeforeRun()
+		}
+	}()
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
 
 	if lastErr = s.GenericServerRunOptions.ApplyTo(genericConfig); lastErr != nil {

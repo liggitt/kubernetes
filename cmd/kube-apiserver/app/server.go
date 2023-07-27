@@ -208,10 +208,10 @@ func CreateProxyTransport() *http.Transport {
 
 // CreateKubeAPIServerConfig creates all the resources for running the API server, but runs none of them
 func CreateKubeAPIServerConfig(opts options.CompletedOptions) (
-	*controlplane.Config,
-	aggregatorapiserver.ServiceResolver,
-	[]admission.PluginInitializer,
-	error,
+	config *controlplane.Config,
+	serviceResolver aggregatorapiserver.ServiceResolver,
+	pluginInitializers []admission.PluginInitializer,
+	lastErr error,
 ) {
 	proxyTransport := CreateProxyTransport()
 
@@ -223,13 +223,18 @@ func CreateKubeAPIServerConfig(opts options.CompletedOptions) (
 	if err != nil {
 		return nil, nil, nil, err
 	}
+	defer func() {
+		if lastErr != nil {
+			genericConfig.CleanupBeforeRun()
+		}
+	}()
 
 	capabilities.Setup(opts.AllowPrivileged, opts.MaxConnectionBytesPerSec)
 
 	opts.Metrics.Apply()
 	serviceaccount.RegisterMetrics()
 
-	config := &controlplane.Config{
+	config = &controlplane.Config{
 		GenericConfig: genericConfig,
 		ExtraConfig: controlplane.ExtraConfig{
 			APIResourceConfigSource: storageFactory.APIResourceConfigSource,
@@ -298,8 +303,9 @@ func CreateKubeAPIServerConfig(opts options.CompletedOptions) (
 		LoopbackClientConfig: genericConfig.LoopbackClientConfig,
 		CloudConfigFile:      opts.CloudProvider.CloudConfigFile,
 	}
-	serviceResolver := buildServiceResolver(opts.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
-	pluginInitializers, admissionPostStartHook, err := admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider)
+	serviceResolver = buildServiceResolver(opts.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
+	var admissionPostStartHook genericapiserver.PostStartHookFunc
+	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create admission plugin initializer: %v", err)
 	}

@@ -154,6 +154,16 @@ func (s lifecycleSignals) ShuttingDown() <-chan struct{} {
 	return s.NotAcceptingNewRequest.Signaled()
 }
 
+func (s lifecycleSignals) CleanupBeforeRun() {
+	s.ShutdownInitiated.Signal()
+	s.AfterShutdownDelayDuration.Signal()
+	s.PreShutdownHooksStopped.Signal()
+	s.NotAcceptingNewRequest.Signal()
+	s.InFlightRequestsDrained.Signal()
+	s.HTTPServerStoppedListening.Signal()
+	s.MuxAndDiscoveryComplete.Signal()
+}
+
 // newLifecycleSignals returns an instance of lifecycleSignals interface to be used
 // to coordinate lifecycle of the apiserver
 func newLifecycleSignals() lifecycleSignals {
