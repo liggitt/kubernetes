@@ -283,6 +283,11 @@ func TestAddFlags(t *testing.T) {
 	expected.Authentication.OIDC.UsernameClaim = "sub"
 	expected.Authentication.OIDC.SigningAlgs = []string{"RS256"}
 
+	if !s.Authorization.AreLegacyFlagsSet() {
+		t.Errorf("expected legacy authorization flags to be set")
+	}
+	s.Authorization.AreLegacyFlagsSet = nil
+
 	if !reflect.DeepEqual(expected, s) {
 		t.Errorf("Got different run options than expected.\nDifference detected on:\n%s", cmp.Diff(expected, s, cmpopts.IgnoreUnexported(admission.Plugins{}, kubeoptions.OIDCAuthenticationOptions{})))
 	}
