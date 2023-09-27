@@ -1025,7 +1025,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 			repeatableTypes: sets.NewString(string("Webhook")),
 		},
 		{
-			name: "connectionInfo should be one of InClusterConfig or KubeConfigFile",
+			name: "connectionInfo should be one of InClusterConfig or KubeConfig",
 			configuration: api.AuthorizationConfiguration{
 				Authorizers: []api.AuthorizerConfiguration{
 					{
@@ -1046,7 +1046,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{
-				field.NotSupported(field.NewPath("connectionInfo"), api.WebhookConnectionInfo{Type: "ExternalClusterConfig"}, []string{"InClusterConfig", "KubeConfigFile"}),
+				field.NotSupported(field.NewPath("connectionInfo"), api.WebhookConnectionInfo{Type: "ExternalClusterConfig"}, []string{"InClusterConfig", "KubeConfig"}),
 			},
 			knownTypes:      sets.NewString(string("Webhook")),
 			repeatableTypes: sets.NewString(string("Webhook")),
@@ -1074,13 +1074,13 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 				},
 			},
 			expectedErrList: field.ErrorList{
-				field.Invalid(field.NewPath("connectionInfo", "kubeConfigFile"), "", "can only be set when type=KubeConfigFile"),
+				field.Invalid(field.NewPath("connectionInfo", "kubeConfigFile"), "", "can only be set when type=KubeConfig"),
 			},
 			knownTypes:      sets.NewString(string("Webhook")),
 			repeatableTypes: sets.NewString(string("Webhook")),
 		},
 		{
-			name: "if connectionInfo=KubeConfigFile, then KubeConfigFile should be defined",
+			name: "if connectionInfo=KubeConfig, then KubeConfigFile should be defined",
 			configuration: api.AuthorizationConfiguration{
 				Authorizers: []api.AuthorizerConfiguration{
 					{
@@ -1094,7 +1094,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 							SubjectAccessReviewVersion:               "v1",
 							MatchConditionSubjectAccessReviewVersion: "v1",
 							ConnectionInfo: api.WebhookConnectionInfo{
-								Type: "KubeConfigFile",
+								Type: "KubeConfig",
 							},
 						},
 					},
@@ -1105,7 +1105,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 			repeatableTypes: sets.NewString(string("Webhook")),
 		},
 		{
-			name: "if connectionInfo=KubeConfigFile, then KubeConfigFile should be defined, must be an absolute path, should exist, shouldn't be a symlink",
+			name: "if connectionInfo=KubeConfig, then KubeConfigFile should be defined, must be an absolute path, should exist, shouldn't be a symlink",
 			configuration: api.AuthorizationConfiguration{
 				Authorizers: []api.AuthorizerConfiguration{
 					{
@@ -1119,7 +1119,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 							SubjectAccessReviewVersion:               "v1",
 							MatchConditionSubjectAccessReviewVersion: "v1",
 							ConnectionInfo: api.WebhookConnectionInfo{
-								Type:           "KubeConfigFile",
+								Type:           "KubeConfig",
 								KubeConfigFile: &badKubeConfigFile,
 							},
 						},
@@ -1131,7 +1131,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 			repeatableTypes: sets.NewString(string("Webhook")),
 		},
 		{
-			name: "if connectionInfo=KubeConfigFile, an existent file needs to be passed",
+			name: "if connectionInfo=KubeConfig, an existent file needs to be passed",
 			configuration: api.AuthorizationConfiguration{
 				Authorizers: []api.AuthorizerConfiguration{
 					{
@@ -1145,7 +1145,7 @@ func TestValidateAuthorizationConfiguration(t *testing.T) {
 							SubjectAccessReviewVersion:               "v1",
 							MatchConditionSubjectAccessReviewVersion: "v1",
 							ConnectionInfo: api.WebhookConnectionInfo{
-								Type:           "KubeConfigFile",
+								Type:           "KubeConfig",
 								KubeConfigFile: &tempKubeConfigFilePath,
 							},
 						},

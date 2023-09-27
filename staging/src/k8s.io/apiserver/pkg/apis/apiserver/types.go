@@ -215,7 +215,7 @@ const (
 	TypeWebhook                                      AuthorizerType = "Webhook"
 	FailurePolicyNoOpinion                           string         = "NoOpinion"
 	FailurePolicyDeny                                string         = "Deny"
-	AuthorizationWebhookConnectionInfoTypeKubeConfig string         = "KubeConfigFile"
+	AuthorizationWebhookConnectionInfoTypeKubeConfig string         = "KubeConfig"
 	AuthorizationWebhookConnectionInfoTypeInCluster  string         = "InClusterConfig"
 )
 
