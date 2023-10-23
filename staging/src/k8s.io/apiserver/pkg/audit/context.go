@@ -18,10 +18,15 @@ package audit
 
 import (
 	"context"
+	"maps"
 	"sync"
 
+	authnv1 "k8s.io/api/authentication/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	auditinternal "k8s.io/apiserver/pkg/apis/audit"
+	"k8s.io/apiserver/pkg/authentication/user"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/klog/v2"
 )
@@ -38,12 +43,15 @@ type AuditContext struct {
 	// RequestAuditConfig is the audit configuration that applies to the request
 	RequestAuditConfig RequestAuditConfig
 
-	// Event is the audit Event object that is being captured to be written in
-	// the API audit log.
-	Event auditinternal.Event
+	// lock guards event
+	lock sync.Mutex
 
-	// annotationMutex guards event.Annotations
-	annotationMutex sync.Mutex
+	// event is the audit Event object that is being captured to be written in
+	// the API audit log.
+	event auditinternal.Event
+
+	// unguarded copy of auditID from the event
+	auditID types.UID
 }
 
 // Enabled checks whether auditing is enabled for this audit context.
@@ -51,6 +59,153 @@ func (ac *AuditContext) Enabled() bool {
 	// Note: An unset Level should be considered Enabled, so that request data (e.g. annotations)
 	// can still be captured before the audit policy is evaluated.
 	return ac != nil && ac.RequestAuditConfig.Level != auditinternal.LevelNone
+}
+
+func (ac *AuditContext) AuditID() types.UID {
+	// return the unguarded copy of the auditID
+	return ac.auditID
+}
+
+func (ac *AuditContext) visitEvent(f func(event *auditinternal.Event)) {
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
+	f(&ac.event)
+}
+
+func (ac *AuditContext) LogImpersonatedUser(user user.Info) {
+	ac.visitEvent(func(ev *auditinternal.Event) {
+		if ev == nil || ev.Level.Less(auditinternal.LevelMetadata) {
+			return
+		}
+		ev.ImpersonatedUser = &authnv1.UserInfo{
+			Username: user.GetName(),
+		}
+		ev.ImpersonatedUser.Groups = user.GetGroups()
+		ev.ImpersonatedUser.UID = user.GetUID()
+		ev.ImpersonatedUser.Extra = map[string]authnv1.ExtraValue{}
+		for k, v := range user.GetExtra() {
+			ev.ImpersonatedUser.Extra[k] = authnv1.ExtraValue(v)
+		}
+	})
+}
+
+func (ac *AuditContext) LogResponseObject(status *metav1.Status, obj *runtime.Unknown) {
+	ac.visitEvent(func(ae *auditinternal.Event) {
+		if status != nil {
+			// selectively copy the bounded fields.
+			ae.ResponseStatus = &metav1.Status{
+				Status:  status.Status,
+				Message: status.Message,
+				Reason:  status.Reason,
+				Details: status.Details,
+				Code:    status.Code,
+			}
+		}
+		if ae.Level.Less(auditinternal.LevelRequestResponse) {
+			return
+		}
+		ae.ResponseObject = obj
+	})
+}
+
+// LogRequestPatch fills in the given patch as the request object into an audit event.
+func (ac *AuditContext) LogRequestPatch(patch []byte) {
+	ac.visitEvent(func(ae *auditinternal.Event) {
+		ae.RequestObject = &runtime.Unknown{
+			Raw:         patch,
+			ContentType: runtime.ContentTypeJSON,
+		}
+	})
+}
+
+func (ac *AuditContext) GetEventAnnotation(key string) (string, bool) {
+	var val string
+	var ok bool
+	ac.visitEvent(func(event *auditinternal.Event) {
+		val, ok = event.Annotations[key]
+	})
+	return val, ok
+}
+
+func (ac *AuditContext) GetEventLevel() auditinternal.Level {
+	var level auditinternal.Level
+	ac.visitEvent(func(event *auditinternal.Event) {
+		level = event.Level
+	})
+	return level
+}
+
+func (ac *AuditContext) SetEventLevel(level auditinternal.Level) {
+	ac.visitEvent(func(event *auditinternal.Event) {
+		event.Level = level
+	})
+}
+
+func (ac *AuditContext) SetEventStage(stage auditinternal.Stage) {
+	ac.visitEvent(func(event *auditinternal.Event) {
+		event.Stage = stage
+	})
+}
+
+func (ac *AuditContext) GetEventStage() auditinternal.Stage {
+	var stage auditinternal.Stage
+	ac.visitEvent(func(event *auditinternal.Event) {
+		stage = event.Stage
+	})
+	return stage
+}
+
+func (ac *AuditContext) SetEventStageTimestamp(timestamp metav1.MicroTime) {
+	ac.visitEvent(func(event *auditinternal.Event) {
+		event.StageTimestamp = timestamp
+	})
+}
+
+func (ac *AuditContext) GetEventResponseStatus() *metav1.Status {
+	var status *metav1.Status
+	ac.visitEvent(func(event *auditinternal.Event) {
+		status = event.ResponseStatus
+	})
+	return status
+}
+
+func (ac *AuditContext) GetEventRequestReceivedTimestamp() metav1.MicroTime {
+	var timestamp metav1.MicroTime
+	ac.visitEvent(func(event *auditinternal.Event) {
+		timestamp = event.RequestReceivedTimestamp
+	})
+	return timestamp
+}
+
+func (ac *AuditContext) GetEventStageTimestamp() metav1.MicroTime {
+	var timestamp metav1.MicroTime
+	ac.visitEvent(func(event *auditinternal.Event) {
+		timestamp = event.StageTimestamp
+	})
+	return timestamp
+}
+
+func (ac *AuditContext) SetEventResponseStatus(status *metav1.Status) {
+	ac.visitEvent(func(event *auditinternal.Event) {
+		event.ResponseStatus = status
+	})
+}
+
+func (ac *AuditContext) SetEventResponseStatusCode(statusCode int32) {
+	ac.visitEvent(func(event *auditinternal.Event) {
+		if event.ResponseStatus == nil {
+			event.ResponseStatus = &metav1.Status{}
+		}
+		event.ResponseStatus.Code = statusCode
+	})
+}
+
+func (ac *AuditContext) GetEventAnnotations() map[string]string {
+	var annotations map[string]string
+	ac.visitEvent(func(event *auditinternal.Event) {
+		annotations = maps.Clone(event.Annotations)
+	})
+	return annotations
 }
 
 // AddAuditAnnotation sets the audit annotation for the given key, value pair.
@@ -66,8 +221,8 @@ func AddAuditAnnotation(ctx context.Context, key, value string) {
 		return
 	}
 
-	ac.annotationMutex.Lock()
-	defer ac.annotationMutex.Unlock()
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
 
 	addAuditAnnotationLocked(ac, key, value)
 }
@@ -81,8 +236,8 @@ func AddAuditAnnotations(ctx context.Context, keysAndValues ...string) {
 		return
 	}
 
-	ac.annotationMutex.Lock()
-	defer ac.annotationMutex.Unlock()
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
 
 	if len(keysAndValues)%2 != 0 {
 		klog.Errorf("Dropping mismatched audit annotation %q", keysAndValues[len(keysAndValues)-1])
@@ -100,8 +255,8 @@ func AddAuditAnnotationsMap(ctx context.Context, annotations map[string]string) 
 		return
 	}
 
-	ac.annotationMutex.Lock()
-	defer ac.annotationMutex.Unlock()
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
 
 	for k, v := range annotations {
 		addAuditAnnotationLocked(ac, k, v)
@@ -110,8 +265,7 @@ func AddAuditAnnotationsMap(ctx context.Context, annotations map[string]string) 
 
 // addAuditAnnotationLocked records the audit annotation on the event.
 func addAuditAnnotationLocked(ac *AuditContext, key, value string) {
-	ae := &ac.Event
-
+	ae := &ac.event
 	if ae.Annotations == nil {
 		ae.Annotations = make(map[string]string)
 	}
@@ -128,15 +282,11 @@ func WithAuditContext(parent context.Context) context.Context {
 		return parent // Avoid double registering.
 	}
 
-	return genericapirequest.WithValue(parent, auditKey, &AuditContext{})
-}
-
-// AuditEventFrom returns the audit event struct on the ctx
-func AuditEventFrom(ctx context.Context) *auditinternal.Event {
-	if ac := AuditContextFrom(ctx); ac.Enabled() {
-		return &ac.Event
-	}
-	return nil
+	return genericapirequest.WithValue(parent, auditKey, &AuditContext{
+		event: auditinternal.Event{
+			Stage: auditinternal.StageResponseStarted,
+		},
+	})
 }
 
 // AuditContextFrom returns the pair of the audit configuration object
@@ -154,7 +304,10 @@ func WithAuditID(ctx context.Context, auditID types.UID) {
 		return
 	}
 	if ac := AuditContextFrom(ctx); ac != nil {
-		ac.Event.AuditID = auditID
+		ac.visitEvent(func(event *auditinternal.Event) {
+			ac.auditID = auditID
+			event.AuditID = auditID
+		})
 	}
 }
 
@@ -162,7 +315,7 @@ func WithAuditID(ctx context.Context, auditID types.UID) {
 // auditing is enabled.
 func AuditIDFrom(ctx context.Context) (types.UID, bool) {
 	if ac := AuditContextFrom(ctx); ac != nil {
-		return ac.Event.AuditID, true
+		return ac.auditID, true
 	}
 	return "", false
 }
@@ -185,4 +338,11 @@ func GetAuditIDTruncated(ctx context.Context) string {
 	}
 
 	return string(auditID)
+}
+
+func DeepcopyInternalEvent(ac *AuditContext) *auditinternal.Event {
+	ac.lock.Lock()
+	defer ac.lock.Unlock()
+
+	return ac.event.DeepCopy()
 }
