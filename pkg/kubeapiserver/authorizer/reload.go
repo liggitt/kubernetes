@@ -17,18 +17,29 @@ limitations under the License.
 package authorizer
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"reflect"
+	"sync"
 	"sync/atomic"
+	"time"
 
+	"github.com/fsnotify/fsnotify"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 	authzconfig "k8s.io/apiserver/pkg/apis/apiserver"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	"k8s.io/apiserver/pkg/authorization/union"
+	"k8s.io/apiserver/pkg/server/options/authorizationconfig/metrics"
 	webhookutil "k8s.io/apiserver/pkg/util/webhook"
 	"k8s.io/apiserver/plugin/pkg/authorizer/webhook"
+	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/auth/authorizer/abac"
 	"k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes"
 	"k8s.io/kubernetes/plugin/pkg/auth/authorizer/node"
@@ -36,12 +47,20 @@ import (
 )
 
 type reloadableAuthorizerResolver struct {
-	initialConfig    Config
-	lastLoadedConfig *authzconfig.AuthorizationConfiguration
+	initialConfig Config
+
+	apiServerID string
+
+	reloadInterval         time.Duration
+	requireNonWebhookTypes sets.Set[authzconfig.AuthorizerType]
 
 	nodeAuthorizer *node.NodeAuthorizer
 	rbacAuthorizer *rbac.RBACAuthorizer
 	abacAuthorizer abac.PolicyList
+
+	lastLoadedLock   sync.Mutex
+	lastLoadedConfig *authzconfig.AuthorizationConfiguration
+	lastReadData     []byte
 
 	current atomic.Pointer[authorizerResolver]
 }
@@ -139,4 +158,123 @@ func (r *reloadableAuthorizerResolver) newForConfig(authzConfig *authzconfig.Aut
 	}
 
 	return union.New(authorizers...), union.NewRuleResolvers(ruleResolvers...), nil
+}
+
+// runReload starts checking the config file for changes and reloads the authorizer when it changes.
+// Blocks until ctx is complete.
+func (r *reloadableAuthorizerResolver) runReload(ctx context.Context) {
+	metrics.RegisterMetrics()
+	metrics.RecordAuthorizationConfigAutomaticReloadSuccess(r.apiServerID)
+
+	go func() {
+		if err := r.watchFile(ctx); err != nil {
+			select {
+			case <-ctx.Done():
+				// server was shutting down, we don't care about reload errors
+			default:
+				klog.ErrorS(err, "watching authorization config file")
+			}
+		}
+	}()
+
+	_ = wait.PollUntilContextCancel(ctx, r.reloadInterval, false, func(context.Context) (exitPoll bool, exitPollErr error) {
+		r.checkFile(ctx)
+		return false, nil
+	})
+}
+
+// watchFile sets up a file watch. Blocks until a file watch error is encountered or the context is complete.
+func (r *reloadableAuthorizerResolver) watchFile(ctx context.Context) error {
+	w, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("error creating fsnotify watcher: %v", err)
+	}
+	defer func() {
+		_ = w.Close()
+	}()
+
+	if err = w.Add(r.initialConfig.ReloadFile); err != nil {
+		return fmt.Errorf("adding watch for file %s: %w", r.initialConfig.ReloadFile, err)
+	}
+	// Trigger a check in case the file was updated before the watch started
+	r.checkFile(ctx)
+
+	for {
+		select {
+		case e := <-w.Events:
+			select {
+			case <-ctx.Done():
+				// server is done
+				return nil
+			default:
+				if err := r.handleConfigFileEvent(ctx, e, w); err != nil {
+					return err
+				}
+			}
+		case err := <-w.Errors:
+			return fmt.Errorf("received fsnotify error: %v", err)
+		case <-ctx.Done():
+			// server is done
+			return nil
+		}
+	}
+}
+
+func (r *reloadableAuthorizerResolver) handleConfigFileEvent(ctx context.Context, e fsnotify.Event, w *fsnotify.Watcher) error {
+	// This should be executed after restarting the watch (if applicable) to ensure no file event will be missing.
+	defer r.checkFile(ctx)
+	if !e.Has(fsnotify.Remove) && !e.Has(fsnotify.Rename) {
+		return nil
+	}
+	_ = w.Remove(r.initialConfig.ReloadFile)
+	if err := w.Add(r.initialConfig.ReloadFile); err != nil {
+		return fmt.Errorf("error adding watch for file %s: %v", r.initialConfig.ReloadFile, err)
+	}
+	return nil
+}
+
+func (r *reloadableAuthorizerResolver) checkFile(ctx context.Context) {
+	r.lastLoadedLock.Lock()
+	defer r.lastLoadedLock.Unlock()
+
+	data, err := os.ReadFile(r.initialConfig.ReloadFile)
+	if err != nil {
+		klog.ErrorS(err, "reloading authorization config")
+		metrics.RecordAuthorizationConfigAutomaticReloadFailure(r.apiServerID)
+		return
+	}
+	if bytes.Equal(data, r.lastReadData) {
+		// no change
+		return
+	}
+	klog.InfoS("found new authorization config data")
+	r.lastReadData = data
+
+	config, err := LoadAndValidateData(data, r.requireNonWebhookTypes)
+	if err != nil {
+		klog.ErrorS(err, "reloading authorization config")
+		metrics.RecordAuthorizationConfigAutomaticReloadFailure(r.apiServerID)
+		return
+	}
+	if reflect.DeepEqual(config, r.lastLoadedConfig) {
+		// no change
+		return
+	}
+	klog.InfoS("found new authorization config")
+	r.lastLoadedConfig = config
+
+	authorizer, ruleResolver, err := r.newForConfig(config)
+	if err != nil {
+		klog.ErrorS(err, "reloading authorization config")
+		metrics.RecordAuthorizationConfigAutomaticReloadFailure(r.apiServerID)
+		return
+	}
+	klog.InfoS("constructed new authorizer")
+
+	r.current.Store(&authorizerResolver{
+		authorizer:   authorizer,
+		ruleResolver: ruleResolver,
+	})
+	klog.InfoS("reloaded authz config")
+	metrics.RecordAuthorizationConfigAutomaticReloadSuccess(r.apiServerID)
 }
