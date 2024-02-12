@@ -19,8 +19,11 @@ package filesystem
 import (
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,4 +86,70 @@ func TestIsUnixDomainSocket(t *testing.T) {
 		}
 		assert.Equal(t, result, test.expectSocket, "Unexpected result from IsUnixDomainSocket: %v for %s", result, test.label)
 	}
+}
+
+func TestSymbolicLinkDir(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := os.Mkdir(filepath.Join(dir, "v1"), os.FileMode(0755)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "v1", "file"), []byte(`v1`), os.FileMode(0644)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "v2"), os.FileMode(0755)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "v2", "file"), []byte(`v2`), os.FileMode(0644)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(filepath.Join(dir, "v1"), filepath.Join(dir, "v")); err != nil {
+		t.Fatal(err)
+	}
+
+	fileWatcher := NewFsnotifyWatcher()
+	fileWatcher.Init(
+		func(event fsnotify.Event) {
+			t.Log("fileWatcher", event)
+			data, err := os.ReadFile(filepath.Join(dir, "v", "file"))
+			if err != nil {
+				t.Error("fileWatcher", err)
+			}
+			t.Log("fileWatcher", string(data))
+		},
+		func(err error) {
+			t.Error("fileWatcher", err)
+		},
+	)
+	if err := fileWatcher.AddWatch(filepath.Join(dir, "v", "file")); err != nil {
+		t.Fatal(err)
+	}
+
+	dirWatcher := NewFsnotifyWatcher()
+	dirWatcher.Init(
+		func(event fsnotify.Event) {
+			t.Log("dirWatcher", event)
+			data, err := os.ReadFile(filepath.Join(dir, "v", "file"))
+			if err != nil {
+				t.Error("dirWatcher", err)
+			}
+			t.Log("dirWatcher", string(data))
+		},
+		func(err error) {
+			t.Error("dirWatcher", err)
+		},
+	)
+	if err := dirWatcher.AddWatch(filepath.Join(dir, "v")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Symlink(filepath.Join(dir, "v2"), filepath.Join(dir, "v.tmp")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(dir, "v.tmp"), filepath.Join(dir, "v")); err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(time.Second)
 }
