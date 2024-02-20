@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"golang.org/x/net/proxy"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -361,29 +362,42 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 // NewConnection validates the upgrade response, creating and returning a new
 // httpstream.Connection if there were no errors.
 func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connection, error) {
-	connectionHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderConnection))
-	upgradeHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderUpgrade))
-	if (resp.StatusCode != http.StatusSwitchingProtocols) || !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(HeaderSpdy31)) {
-		defer resp.Body.Close()
+	if !ValidateSpdyUpgrade(resp.StatusCode, resp.Header) {
+		return nil, ExtractUpgradeError(resp.Body)
+	}
+	return NewClientConnectionWithPings(s.conn, s.pingPeriod)
+}
+
+func ValidateSpdyUpgrade(upgradeResponseStatusCode int, headers http.Header) bool {
+	if upgradeResponseStatusCode != http.StatusSwitchingProtocols {
+		return false
+	}
+	connectionHeader := strings.ToLower(upgradeResponseHeaders.Get(httpstream.HeaderConnection))
+	upgradeHeader := strings.ToLower(upgradeResponseHeaders.Get(httpstream.HeaderUpgrade))
+	return strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) && strings.Contains(upgradeHeader, strings.ToLower(HeaderSpdy31)
+}
+func ValidateWebsocketPortforwardUpgradeHeaders(headers http.Header) bool {
+   return true
+}
+
+func ExtractUpgradeError(upgradeResponseBody io.ReadCloser) error {
+		defer upgradeResponseBody.Close()
 		responseError := ""
-		responseErrorBytes, err := io.ReadAll(resp.Body)
+		responseErrorBytes, err := io.ReadAll(upgradeResponseBody)
 		if err != nil {
 			responseError = "unable to read error from server response"
 		} else {
 			// TODO: I don't belong here, I should be abstracted from this class
 			if obj, _, err := statusCodecs.UniversalDecoder().Decode(responseErrorBytes, nil, &metav1.Status{}); err == nil {
 				if status, ok := obj.(*metav1.Status); ok {
-					return nil, &apierrors.StatusError{ErrStatus: *status}
+					return &apierrors.StatusError{ErrStatus: *status}
 				}
 			}
 			responseError = string(responseErrorBytes)
 			responseError = strings.TrimSpace(responseError)
 		}
 
-		return nil, fmt.Errorf("unable to upgrade connection: %s", responseError)
-	}
-
-	return NewClientConnectionWithPings(s.conn, s.pingPeriod)
+		return fmt.Errorf("unable to upgrade connection: %s", responseError)
 }
 
 // statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection

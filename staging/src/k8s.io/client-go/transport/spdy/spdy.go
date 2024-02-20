@@ -94,6 +94,8 @@ func Negotiate(upgrader Upgrader, client *http.Client, req *http.Request, protoc
 	for i := range protocols {
 		req.Header.Add(httpstream.HeaderProtocolVersion, protocols[i])
 	}
+
+	// this relies on the client having a transport
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, "", fmt.Errorf("error sending request: %v", err)

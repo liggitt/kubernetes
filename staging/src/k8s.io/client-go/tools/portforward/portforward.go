@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -190,11 +191,20 @@ func NewOnAddresses(dialer httpstream.Dialer, addresses []string, ports []string
 func (pf *PortForwarder) ForwardPorts() error {
 	defer pf.Close()
 
+	if true {
+		// 1. make websocket request
+		// 2. validate websocket upgrade headers
+		// 2a. if invalid, extracterror from response
+		// 2b. if valid, adapt/wrap websocket conn as net.Conn
+		construct NewClientConnectionWithPings(wrappedWebsocketConnFulfillingNetConn, time.Second)
+	}
+
 	var err error
 	pf.streamConn, _, err = pf.dialer.Dial(PortForwardProtocolV1Name)
 	if err != nil {
 		return fmt.Errorf("error upgrading connection: %s", err)
 	}
+
 	defer pf.streamConn.Close()
 
 	return pf.forward()

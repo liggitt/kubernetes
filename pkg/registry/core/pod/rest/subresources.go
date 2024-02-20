@@ -18,9 +18,13 @@ package rest
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+
+	gwebsocket "github.com/gorilla/websocket"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
@@ -30,6 +34,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	translator "k8s.io/apiserver/pkg/util/proxy"
+	"k8s.io/klog/v2"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/capabilities"
 	"k8s.io/kubernetes/pkg/features"
@@ -242,7 +247,11 @@ func (r *PortForwardREST) Connect(ctx context.Context, name string, opts runtime
 	if err != nil {
 		return nil, err
 	}
-	return newThrottledUpgradeAwareProxyHandler(location, transport, false, true, responder), nil
+	upgradeHandler := newThrottledUpgradeAwareProxyHandler(location, transport, false, true, responder), nil
+
+	if wrap {
+		tunnelingHandler(upgradeHandler)
+	}
 }
 
 func newThrottledUpgradeAwareProxyHandler(location *url.URL, transport http.RoundTripper, wrapTransport, upgradeRequired bool, responder rest.Responder) http.Handler {
@@ -250,3 +259,103 @@ func newThrottledUpgradeAwareProxyHandler(location *url.URL, transport http.Roun
 	handler.MaxBytesPerSec = capabilities.Get().PerConnectionBandwidthLimitBytesPerSec
 	return handler
 }
+
+type tunnelingHandler struct {
+	delegate http.Handler
+}
+
+func (t *tunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	tunneled := true //recognize websocket portforwardv2 protocol
+	if tunneled {
+		// If SPDY upstream connection was successfully established, then
+		// upgrade the current request to a websocket server connection.
+		var upgrader = gwebsocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true // Accepting all requests
+			},
+			Subprotocols: []string{
+				"portforwardv2",
+			},
+		}
+
+		// make synthetic request upstream to make sure upgrade succeeds
+
+		// then, upgrade websocket request from the client
+		// to negotiate protocol and get a websocket conn
+		conn, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			klog.Errorf("error upgrading websocket connection: %v", err)
+			return
+		}
+
+		tunneledReader := &websocketReader{conn: conn}
+
+		// construct tunneledRequest
+		tunneledRequest := http.Request{
+			// TODO: make spdy 3.1 portforward upgrade headers
+			Body: tunneledReader,
+		}
+
+		// construct tunneledWriter which can be hijacked
+		var tunneledWriter http.ResponseWriter
+
+		writer, err := conn.NextWriter(gwebsocket.BinaryMessage)
+		writer.Write()
+
+		t.delegate.ServeHTTP(tunneledWriter, tunneledRequest)
+
+	}
+}
+
+type websocketReader struct {
+	conn              *gwebsocket.Conn
+	inProgressMessage io.Reader
+}
+
+func (r *websocketReader) Close() error {
+	// TODO: is this right?
+	return w.conn.Close()
+}
+
+func (r *websocketReader) Read(buf []byte) (i int, err error) {
+	for {
+		if r.inProgressMessage == nil {
+			messageType, nextReader, err := w.conn.NextReader()
+			if err != nil {
+				closeError := &gwebsocket.CloseError{}
+				if errors.As(err, closeError) && closeError.Code == gwebsocket.CloseNormalClosure {
+					return 0, io.EOF
+				}
+				return 0, err
+			}
+			if messageType != gwebsocket.BinaryMessage {
+				return 0, fmt.Errorf("invalid message type received")
+			}
+			r.inProgressMessage = nextReader
+		}
+
+		i, err = r.inProgressMessage.Read(buf)
+		switch {
+		case err == nil:
+			return i, nil
+		case err == io.EOF:
+			r.inProgressMessage = nil
+		case err != nil:
+			return i, err
+		}
+	}
+}
+
+
+func websocketWriter struct {
+	conn              *gwebsocket.Conn
+}
+
+// upgrade headers
+func (w* websocketWriter) Header() Header
+func (w* websocketWriter) WriteHeader(statusCode int)
+
+// error case, write non-upgrade headers and error data to the response
+// success case, we hijack before writing
+func (w* websocketWriter) Write([]byte) (int, error)
+func (w* websocketWriter) Hijack() (net.Conn, *bufio.ReadWriter, error)
