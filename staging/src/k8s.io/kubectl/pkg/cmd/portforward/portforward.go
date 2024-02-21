@@ -142,7 +142,9 @@ func (f *defaultPortForwarder) ForwardPorts(method string, url *url.URL, opts Po
 	}
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, method, url)
 	if cmdutil.PortForwardWebsockets.IsEnabled() {
-		dialer, err = portforward.NewTunnelingDialer(url, opts.Config)
+		// TODO: Turn this into fallback dialer, since we'll need legacy SPDY
+		// if the API Server does not support the v2 portforward protocol.
+		dialer, err = portforward.NewSPDYOverWebsocketDialer(url, opts.Config)
 		if err != nil {
 			return err
 		}

@@ -100,34 +100,28 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 	}
 }
 
-func (c *TunnelingConnection) Write(p []byte) (int, error) {
+func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
 	klog.Infof("%s: tunneling connection write: %d bytes: %s", c.name, len(p), string(p))
 	defer klog.Infof("%s: tunneling connection write...complete", c.name)
 	if c.conn == nil {
 		return 0, fmt.Errorf("write on closed tunneling connection")
 	}
-	// err := c.SetWriteDeadline(time.Now().Add(writeDeadline))
-	// if err != nil {
-	// 	klog.V(4).Infof("Tunneling conn setting write deadline failed %v", err)
-	// 	return 0, err
-	// }
+	// TODO: look into write deadline.
 	w, err := c.conn.NextWriter(gwebsocket.BinaryMessage)
 	if err != nil {
 		return 0, err
 	}
 	defer func() {
-		if w != nil {
-			w.Close() //nolint:errcheck
+		// close, which flushes the message
+		closeErr := w.Close()
+		if closeErr != nil && err == nil {
+			// if closing/flushing errored and we weren't already returning an error, return the close error
+			err = closeErr
 		}
 	}()
-	// Next, write the passed data in "p".
-	n, err := w.Write(p)
-	if err != nil {
-		return n, err
-	}
-	err = w.Close()
-	w = nil
-	return n, err
+
+	n, err = w.Write(p)
+	return
 }
 
 func (c *TunnelingConnection) Close() error {
@@ -147,11 +141,9 @@ func (c *TunnelingConnection) RemoteAddr() net.Addr {
 }
 
 func (c *TunnelingConnection) SetDeadline(t time.Time) error {
-	err := c.SetReadDeadline(t)
-	if err != nil {
-		return err
-	}
-	return c.SetWriteDeadline(t)
+	rerr := c.SetReadDeadline(t)
+	werr := c.SetWriteDeadline(t)
+	return errors.Join(rerr, werr)
 }
 
 func (c *TunnelingConnection) SetReadDeadline(t time.Time) error {
