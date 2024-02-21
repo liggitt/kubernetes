@@ -30,6 +30,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 )
 
@@ -377,9 +378,12 @@ func (pf *PortForwarder) handleConnection(conn net.Conn, port ForwardedPort) {
 
 	go func() {
 		// Copy from the remote side to the local port.
-		if _, err := io.Copy(conn, dataStream); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+		var numBytes int64
+		var err error
+		if numBytes, err = io.Copy(conn, dataStream); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			runtime.HandleError(fmt.Errorf("error copying from remote stream to local connection: %v", err))
 		}
+		klog.Infof("io.Copy: dataStream -> local conn (%d bytes)", numBytes)
 
 		// inform the select below that the remote copy is done
 		close(remoteDone)
@@ -390,11 +394,14 @@ func (pf *PortForwarder) handleConnection(conn net.Conn, port ForwardedPort) {
 		defer dataStream.Close()
 
 		// Copy from the local port to the remote side.
-		if _, err := io.Copy(dataStream, conn); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
+		var numBytes int64
+		var err error
+		if numBytes, err = io.Copy(dataStream, conn); err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			runtime.HandleError(fmt.Errorf("error copying from local connection to remote stream: %v", err))
 			// break out of the select below without waiting for the other copy to finish
 			close(localError)
 		}
+		klog.Infof("io.Copy: local conn -> dataStream (%d bytes)", numBytes)
 	}()
 
 	// wait for either a local->remote error or for copying from remote->local to finish

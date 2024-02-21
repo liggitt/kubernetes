@@ -425,10 +425,11 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		} else {
 			writer = backendConn
 		}
-		_, err := io.Copy(writer, requestHijackedConn)
+		n, err := io.Copy(writer, requestHijackedConn)
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			klog.Errorf("Error proxying data from client to backend: %v", err)
 		}
+		klog.Infof("io.Copy -- hijacked -> backend: %d bytes", n)
 		close(writerComplete)
 	}()
 
@@ -440,10 +441,11 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		} else {
 			reader = backendConn
 		}
-		_, err := io.Copy(requestHijackedConn, reader)
+		n, err := io.Copy(requestHijackedConn, reader)
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			klog.Errorf("Error proxying data from backend to client: %v", err)
 		}
+		klog.Infof("io.Copy -- backend -> hijacked: %d bytes", n)
 		close(readerComplete)
 	}()
 

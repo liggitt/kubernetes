@@ -19,7 +19,7 @@ package proxy
 import (
 	"bufio"
 	"bytes"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -114,7 +114,7 @@ func (w *tunnelingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 
 func (w *tunnelingWriter) Header() http.Header {
 	klog.Infof("tunnelingWriter#Header()")
-	return http.Header{}
+	return w.w.Header()
 }
 
 func (w *tunnelingWriter) Write(p []byte) (int, error) {
@@ -124,6 +124,7 @@ func (w *tunnelingWriter) Write(p []byte) (int, error) {
 
 func (w *tunnelingWriter) WriteHeader(statusCode int) {
 	klog.Infof("tunnelingWriter#WriteHeader(%d)", statusCode)
+	w.w.WriteHeader(statusCode)
 }
 
 type headerInterceptingConnection struct {
@@ -135,7 +136,7 @@ type headerInterceptingConnection struct {
 
 func (h *headerInterceptingConnection) Write(b []byte) (int, error) {
 	if h.completedHeaders {
-		fmt.Println("headerInterceptingConnection#Write: headers complete, delegating")
+		klog.Infoln("headerInterceptingConnection#Write: headers complete, delegating")
 		return h.Conn.Write(b)
 	}
 
@@ -145,20 +146,20 @@ func (h *headerInterceptingConnection) Write(b []byte) (int, error) {
 	}
 	bufferedReader := bufio.NewReader(h.headerBuffer)
 	resp, err := http.ReadResponse(bufferedReader, nil)
-	if err == io.ErrUnexpectedEOF {
+	if errors.Is(err, io.ErrUnexpectedEOF) {
 		// don't yet have a complete set of headers
-		fmt.Println("headerInterceptingConnection#Write: headers incomplete, waiting")
+		klog.Infoln("headerInterceptingConnection#Write: headers incomplete, waiting")
 		// TODO: reset headerBuffer to append to end and read from start
 		return n, nil
 	}
 	if err != nil {
-		fmt.Println("headerInterceptingConnection#Write: invalid headers: %v", err)
+		klog.Infof("headerInterceptingConnection#Write: invalid headers: %v", err)
 		return n, err
 	}
 
 	// check status code, check headers, check protocols
-	fmt.Println("headerInterceptingConnection#Write:", resp.StatusCode)
-	fmt.Println("headerInterceptingConnection#Write:", resp.Header)
+	klog.Infoln("headerInterceptingConnection#Write:", resp.StatusCode)
+	klog.Infoln("headerInterceptingConnection#Write:", resp.Header)
 
 	h.completedHeaders = true
 	h.headerBuffer = nil

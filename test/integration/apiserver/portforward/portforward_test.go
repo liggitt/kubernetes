@@ -152,7 +152,7 @@ func TestPortforward(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else {
-			t.Log("client saw reponse:", string(data))
+			t.Log("client saw response:", string(data))
 		}
 		if string(data) != "request to 8000 was ok" {
 			t.Errorf("unexpected data")
@@ -182,7 +182,7 @@ func (d *dummyPortForwarder) PortForward(ctx context.Context, name string, uid t
 		return err
 	}
 	d.t.Log(req.URL.String())
-	defer req.Body.Close()
+	defer req.Body.Close() //nolint:errcheck
 
 	resp := &http.Response{
 		StatusCode: 200,
@@ -191,6 +191,6 @@ func (d *dummyPortForwarder) PortForward(ctx context.Context, name string, uid t
 		ProtoMinor: 1,
 		Body:       io.NopCloser(bytes.NewBufferString(fmt.Sprintf("request to %d was ok", port))),
 	}
-	resp.Write(stream)
+	resp.Write(stream) //nolint:errcheck
 	return stream.Close()
 }

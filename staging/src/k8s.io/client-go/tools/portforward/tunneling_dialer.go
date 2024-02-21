@@ -38,7 +38,7 @@ type tunnelingDialer struct {
 // NewTunnelingDialer creates and returns the tunnelingDialer structure which implemements the "httpstream.Dialer"
 // interface. The dialer can upgrade a websocket request, creating a websocket connection. This function
 // returns an error if one occurs.
-func NewTunnelingDialer(url *url.URL, config *restclient.Config) (httpstream.Dialer, error) {
+func NewSPDYOverWebsocketDialer(url *url.URL, config *restclient.Config) (httpstream.Dialer, error) {
 	transport, holder, err := websocket.RoundTripperFor(config)
 	if err != nil {
 		return nil, err
