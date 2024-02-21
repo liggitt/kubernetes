@@ -50,7 +50,7 @@ import (
 type PortForwardOptions struct {
 	Namespace     string
 	PodName       string
-	RESTClient    *restclient.RESTClient
+	RESTClient    restclient.Interface
 	Config        *restclient.Config
 	PodClient     corev1client.PodsGetter
 	Address       []string
@@ -99,11 +99,7 @@ const (
 )
 
 func NewCmdPortForward(f cmdutil.Factory, streams genericiooptions.IOStreams) *cobra.Command {
-	opts := &PortForwardOptions{
-		PortForwarder: &defaultPortForwarder{
-			IOStreams: streams,
-		},
-	}
+	opts := NewDefaultPortForwardOptions(streams)
 	cmd := &cobra.Command{
 		Use:                   "port-forward TYPE/NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
 		DisableFlagsInUseLine: true,
@@ -121,6 +117,14 @@ func NewCmdPortForward(f cmdutil.Factory, streams genericiooptions.IOStreams) *c
 	cmd.Flags().StringSliceVar(&opts.Address, "address", []string{"localhost"}, "Addresses to listen on (comma separated). Only accepts IP addresses or localhost as a value. When localhost is supplied, kubectl will try to bind on both 127.0.0.1 and ::1 and will fail if neither of these addresses are available to bind.")
 	// TODO support UID
 	return cmd
+}
+
+func NewDefaultPortForwardOptions(streams genericiooptions.IOStreams) *PortForwardOptions {
+	return &PortForwardOptions{
+		PortForwarder: &defaultPortForwarder{
+			IOStreams: streams,
+		},
+	}
 }
 
 type portForwarder interface {
