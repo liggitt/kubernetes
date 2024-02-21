@@ -18,6 +18,9 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
+	"io"
 	"net"
 	"net/http"
 
@@ -65,9 +68,10 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer conn.Close() //nolint:errcheck
 	klog.Infof("websocket connection created: %s", conn.Subprotocol())
 	tunnelingConn := portforward.NewTunnelingConnection("server", conn)
+	headerInterceptingConnection := &headerInterceptingConnection{Conn: tunnelingConn, headerBuffer: bytes.NewBuffer(nil)}
 
 	// Create ResponseWriter which will be hijacked to use the tunnel.
-	writer := createTunnelingResponseWriter(w, tunnelingConn)
+	writer := createTunnelingResponseWriter(w, headerInterceptingConnection)
 
 	// Force the method to POST
 	clone.Method = "POST"
@@ -104,16 +108,66 @@ func createTunnelingResponseWriter(w http.ResponseWriter, tunnel net.Conn) http.
 }
 
 func (w *tunnelingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	klog.Infof("hijacked--returning websocket tunneling net.Conn")
+	klog.Infof("tunnelingWriter#Hijack()--returning websocket tunneling net.Conn")
 	return w.conn, nil, nil
 }
 
 func (w *tunnelingWriter) Header() http.Header {
+	klog.Infof("tunnelingWriter#Header()")
 	return http.Header{}
 }
 
 func (w *tunnelingWriter) Write(p []byte) (int, error) {
+	klog.Infof("tunnelingWriter#Write()")
 	return w.w.Write(p)
 }
 
-func (w *tunnelingWriter) WriteHeader(statusCode int) {}
+func (w *tunnelingWriter) WriteHeader(statusCode int) {
+	klog.Infof("tunnelingWriter#WriteHeader(%d)", statusCode)
+}
+
+type headerInterceptingConnection struct {
+	net.Conn
+
+	headerBuffer     *bytes.Buffer
+	completedHeaders bool
+}
+
+func (h *headerInterceptingConnection) Write(b []byte) (int, error) {
+	if h.completedHeaders {
+		fmt.Println("headerInterceptingConnection#Write: headers complete, delegating")
+		return h.Conn.Write(b)
+	}
+
+	n, err := h.headerBuffer.Write(b)
+	if err != nil {
+		return n, err
+	}
+	bufferedReader := bufio.NewReader(h.headerBuffer)
+	resp, err := http.ReadResponse(bufferedReader, nil)
+	if err == io.ErrUnexpectedEOF {
+		// don't yet have a complete set of headers
+		fmt.Println("headerInterceptingConnection#Write: headers incomplete, waiting")
+		// TODO: reset headerBuffer to append to end and read from start
+		return n, nil
+	}
+	if err != nil {
+		fmt.Println("headerInterceptingConnection#Write: invalid headers: %v", err)
+		return n, err
+	}
+
+	// check status code, check headers, check protocols
+	fmt.Println("headerInterceptingConnection#Write:", resp.StatusCode)
+	fmt.Println("headerInterceptingConnection#Write:", resp.Header)
+
+	h.completedHeaders = true
+	h.headerBuffer = nil
+
+	// copy any remaining buffered data to the underlying conn
+	remainingBuffer, _ := io.ReadAll(bufferedReader)
+	if len(remainingBuffer) > 0 {
+		_, err = h.Conn.Write(remainingBuffer)
+	}
+
+	return n, err
+}
