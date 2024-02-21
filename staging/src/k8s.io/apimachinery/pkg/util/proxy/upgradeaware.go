@@ -306,6 +306,7 @@ func (noSuppressPanicError) Write(p []byte) (n int, err error) {
 
 // tryUpgrade returns true if the request was handled.
 func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Request) bool {
+	klog.Infoln("UpgradeAwareProxy: tryUpgrade...")
 	if !httpstream.IsUpgradeRequest(req) {
 		klog.V(6).Infof("Request was not an upgrade")
 		return false
@@ -336,6 +337,7 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		clone.Host = h.Location.Host
 	}
 	clone.URL = &location
+	klog.Infof("UpgradeAwareProxy: dialing for SPDY upgrade with headers: %v", clone.Header)
 	backendConn, err = h.DialForUpgrade(clone)
 	if err != nil {
 		klog.V(6).Infof("Proxy connection error: %v", err)
@@ -368,23 +370,25 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 
 	// Once the connection is hijacked, the ErrorResponder will no longer work, so
 	// hijacking should be the last step in the upgrade.
+	klog.Infoln("UpgradeAwareProxy: attempting Hijack()")
 	requestHijacker, ok := w.(http.Hijacker)
 	if !ok {
-		klog.V(6).Infof("Unable to hijack response writer: %T", w)
+		klog.Infof("Unable to hijack response writer: %T", w)
 		h.Responder.Error(w, req, fmt.Errorf("request connection cannot be hijacked: %T", w))
 		return true
 	}
 	requestHijackedConn, _, err := requestHijacker.Hijack()
 	if err != nil {
-		klog.V(6).Infof("Unable to hijack response: %v", err)
+		klog.Infof("Unable to hijack response: %v", err)
 		h.Responder.Error(w, req, fmt.Errorf("error hijacking connection: %v", err))
 		return true
 	}
 	defer requestHijackedConn.Close()
 
+	klog.Infoln("Before backend response StatusCode check...")
 	if backendHTTPResponse.StatusCode != http.StatusSwitchingProtocols {
 		// If the backend did not upgrade the request, echo the response from the backend to the client and return, closing the connection.
-		klog.V(6).Infof("Proxy upgrade error, status code %d", backendHTTPResponse.StatusCode)
+		klog.Infof("Proxy upgrade error, status code %d", backendHTTPResponse.StatusCode)
 		// set read/write deadlines
 		deadline := time.Now().Add(10 * time.Second)
 		backendConn.SetReadDeadline(deadline)
@@ -400,7 +404,7 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 
 	// Forward raw response bytes back to client.
 	if len(rawResponse) > 0 {
-		klog.V(6).Infof("Writing %d bytes to hijacked connection", len(rawResponse))
+		klog.Infof("Writing %d bytes to hijacked connection", len(rawResponse))
 		if _, err = requestHijackedConn.Write(rawResponse); err != nil {
 			utilruntime.HandleError(fmt.Errorf("Error proxying response from backend to client: %v", err))
 		}
@@ -413,6 +417,7 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 	writerComplete := make(chan struct{})
 	readerComplete := make(chan struct{})
 
+	klog.Infoln("UpgradeAwareProxy: starting io.Copy() from hijacked -> backend")
 	go func() {
 		var writer io.WriteCloser
 		if h.MaxBytesPerSec > 0 {
@@ -427,6 +432,7 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		close(writerComplete)
 	}()
 
+	klog.Infoln("UpgradeAwareProxy: starting io.Copy() from backend -> hijacked")
 	go func() {
 		var reader io.ReadCloser
 		if h.MaxBytesPerSec > 0 {
