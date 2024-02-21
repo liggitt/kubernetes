@@ -137,6 +137,12 @@ func (f *defaultPortForwarder) ForwardPorts(method string, url *url.URL, opts Po
 		return err
 	}
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, method, url)
+	if cmdutil.PortForwardWebsockets.IsEnabled() {
+		dialer, err = portforward.NewTunnelingDialer(url, opts.Config)
+		if err != nil {
+			return err
+		}
+	}
 	fw, err := portforward.NewOnAddresses(dialer, opts.Address, opts.Ports, opts.StopChannel, opts.ReadyChannel, f.Out, f.ErrOut)
 	if err != nil {
 		return err
