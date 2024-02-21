@@ -73,7 +73,7 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 	klog.V(4).Infof("negotiated protocol: %s", protocol)
 
 	// Create tunneling websocket connection implementing net.Conn
-	tConn := NewTunnelingConnection(conn)
+	tConn := NewTunnelingConnection("client", conn)
 	// Create SPDY connection with the previously created tConn.
 	spdyConn, err := spdy.NewClientConnectionWithPings(tConn, 0)
 
