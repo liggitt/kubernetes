@@ -69,6 +69,10 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Create ResponseWriter which will be hijacked to use the tunnel.
 	writer := createTunnelingResponseWriter(w, tunnelingConn)
 
+	// Force the method to POST
+	clone.Method = "POST"
+	// Remove the request body which is unused (success case hijacks, error case doesn't read the body)
+	clone.Body = io.NopCloser(bytes.NewBuffer(nil))
 	// Remove all the websocket headers
 	clone.Header.Del(wsstream.WebSocketProtocolHeader)
 	clone.Header.Del("Sec-Websocket-Key")
