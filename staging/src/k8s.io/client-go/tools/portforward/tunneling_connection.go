@@ -37,6 +37,7 @@ var _ net.Conn = &TunnelingConnection{}
 type TunnelingConnection struct {
 	name              string
 	conn              *gwebsocket.Conn
+	closeCalled       bool
 	closeChan         chan bool
 	inProgressMessage io.Reader
 }
@@ -72,6 +73,9 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 				closeError := &gwebsocket.CloseError{}
 				if errors.As(err, &closeError) && closeError.Code == gwebsocket.CloseNormalClosure {
 					return 0, io.EOF
+				}
+				if c.closeCalled {
+					return 0, io.EOF // TODO: verify this is treated as a normal closure
 				}
 				klog.Errorf("%s:tunneling connection NextReader() error: %v", c.name, err)
 				return 0, err
@@ -129,7 +133,8 @@ func (c *TunnelingConnection) Write(p []byte) (int, error) {
 func (c *TunnelingConnection) Close() error {
 	klog.Infof("%s: tunneling connection Close()...", c.name)
 	// Signal other endpoint that websocket connection is closing.
-	c.conn.WriteControl(gwebsocket.CloseMessage, []byte{}, time.Now().Add(writeDeadline)) //nolint:errcheck
+	c.conn.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, ""), time.Now().Add(writeDeadline)) //nolint:errcheck
+	c.closeCalled = true
 	return c.conn.Close()
 }
 
