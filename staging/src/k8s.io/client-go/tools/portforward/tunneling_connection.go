@@ -35,6 +35,7 @@ var _ net.Conn = &TunnelingConnection{}
 // TunnelingConnection implements the "httpstream.Connection" interface, wrapping
 // a websocket connection that tunnels SPDY.
 type TunnelingConnection struct {
+	name              string
 	conn              *gwebsocket.Conn
 	closeChan         chan bool
 	inProgressMessage io.Reader
@@ -42,16 +43,17 @@ type TunnelingConnection struct {
 
 // NewTunnelingConnection wraps the passed gorilla/websockets connection
 // with the TunnelingConnection struct (implementing net.Conn).
-func NewTunnelingConnection(conn *gwebsocket.Conn) *TunnelingConnection {
+func NewTunnelingConnection(name string, conn *gwebsocket.Conn) *TunnelingConnection {
 	closeChan := make(chan bool)
 	tConn := &TunnelingConnection{
+		name:      name,
 		conn:      conn,
 		closeChan: closeChan,
 	}
 	// Close channel when detecting close connection.
 	closeHandler := conn.CloseHandler()
 	conn.SetCloseHandler(func(code int, text string) error {
-		klog.V(3).Infof("websocket conn close: %d--%s", code, text)
+		klog.V(3).Infof("%s: websocket conn close: %d--%s", name, code, text)
 		close(closeChan)
 		err := closeHandler(code, text)
 		return err
@@ -60,18 +62,18 @@ func NewTunnelingConnection(conn *gwebsocket.Conn) *TunnelingConnection {
 }
 
 func (c *TunnelingConnection) Read(p []byte) (int, error) {
-	klog.Infoln("tunneling connection read...")
-	defer klog.Infoln("tunneling connection read...complete")
+	klog.Infof("%s: tunneling connection read...", c.name)
+	defer klog.Infof("%s: tunneling connection read...complete", c.name)
 	for {
 		if c.inProgressMessage == nil {
-			klog.Infoln("tunneling connection read before NextReader()...")
+			klog.Infof("%s: tunneling connection read before NextReader()...", c.name)
 			messageType, nextReader, err := c.conn.NextReader()
 			if err != nil {
 				closeError := &gwebsocket.CloseError{}
 				if errors.As(err, &closeError) && closeError.Code == gwebsocket.CloseNormalClosure {
 					return 0, io.EOF
 				}
-				klog.Errorf("tunneling connection NextReader() error: %v", err)
+				klog.Errorf("%s:tunneling connection NextReader() error: %v", c.name, err)
 				return 0, err
 			}
 			if messageType != gwebsocket.BinaryMessage {
@@ -80,9 +82,9 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 			c.inProgressMessage = nextReader
 		}
 
-		klog.Infoln("tunneling connection read in progress message...")
+		klog.Infof("%s: tunneling connection read in progress message...", c.name)
 		i, err := c.inProgressMessage.Read(p)
-		klog.Infof("tunneling connection read in progress message...%d bytes, (error: %v)", i, err)
+		klog.Infof("%s: tunneling connection read in progress message...%d bytes, (error: %v)", c.name, i, err)
 		switch {
 		case err == nil:
 			return i, nil
@@ -95,8 +97,8 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 }
 
 func (c *TunnelingConnection) Write(p []byte) (int, error) {
-	klog.Infof("tunneling connection write: %d bytes", len(p))
-	defer klog.Infoln("tunneling connection write...complete")
+	klog.Infof("%s: tunneling connection write: %d bytes: %s", c.name, len(p), string(p))
+	defer klog.Infof("%s: tunneling connection write...complete", c.name)
 	if c.conn == nil {
 		return 0, fmt.Errorf("write on closed tunneling connection")
 	}
@@ -125,7 +127,7 @@ func (c *TunnelingConnection) Write(p []byte) (int, error) {
 }
 
 func (c *TunnelingConnection) Close() error {
-	klog.Infoln("tunneling connection Close()...")
+	klog.Infof("%s: tunneling connection Close()...", c.name)
 	// Signal other endpoint that websocket connection is closing.
 	c.conn.WriteControl(gwebsocket.CloseMessage, []byte{}, time.Now().Add(writeDeadline)) //nolint:errcheck
 	return c.conn.Close()
@@ -148,11 +150,11 @@ func (c *TunnelingConnection) SetDeadline(t time.Time) error {
 }
 
 func (c *TunnelingConnection) SetReadDeadline(t time.Time) error {
-	klog.Infof("tunneling connection set read deadline: %v", t)
+	klog.Infof("%s: tunneling connection set read deadline: %v", c.name, t)
 	return c.conn.SetReadDeadline(t)
 }
 
 func (c *TunnelingConnection) SetWriteDeadline(t time.Time) error {
-	klog.Infof("tunneling connection set write deadline: %v", t)
+	klog.Infof("%s: tunneling connection set write deadline: %v", c.name, t)
 	return c.conn.SetWriteDeadline(t)
 }

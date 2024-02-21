@@ -64,7 +64,7 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	defer conn.Close() //nolint:errcheck
 	klog.Infof("websocket connection created: %s", conn.Subprotocol())
-	tunnelingConn := portforward.NewTunnelingConnection(conn)
+	tunnelingConn := portforward.NewTunnelingConnection("server", conn)
 
 	// Create ResponseWriter which will be hijacked to use the tunnel.
 	writer := createTunnelingResponseWriter(w, tunnelingConn)
