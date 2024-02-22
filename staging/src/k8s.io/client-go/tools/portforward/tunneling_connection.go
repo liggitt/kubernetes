@@ -63,11 +63,11 @@ func NewTunnelingConnection(name string, conn *gwebsocket.Conn) *TunnelingConnec
 }
 
 func (c *TunnelingConnection) Read(p []byte) (int, error) {
-	klog.Infof("%s: tunneling connection read...", c.name)
-	defer klog.Infof("%s: tunneling connection read...complete", c.name)
+	// klog.Infof("%s: tunneling connection read...", c.name)
+	// defer klog.Infof("%s: tunneling connection read...complete", c.name)
 	for {
 		if c.inProgressMessage == nil {
-			klog.Infof("%s: tunneling connection read before NextReader()...", c.name)
+			// klog.Infof("%s: tunneling connection read before NextReader()...", c.name)
 			messageType, nextReader, err := c.conn.NextReader()
 			if err != nil {
 				closeError := &gwebsocket.CloseError{}
@@ -86,23 +86,24 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 			c.inProgressMessage = nextReader
 		}
 
-		klog.Infof("%s: tunneling connection read in progress message...", c.name)
+		// klog.Infof("%s: tunneling connection read in progress message...", c.name)
 		i, err := c.inProgressMessage.Read(p)
-		klog.Infof("%s: tunneling connection read in progress message...%d bytes, (error: %v)", c.name, i, err)
 		switch {
 		case err == nil:
+			klog.Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
 			return i, nil
 		case err == io.EOF:
 			c.inProgressMessage = nil
 		case err != nil:
+			klog.Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
 			return i, err
 		}
 	}
 }
 
 func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
-	klog.Infof("%s: tunneling connection write: %d bytes: %s", c.name, len(p), string(p))
-	defer klog.Infof("%s: tunneling connection write...complete", c.name)
+	klog.Infof("%s: write: %d bytes, bytes=% X", c.name, len(p), p)
+	// defer klog.Infof("%s: tunneling connection write...complete", c.name)
 	if c.conn == nil {
 		return 0, fmt.Errorf("write on closed tunneling connection")
 	}
