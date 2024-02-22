@@ -36,6 +36,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/mxk/go-flowrate/flowrate"
+
 	"k8s.io/klog/v2"
 )
 
@@ -425,11 +426,10 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		} else {
 			writer = backendConn
 		}
-		n, err := io.Copy(writer, requestHijackedConn)
+		_, err := io.Copy(writer, &loggingReader{name: "client->backend", delegate: requestHijackedConn})
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			klog.Errorf("Error proxying data from client to backend: %v", err)
 		}
-		klog.Infof("io.Copy -- hijacked -> backend: %d bytes", n)
 		close(writerComplete)
 	}()
 
@@ -441,11 +441,10 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 		} else {
 			reader = backendConn
 		}
-		n, err := io.Copy(requestHijackedConn, reader)
+		_, err := io.Copy(requestHijackedConn, &loggingReader{name: "backend->client", delegate: reader})
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			klog.Errorf("Error proxying data from backend to client: %v", err)
 		}
-		klog.Infof("io.Copy -- backend -> hijacked: %d bytes", n)
 		close(readerComplete)
 	}()
 
@@ -458,6 +457,17 @@ func (h *UpgradeAwareHandler) tryUpgrade(w http.ResponseWriter, req *http.Reques
 	klog.V(6).Infof("Disconnecting from backend proxy %s\n  Headers: %v", &location, clone.Header)
 
 	return true
+}
+
+type loggingReader struct {
+	name     string
+	delegate io.Reader
+}
+
+func (l *loggingReader) Read(p []byte) (int, error) {
+	n, err := l.delegate.Read(p)
+	klog.Infof("%s: %d bytes, err=%v, bytes=% X", l.name, n, err, p[:n])
+	return n, err
 }
 
 // FIXME: Taken from net/http/httputil/reverseproxy.go as singleJoiningSlash is not exported to be re-used.
