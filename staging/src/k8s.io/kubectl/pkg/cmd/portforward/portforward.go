@@ -31,6 +31,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -142,12 +143,12 @@ func (f *defaultPortForwarder) ForwardPorts(method string, url *url.URL, opts Po
 	}
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, method, url)
 	if cmdutil.PortForwardWebsockets.IsEnabled() {
-		// TODO: Turn this into fallback dialer, since we'll need legacy SPDY
-		// if the API Server does not support the v2 portforward protocol.
-		dialer, err = portforward.NewSPDYOverWebsocketDialer(url, opts.Config)
+		tunnelingDialer, err := portforward.NewSPDYOverWebsocketDialer(url, opts.Config)
 		if err != nil {
 			return err
 		}
+		// First attempt tunneling (websocket) dialer, then fallback to spdy dialer.
+		dialer = portforward.NewFallbackDialer(tunnelingDialer, dialer, httpstream.IsUpgradeFailure)
 	}
 	fw, err := portforward.NewOnAddresses(dialer, opts.Address, opts.Ports, opts.StopChannel, opts.ReadyChannel, f.Out, f.ErrOut)
 	if err != nil {

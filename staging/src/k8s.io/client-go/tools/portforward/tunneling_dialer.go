@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
+	constants "k8s.io/apimachinery/pkg/util/portforward"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/transport/websocket"
 	"k8s.io/klog/v2"
@@ -53,8 +54,10 @@ func NewSPDYOverWebsocketDialer(url *url.URL, config *restclient.Config) (httpst
 	}, nil
 }
 
-// Dial upgrades a websocket request, returning a websocket connection (wrapped
-// by an "httpstream.Connection"), the negotiated protocol, or an error if one occurred.
+// Dial upgrades to a tunneling streaming connection, returning a SPDY connection
+// containing a WebSockets connection (which implements "net.Conn"). Also
+// returns the protocol negotiated (currently v2 portforward), or an error.
+// The passed "protocols" are ignored.
 func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, string, error) {
 	// There is no passed context, so skip the context when creating request for now.
 	// Websockets requires "GET" method: RFC 6455 Sec. 4.1 (page 17).
@@ -62,10 +65,10 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 	if err != nil {
 		return nil, "", err
 	}
-	// Hard-code the v2 portforward protocol for the websocket dialer for now.
-	websocketProtocols := []string{"v2.portforward.k8s.io"}
+	// Tunneling must initiate a websocket upgrade connection, using v2 portforward protocol.
+	tunnelingProtocols := []string{constants.PortForwardV2Name}
 	klog.V(4).Infoln("Before WebSocket Upgrade Connection...")
-	conn, err := websocket.Negotiate(d.transport, d.holder, req, websocketProtocols...)
+	conn, err := websocket.Negotiate(d.transport, d.holder, req, tunnelingProtocols...)
 	if err != nil {
 		return nil, "", err
 	}
@@ -75,9 +78,9 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 	protocol := conn.Subprotocol()
 	klog.V(4).Infof("negotiated protocol: %s", protocol)
 
-	// Create tunneling websocket connection implementing net.Conn
+	// Wrap the websocket connection which implements "net.Conn".
 	tConn := NewTunnelingConnection("client", conn)
-	// Create SPDY connection with the previously created tConn.
+	// Create SPDY connection injecting the previously created tunneling connection.
 	spdyConn, err := spdy.NewClientConnectionWithPings(tConn, PingPeriod)
 
 	return spdyConn, protocol, err
