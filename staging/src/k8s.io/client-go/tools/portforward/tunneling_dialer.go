@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	"k8s.io/apimachinery/pkg/util/httpstream/spdy"
@@ -27,6 +28,8 @@ import (
 	"k8s.io/client-go/transport/websocket"
 	"k8s.io/klog/v2"
 )
+
+const PingPeriod = 10 * time.Second
 
 // tunnelingDialer implements "httpstream.Dial" interface
 type tunnelingDialer struct {
@@ -75,7 +78,7 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 	// Create tunneling websocket connection implementing net.Conn
 	tConn := NewTunnelingConnection("client", conn)
 	// Create SPDY connection with the previously created tConn.
-	spdyConn, err := spdy.NewClientConnectionWithPings(tConn, 0)
+	spdyConn, err := spdy.NewClientConnectionWithPings(tConn, PingPeriod)
 
 	return spdyConn, protocol, err
 }

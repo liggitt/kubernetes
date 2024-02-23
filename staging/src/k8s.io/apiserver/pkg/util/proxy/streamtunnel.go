@@ -37,21 +37,24 @@ import (
 
 // TunnelingHandler is a handler which tunnels SPDY through WebSockets.
 type TunnelingHandler struct {
-	// UpgradeAwareHandler used to communicate to upstream SPDY.
+	// Used to communicate between upstream SPDY and downstream tunnel.
 	upgradeHandler http.Handler
 }
 
+// NewTunnelingHandler is used to create the tunnel between an upstream
+// SPDY connection and a downstream tunneling connection through the stored
+// UpgradeAwareProxy.
 func NewTunnelingHandler(upgradeHandler http.Handler) *TunnelingHandler {
 	return &TunnelingHandler{upgradeHandler: upgradeHandler}
 }
 
+// ServeHTTP uses the upgradeHandler to tunnel between a downstream tunneling
+// connection and an upstream SPDY connection. The tunneling connection is
+// a wrapped WebSockets connection which communicates SPDY framed data.
 func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	klog.Infoln("TunnelingHandler ServeHTTP")
-	clone := utilnet.CloneRequest(req)
-
+	klog.V(4).Infoln("TunnelingHandler ServeHTTP")
 	// First, terminate the websocket connection, creating the net.Conn
 	// that will be used to tunnel SPDY.
-	klog.Infoln("Upgrading, terminating websocket connection...")
 	var upgrader = gwebsocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true // Accepting all requests
@@ -66,31 +69,30 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer conn.Close() //nolint:errcheck
-	klog.Infof("websocket connection created: %s", conn.Subprotocol())
+	klog.V(4).Infof("websocket connection created: %s", conn.Subprotocol())
 	tunnelingConn := portforward.NewTunnelingConnection("server", conn)
 	headerInterceptingConnection := &headerInterceptingConnection{Conn: tunnelingConn, headerBuffer: bytes.NewBuffer(nil)}
-
 	// Create ResponseWriter which will be hijacked to use the tunnel.
 	writer := createTunnelingResponseWriter(w, headerInterceptingConnection)
+	klog.V(4).Infoln("Tunnel spdy through websockets using the UpgradeAwareProxy")
+	h.upgradeHandler.ServeHTTP(writer, createSPDYRequest(req))
+}
 
-	// Force the method to POST
-	clone.Method = "POST"
-	// Remove the request body which is unused (success case hijacks, error case doesn't read the body)
-	clone.Body = io.NopCloser(bytes.NewBuffer(nil))
-	// Remove all the websocket headers
+// createSPDYRequest modifies the passed request to remove
+// WebSockets headers and add SPDY upgrade information.
+func createSPDYRequest(req *http.Request) *http.Request {
+	clone := utilnet.CloneRequest(req)
+	// Clean up the websocket headers from the http request.
 	clone.Header.Del(wsstream.WebSocketProtocolHeader)
 	clone.Header.Del("Sec-Websocket-Key")
 	clone.Header.Del("Sec-Websocket-Version")
 	clone.Header.Del(httpstream.HeaderUpgrade)
-	// Add all the SPDY headers
+	// Update the http request for an upstream SPDY upgrade.
+	clone.Method = "POST"
+	clone.Body = nil // Remove the request body which is unused.
 	clone.Header.Add(httpstream.HeaderUpgrade, spdy.HeaderSpdy31)
-	clone.Header.Add(httpstream.HeaderProtocolVersion, "portforward.k8s.io")
-
-	// UpgradeHandler will first create the upstream SPDY connection,
-	// copying SPDY data between the upstream connection and
-	// the tunneling websocket connection (hijacked from writer).
-	klog.Infoln("Calling upgrade aware proxy...")
-	h.upgradeHandler.ServeHTTP(writer, clone)
+	clone.Header.Add(httpstream.HeaderProtocolVersion, constants.PortForwardV1Name)
+	return clone
 }
 
 var _ http.ResponseWriter = &tunnelingWriter{}
@@ -107,26 +109,32 @@ func createTunnelingResponseWriter(w http.ResponseWriter, tunnel net.Conn) http.
 	return &tunnelingWriter{conn: tunnel, w: w}
 }
 
+// Hijack returns a "net.Conn" which tunnels SPDY through WebSockets.
+// The returned bufio.ReadWriter and error are always nil.
 func (w *tunnelingWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	klog.Infof("tunnelingWriter#Hijack()--returning websocket tunneling net.Conn")
+	klog.V(6).Infof("Hijack returning websocket tunneling net.Conn")
 	return w.conn, nil, nil
 }
 
+// Header is delegated to the stored "http.ResponseWriter".
 func (w *tunnelingWriter) Header() http.Header {
-	klog.Infof("tunnelingWriter#Header()")
 	return w.w.Header()
 }
 
+// Write is delegated to the stored "http.ResponseWriter".
 func (w *tunnelingWriter) Write(p []byte) (int, error) {
-	klog.Infof("tunnelingWriter#Write()")
 	return w.w.Write(p)
 }
 
+// WriteHeader is delegated to the stored "http.ResponseWriter".
 func (w *tunnelingWriter) WriteHeader(statusCode int) {
-	klog.Infof("tunnelingWriter#WriteHeader(%d)", statusCode)
 	w.w.WriteHeader(statusCode)
 }
 
+// headerInterceptingConnection wraps the tunneling "net.Conn" to drain the
+// HTTP response from the upstream SPDY connection, since the client has
+// already received a "101 Switching Protocols" from the WebSockets
+// upgrade.
 type headerInterceptingConnection struct {
 	net.Conn
 
@@ -134,37 +142,38 @@ type headerInterceptingConnection struct {
 	completedHeaders bool
 }
 
+// Write intercepts to initially swallow the HTTP response, then
+// delegate to the tunneling "net.Conn" once the response has been
+// seen and processed.
 func (h *headerInterceptingConnection) Write(b []byte) (int, error) {
 	if h.completedHeaders {
-		klog.Infoln("headerInterceptingConnection#Write: headers complete, delegating")
 		return h.Conn.Write(b)
 	}
 
+	// Write into the headerBuffer, then attempt to parse the bytes
+	// as an http response.
 	n, err := h.headerBuffer.Write(b)
 	if err != nil {
 		return n, err
 	}
 	bufferedReader := bufio.NewReader(h.headerBuffer)
-	resp, err := http.ReadResponse(bufferedReader, nil)
+	_, err = http.ReadResponse(bufferedReader, nil)
 	if errors.Is(err, io.ErrUnexpectedEOF) {
 		// don't yet have a complete set of headers
-		klog.Infoln("headerInterceptingConnection#Write: headers incomplete, waiting")
 		// TODO: reset headerBuffer to append to end and read from start
 		return n, nil
 	}
 	if err != nil {
-		klog.Infof("headerInterceptingConnection#Write: invalid headers: %v", err)
+		klog.Errorf("headerInterceptingConnection#Write: invalid headers: %v", err)
 		return n, err
 	}
 
-	// check status code, check headers, check protocols
-	klog.Infoln("headerInterceptingConnection#Write:", resp.StatusCode)
-	klog.Infoln("headerInterceptingConnection#Write:", resp.Header)
+	// TODO: check response status code, headers, SPDY negotiated protocol.
 
 	h.completedHeaders = true
 	h.headerBuffer = nil
 
-	// copy any remaining buffered data to the underlying conn
+	// Copy any remaining buffered data to the underlying conn
 	remainingBuffer, _ := io.ReadAll(bufferedReader)
 	if len(remainingBuffer) > 0 {
 		_, err = h.Conn.Write(remainingBuffer)

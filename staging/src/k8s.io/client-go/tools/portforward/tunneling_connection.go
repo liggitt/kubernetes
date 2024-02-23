@@ -63,11 +63,11 @@ func NewTunnelingConnection(name string, conn *gwebsocket.Conn) *TunnelingConnec
 }
 
 func (c *TunnelingConnection) Read(p []byte) (int, error) {
-	// klog.Infof("%s: tunneling connection read...", c.name)
-	// defer klog.Infof("%s: tunneling connection read...complete", c.name)
+	klog.V(7).Infof("%s: tunneling connection read...", c.name)
+	defer klog.V(7).Infof("%s: tunneling connection read...complete", c.name)
 	for {
 		if c.inProgressMessage == nil {
-			// klog.Infof("%s: tunneling connection read before NextReader()...", c.name)
+			klog.V(8).Infof("%s: tunneling connection read before NextReader()...", c.name)
 			messageType, nextReader, err := c.conn.NextReader()
 			if err != nil {
 				closeError := &gwebsocket.CloseError{}
@@ -86,24 +86,24 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 			c.inProgressMessage = nextReader
 		}
 
-		// klog.Infof("%s: tunneling connection read in progress message...", c.name)
+		klog.V(8).Infof("%s: tunneling connection read in progress message...", c.name)
 		i, err := c.inProgressMessage.Read(p)
 		switch {
 		case err == nil:
-			klog.Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
+			klog.V(8).Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
 			return i, nil
 		case err == io.EOF:
 			c.inProgressMessage = nil
 		case err != nil:
-			klog.Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
+			klog.V(8).Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
 			return i, err
 		}
 	}
 }
 
 func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
-	klog.Infof("%s: write: %d bytes, bytes=% X", c.name, len(p), p)
-	// defer klog.Infof("%s: tunneling connection write...complete", c.name)
+	klog.V(7).Infof("%s: write: %d bytes, bytes=% X", c.name, len(p), p)
+	defer klog.V(7).Infof("%s: tunneling connection write...complete", c.name)
 	if c.conn == nil {
 		return 0, fmt.Errorf("write on closed tunneling connection")
 	}
@@ -126,7 +126,7 @@ func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
 }
 
 func (c *TunnelingConnection) Close() error {
-	klog.Infof("%s: tunneling connection Close()...", c.name)
+	klog.V(7).Infof("%s: tunneling connection Close()...", c.name)
 	// Signal other endpoint that websocket connection is closing.
 	c.conn.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, ""), time.Now().Add(writeDeadline)) //nolint:errcheck
 	c.closeCalled = true
@@ -148,11 +148,9 @@ func (c *TunnelingConnection) SetDeadline(t time.Time) error {
 }
 
 func (c *TunnelingConnection) SetReadDeadline(t time.Time) error {
-	klog.Infof("%s: tunneling connection set read deadline: %v", c.name, t)
 	return c.conn.SetReadDeadline(t)
 }
 
 func (c *TunnelingConnection) SetWriteDeadline(t time.Time) error {
-	klog.Infof("%s: tunneling connection set write deadline: %v", c.name, t)
 	return c.conn.SetWriteDeadline(t)
 }
