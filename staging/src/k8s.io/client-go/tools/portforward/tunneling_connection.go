@@ -37,31 +37,21 @@ var _ net.Conn = &TunnelingConnection{}
 type TunnelingConnection struct {
 	name              string
 	conn              *gwebsocket.Conn
-	closeCalled       bool
-	closeChan         chan bool
 	inProgressMessage io.Reader
 }
 
 // NewTunnelingConnection wraps the passed gorilla/websockets connection
 // with the TunnelingConnection struct (implementing net.Conn).
 func NewTunnelingConnection(name string, conn *gwebsocket.Conn) *TunnelingConnection {
-	closeChan := make(chan bool)
-	tConn := &TunnelingConnection{
-		name:      name,
-		conn:      conn,
-		closeChan: closeChan,
+	return &TunnelingConnection{
+		name: name,
+		conn: conn,
 	}
-	// Close channel when detecting close connection.
-	closeHandler := conn.CloseHandler()
-	conn.SetCloseHandler(func(code int, text string) error {
-		klog.V(3).Infof("%s: websocket conn close: %d--%s", name, code, text)
-		close(closeChan)
-		err := closeHandler(code, text)
-		return err
-	})
-	return tConn
 }
 
+// Read implements "io.Reader" interface, reading from the stored connection
+// into the passed buffer "p". Returns the number of bytes read and an error.
+// Can keep track of the "inProgress" messsage from the tunneled connection.
 func (c *TunnelingConnection) Read(p []byte) (int, error) {
 	klog.V(7).Infof("%s: tunneling connection read...", c.name)
 	defer klog.V(7).Infof("%s: tunneling connection read...complete", c.name)
@@ -74,10 +64,7 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 				if errors.As(err, &closeError) && closeError.Code == gwebsocket.CloseNormalClosure {
 					return 0, io.EOF
 				}
-				if c.closeCalled {
-					return 0, io.EOF // TODO: verify this is treated as a normal closure
-				}
-				klog.Errorf("%s:tunneling connection NextReader() error: %v", c.name, err)
+				klog.V(4).Infof("%s:tunneling connection NextReader() error: %v", c.name, err)
 				return 0, err
 			}
 			if messageType != gwebsocket.BinaryMessage {
@@ -101,13 +88,19 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 	}
 }
 
+// Write implements "io.Writer" interface, copying the data in the passed
+// byte array "p" into the stored tunneled connection. Returns the number
+// of bytes written and an error.
 func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
 	klog.V(7).Infof("%s: write: %d bytes, bytes=% X", c.name, len(p), p)
 	defer klog.V(7).Infof("%s: tunneling connection write...complete", c.name)
 	if c.conn == nil {
 		return 0, fmt.Errorf("write on closed tunneling connection")
 	}
-	// TODO: look into write deadline.
+	err = c.SetWriteDeadline(time.Now().Add(writeDeadline))
+	if err != nil {
+		return 0, err
+	}
 	w, err := c.conn.NextWriter(gwebsocket.BinaryMessage)
 	if err != nil {
 		return 0, err
@@ -125,32 +118,43 @@ func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
 	return
 }
 
+// Close implements "io.Closer" interface, signaling the other tunneled connection
+// endpoint, and closing the tunneled connection.
 func (c *TunnelingConnection) Close() error {
 	klog.V(7).Infof("%s: tunneling connection Close()...", c.name)
-	// Signal other endpoint that websocket connection is closing.
+	// Signal other endpoint that websocket connection is closing; ignore error.
 	c.conn.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, ""), time.Now().Add(writeDeadline)) //nolint:errcheck
-	c.closeCalled = true
 	return c.conn.Close()
 }
 
+// LocalAddr implements part of the "net.Conn" interface, returning the local
+// endpoint network address of the tunneled connection.
 func (c *TunnelingConnection) LocalAddr() net.Addr {
 	return c.conn.LocalAddr()
 }
 
+// LocalAddr implements part of the "net.Conn" interface, returning the remote
+// endpoint network address of the tunneled connection.
 func (c *TunnelingConnection) RemoteAddr() net.Addr {
 	return c.conn.RemoteAddr()
 }
 
+// SetDeadline sets the *absolute* time in the future for both
+// read and write deadlines. Returns an error if one occurs.
 func (c *TunnelingConnection) SetDeadline(t time.Time) error {
 	rerr := c.SetReadDeadline(t)
 	werr := c.SetWriteDeadline(t)
 	return errors.Join(rerr, werr)
 }
 
+// SetDeadline sets the *absolute* time in the future for the
+// read deadlines. Returns an error if one occurs.
 func (c *TunnelingConnection) SetReadDeadline(t time.Time) error {
 	return c.conn.SetReadDeadline(t)
 }
 
+// SetDeadline sets the *absolute* time in the future for the
+// write deadlines. Returns an error if one occurs.
 func (c *TunnelingConnection) SetWriteDeadline(t time.Time) error {
 	return c.conn.SetWriteDeadline(t)
 }
