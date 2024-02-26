@@ -140,6 +140,8 @@ type headerInterceptingConnection struct {
 
 	headerBuffer     *bytes.Buffer
 	completedHeaders bool
+	parsedStatus     string
+	parsedHeaders    http.Header
 }
 
 // Write intercepts to initially swallow the HTTP response, then
@@ -157,20 +159,20 @@ func (h *headerInterceptingConnection) Write(b []byte) (int, error) {
 		return n, err
 	}
 	bufferedReader := bufio.NewReader(h.headerBuffer)
-	_, err = http.ReadResponse(bufferedReader, nil)
+	resp, err := http.ReadResponse(bufferedReader, nil)
 	if errors.Is(err, io.ErrUnexpectedEOF) {
 		// don't yet have a complete set of headers
 		// TODO: reset headerBuffer to append to end and read from start
 		return n, nil
 	}
 	if err != nil {
-		klog.Errorf("headerInterceptingConnection#Write: invalid headers: %v", err)
+		klog.Errorf("invalid headers: %v", err)
 		return n, err
 	}
 
-	// TODO: check response status code, headers, SPDY negotiated protocol.
-
 	h.completedHeaders = true
+	h.parsedStatus = resp.Status
+	h.parsedHeaders = resp.Header
 	h.headerBuffer = nil
 
 	// Copy any remaining buffered data to the underlying conn
