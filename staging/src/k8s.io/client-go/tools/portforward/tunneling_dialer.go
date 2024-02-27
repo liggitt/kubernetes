@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/httpstream"
@@ -56,8 +57,7 @@ func NewSPDYOverWebsocketDialer(url *url.URL, config *restclient.Config) (httpst
 
 // Dial upgrades to a tunneling streaming connection, returning a SPDY connection
 // containing a WebSockets connection (which implements "net.Conn"). Also
-// returns the protocol negotiated (currently v2 portforward), or an error.
-// The passed "protocols" are ignored.
+// returns the protocol negotiated, or an error.
 func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, string, error) {
 	// There is no passed context, so skip the context when creating request for now.
 	// Websockets requires "GET" method: RFC 6455 Sec. 4.1 (page 17).
@@ -65,8 +65,13 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 	if err != nil {
 		return nil, "", err
 	}
-	// Tunneling must initiate a websocket upgrade connection, using v2 portforward protocol.
-	tunnelingProtocols := []string{constants.PortForwardV2Name}
+	// Add the spdy tunneling prefix to the requested protocols. The tunneling
+	// handler will know how to negotiate these protocols.
+	tunnelingProtocols := []string{}
+	for _, protocol := range protocols {
+		tunnelingProtocol := constants.SpdyTunnelingPrefix + protocol
+		tunnelingProtocols = append(tunnelingProtocols, tunnelingProtocol)
+	}
 	klog.V(4).Infoln("Before WebSocket Upgrade Connection...")
 	conn, err := websocket.Negotiate(d.transport, d.holder, req, tunnelingProtocols...)
 	if err != nil {
@@ -76,6 +81,7 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 		return nil, "", fmt.Errorf("negotiated websocket connection is nil")
 	}
 	protocol := conn.Subprotocol()
+	protocol = strings.TrimPrefix(protocol, constants.SpdyTunnelingPrefix)
 	klog.V(4).Infof("negotiated protocol: %s", protocol)
 
 	// Wrap the websocket connection which implements "net.Conn".

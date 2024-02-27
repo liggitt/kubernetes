@@ -245,7 +245,7 @@ func (r *PortForwardREST) Connect(ctx context.Context, name string, opts runtime
 	handler := newThrottledUpgradeAwareProxyHandler(location, transport, false, true, responder)
 	if utilfeature.DefaultFeatureGate.Enabled(features.PortForwardWebsockets) {
 		tunnelingHandler := translator.NewTunnelingHandler(handler)
-		handler = translator.NewTranslatingHandler(handler, tunnelingHandler, wsstream.IsWebSocketRequestWithPortForwardProtocol)
+		handler = translator.NewTranslatingHandler(handler, tunnelingHandler, wsstream.IsWebSocketRequestWithTunnelingProtocol)
 	}
 	return handler, nil
 }

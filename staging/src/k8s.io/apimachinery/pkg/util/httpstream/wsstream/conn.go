@@ -107,16 +107,16 @@ func IsWebSocketRequestWithStreamCloseProtocol(req *http.Request) bool {
 	return false
 }
 
-// IsWebSocketRequestWithPortForwardProtocol returns true if the request contains headers
-// identifying that it is requesting a websocket upgrade with a portforward protocol;
+// IsWebSocketRequestWithTunnelingProtocol returns true if the request contains headers
+// identifying that it is requesting a websocket upgrade with a tunneling protocol;
 // false otherwise.
-func IsWebSocketRequestWithPortForwardProtocol(req *http.Request) bool {
+func IsWebSocketRequestWithTunnelingProtocol(req *http.Request) bool {
 	if !IsWebSocketRequest(req) {
 		return false
 	}
 	requestedProtocols := strings.TrimSpace(req.Header.Get(WebSocketProtocolHeader))
 	for _, requestedProtocol := range strings.Split(requestedProtocols, ",") {
-		if protocolSupportsWebsocketPortForward(strings.TrimSpace(requestedProtocol)) {
+		if protocolSupportsWebsocketTunneling(strings.TrimSpace(requestedProtocol)) {
 			return true
 		}
 	}
@@ -319,11 +319,11 @@ func protocolSupportsStreamClose(protocol string) bool {
 	return protocol == remotecommand.StreamProtocolV5Name
 }
 
-// protocolSupportsWebsocketPortForward returns true if the passed protocol
-// supports the portforward stream functionality for websockets
-// (currently only V2 portforward); false otherwise.
-func protocolSupportsWebsocketPortForward(protocol string) bool {
-	return protocol == portforward.PortForwardV2Name
+// protocolSupportsWebsocketTunneling returns true if the passed protocol
+// supports the tunneling portforward stream functionality for websockets;
+// false otherwise.
+func protocolSupportsWebsocketTunneling(protocol string) bool {
+	return strings.HasPrefix(protocol, portforward.SpdyTunnelingPrefix)
 }
 
 // handle implements a websocket handler.

@@ -76,9 +76,9 @@ func TestTunnelingHandler_UpgradeStreamingAndTunneling(t *testing.T) {
 	require.NoError(t, err)
 	dialer, err := portforward.NewSPDYOverWebsocketDialer(tunnelingURL, &restconfig.Config{Host: tunnelingURL.Host})
 	require.NoError(t, err)
-	spdyClient, protocol, err := dialer.Dial("unused")
+	spdyClient, protocol, err := dialer.Dial(constants.PortForwardV1Name)
 	require.NoError(t, err)
-	assert.Equal(t, constants.PortForwardV2Name, protocol)
+	assert.Equal(t, constants.PortForwardV1Name, protocol)
 	defer spdyClient.Close() //nolint:errcheck
 	// Create a SPDY client stream, which will queue a SPDY server stream
 	// on the stream creation channel. Send random data on the client stream

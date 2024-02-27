@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 
 	gwebsocket "github.com/gorilla/websocket"
 
@@ -60,7 +61,7 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return true // Accepting all requests
 		},
 		Subprotocols: []string{
-			constants.PortForwardV2Name,
+			constants.TunnelPortForwardV1,
 		},
 	}
 	conn, err := upgrader.Upgrade(w, req, nil)
@@ -69,18 +70,21 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	defer conn.Close() //nolint:errcheck
-	klog.V(4).Infof("websocket connection created: %s", conn.Subprotocol())
+	tunnelProtocol := conn.Subprotocol()
+	klog.V(4).Infof("websocket connection created: %s", tunnelProtocol)
 	tunnelingConn := portforward.NewTunnelingConnection("server", conn)
 	headerInterceptingConnection := &headerInterceptingConnection{Conn: tunnelingConn, headerBuffer: bytes.NewBuffer(nil)}
 	// Create ResponseWriter which will be hijacked to use the tunnel.
 	writer := createTunnelingResponseWriter(w, headerInterceptingConnection)
 	klog.V(4).Infoln("Tunnel spdy through websockets using the UpgradeAwareProxy")
-	h.upgradeHandler.ServeHTTP(writer, createSPDYRequest(req))
+	protocol := strings.TrimPrefix(tunnelProtocol, constants.SpdyTunnelingPrefix)
+	h.upgradeHandler.ServeHTTP(writer, createSPDYRequest(req, protocol))
 }
 
 // createSPDYRequest modifies the passed request to remove
-// WebSockets headers and add SPDY upgrade information.
-func createSPDYRequest(req *http.Request) *http.Request {
+// WebSockets headers and add SPDY upgrade information, including
+// the negotiated protocol (without the tunnel prefix).
+func createSPDYRequest(req *http.Request, protocol string) *http.Request {
 	clone := utilnet.CloneRequest(req)
 	// Clean up the websocket headers from the http request.
 	clone.Header.Del(wsstream.WebSocketProtocolHeader)
@@ -91,7 +95,7 @@ func createSPDYRequest(req *http.Request) *http.Request {
 	clone.Method = "POST"
 	clone.Body = nil // Remove the request body which is unused.
 	clone.Header.Add(httpstream.HeaderUpgrade, spdy.HeaderSpdy31)
-	clone.Header.Add(httpstream.HeaderProtocolVersion, constants.PortForwardV1Name)
+	clone.Header.Add(httpstream.HeaderProtocolVersion, protocol)
 	return clone
 }
 

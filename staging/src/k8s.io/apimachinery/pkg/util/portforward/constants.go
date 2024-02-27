@@ -17,6 +17,7 @@ limitations under the License.
 package portforward
 
 const (
-	PortForwardV1Name = "portforward.k8s.io"
-	PortForwardV2Name = "v2.portforward.k8s.io"
+	PortForwardV1Name   = "portforward.k8s.io"
+	SpdyTunnelingPrefix = "SPDY/3.1+"
+	TunnelPortForwardV1 = SpdyTunnelingPrefix + PortForwardV1Name
 )

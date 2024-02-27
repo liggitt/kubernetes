@@ -48,12 +48,12 @@ func TestTunnelingConnection_ReadWriteClose(t *testing.T) {
 	tunnelingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		var upgrader = gwebsocket.Upgrader{
 			CheckOrigin:  func(r *http.Request) bool { return true },
-			Subprotocols: []string{constants.PortForwardV2Name},
+			Subprotocols: []string{constants.TunnelPortForwardV1},
 		}
 		conn, err := upgrader.Upgrade(w, req, nil)
 		require.NoError(t, err)
 		defer conn.Close() //nolint:errcheck
-		require.Equal(t, constants.PortForwardV2Name, conn.Subprotocol())
+		require.Equal(t, constants.TunnelPortForwardV1, conn.Subprotocol())
 		tunnelingConn := NewTunnelingConnection("server", conn)
 		spdyConn, err := spdy.NewServerConnection(tunnelingConn, justQueueStream(streamChan))
 		require.NoError(t, err)
@@ -66,9 +66,9 @@ func TestTunnelingConnection_ReadWriteClose(t *testing.T) {
 	require.NoError(t, err)
 	dialer, err := NewSPDYOverWebsocketDialer(url, &rest.Config{Host: url.Host})
 	require.NoError(t, err)
-	spdyClient, protocol, err := dialer.Dial("unused")
+	spdyClient, protocol, err := dialer.Dial(constants.PortForwardV1Name)
 	require.NoError(t, err)
-	assert.Equal(t, constants.PortForwardV2Name, protocol)
+	assert.Equal(t, constants.PortForwardV1Name, protocol)
 	defer spdyClient.Close() //nolint:errcheck
 	// Create a SPDY client stream, which will queue a SPDY server stream
 	// on the stream creation channel. Send data on the client stream
@@ -99,12 +99,12 @@ func TestTunnelingConnection_LocalRemoteAddress(t *testing.T) {
 	tunnelingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		var upgrader = gwebsocket.Upgrader{
 			CheckOrigin:  func(r *http.Request) bool { return true },
-			Subprotocols: []string{constants.PortForwardV2Name},
+			Subprotocols: []string{constants.TunnelPortForwardV1},
 		}
 		conn, err := upgrader.Upgrade(w, req, nil)
 		require.NoError(t, err)
 		defer conn.Close() //nolint:errcheck
-		require.Equal(t, constants.PortForwardV2Name, conn.Subprotocol())
+		require.Equal(t, constants.TunnelPortForwardV1, conn.Subprotocol())
 		<-stopServerChan
 	}))
 	defer tunnelingServer.Close()
@@ -131,12 +131,12 @@ func TestTunnelingConnection_ReadWriteDeadlines(t *testing.T) {
 	tunnelingServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		var upgrader = gwebsocket.Upgrader{
 			CheckOrigin:  func(r *http.Request) bool { return true },
-			Subprotocols: []string{constants.PortForwardV2Name},
+			Subprotocols: []string{constants.TunnelPortForwardV1},
 		}
 		conn, err := upgrader.Upgrade(w, req, nil)
 		require.NoError(t, err)
 		defer conn.Close() //nolint:errcheck
-		require.Equal(t, constants.PortForwardV2Name, conn.Subprotocol())
+		require.Equal(t, constants.TunnelPortForwardV1, conn.Subprotocol())
 		<-stopServerChan
 	}))
 	defer tunnelingServer.Close()
@@ -169,8 +169,8 @@ func dialForTunnelingConnection(url *url.URL) (*TunnelingConnection, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Tunneling must initiate a websocket upgrade connection, using v2 portforward protocol.
-	tunnelingProtocols := []string{constants.PortForwardV2Name}
+	// Tunneling must initiate a websocket upgrade connection, using tunneling portforward protocol.
+	tunnelingProtocols := []string{constants.TunnelPortForwardV1}
 	transport, holder, err := websocket.RoundTripperFor(&rest.Config{Host: url.Host})
 	if err != nil {
 		return nil, err
