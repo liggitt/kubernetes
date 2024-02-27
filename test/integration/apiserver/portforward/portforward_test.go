@@ -22,10 +22,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -48,6 +50,8 @@ import (
 
 	"k8s.io/kubernetes/test/integration/framework"
 )
+
+const remotePort = "8765"
 
 func TestPortforward(t *testing.T) {
 	defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, kubefeatures.PortForwardWebsockets, true)()
@@ -106,6 +110,9 @@ func TestPortforward(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// local port missing asks os to find random open port.
+	// Example: ":8000" (local = random, remote = 8000)
+	localRemotePort := fmt.Sprintf(":%s", remotePort)
 	streams, _, out, errOut := genericiooptions.NewTestIOStreams()
 	portForwardOptions := portforward.NewDefaultPortForwardOptions(streams)
 	portForwardOptions.Namespace = "default"
@@ -114,7 +121,7 @@ func TestPortforward(t *testing.T) {
 	portForwardOptions.Config = server.ClientConfig
 	portForwardOptions.PodClient = adminClient.CoreV1()
 	portForwardOptions.Address = []string{"127.0.0.1"}
-	portForwardOptions.Ports = []string{"8000"} // TODO: find free port
+	portForwardOptions.Ports = []string{localRemotePort}
 	portForwardOptions.StopChannel = make(chan struct{}, 1)
 	portForwardOptions.ReadyChannel = make(chan struct{})
 
@@ -139,9 +146,14 @@ func TestPortforward(t *testing.T) {
 		t.Error("port forward was never ready")
 	}
 
+	// Parse out the randomly selected local port from "out" stream.
+	localPort, err := parsePort(out.String())
+	require.NoError(t, err)
+	t.Logf("Local Port: %s", localPort)
+
 	timeoutContext, cleanupTimeoutContext := context.WithDeadline(context.Background(), time.Now().Add(5*time.Second))
 	defer cleanupTimeoutContext()
-	testReq, _ := http.NewRequest("GET", "http://127.0.0.1:8000/test", nil)
+	testReq, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%s/test", localPort), nil)
 	testReq = testReq.WithContext(timeoutContext)
 	testResp, err := http.DefaultClient.Do(testReq)
 	if err != nil {
@@ -154,7 +166,7 @@ func TestPortforward(t *testing.T) {
 		} else {
 			t.Log("client saw response:", string(data))
 		}
-		if string(data) != "request to 8000 was ok" {
+		if string(data) != fmt.Sprintf("request to %s was ok", remotePort) {
 			t.Errorf("unexpected data")
 		}
 		if testResp.StatusCode != 200 {
@@ -167,6 +179,23 @@ func TestPortforward(t *testing.T) {
 	wg.Wait()
 	t.Logf("stdout: %s", out.String())
 	t.Logf("stderr: %s", errOut.String())
+}
+
+// parsePort parses out the local port from the port-forward output string.
+// This should work for both IP4 and IP6 addresses.
+//
+//	Example: "Forwarding from 127.0.0.1:8000 -> 4000", returns "8000".
+func parsePort(forwardAddr string) (string, error) {
+	parts := strings.Split(forwardAddr, " ")
+	if len(parts) != 5 {
+		return "", fmt.Errorf("unable to parse local port from stdout: %s", forwardAddr)
+	}
+	// parts[2] = "127.0.0.1:<LOCAL_PORT>"
+	_, localPort, err := net.SplitHostPort(parts[2])
+	if err != nil {
+		return "", fmt.Errorf("unable to parse local port: %w", err)
+	}
+	return localPort, nil
 }
 
 type dummyPortForwarder struct {
