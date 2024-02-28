@@ -17,26 +17,35 @@ limitations under the License.
 package portforward
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestFallbackDialer(t *testing.T) {
+	protocol := "v6.fake.k8s.io"
 	// If "shouldFallback" is false, then only primary should be dialed.
 	primary := &fakeDialer{dialed: false}
+	primary.negotiatedProtocol = protocol
 	secondary := &fakeDialer{dialed: false}
 	fallbackDialer := NewFallbackDialer(primary, secondary, alwaysFalse)
-	_, _, _ = fallbackDialer.Dial("unused")
+	_, negotiated, err := fallbackDialer.Dial(protocol)
 	assert.True(t, primary.dialed, "no fallback; primary should have dialed")
+	assert.Equal(t, protocol, negotiated, "")
 	assert.False(t, secondary.dialed, "no fallback; secondary should *not* have dialed")
+	assert.Nil(t, err, "error should be nil")
 	// If "shouldFallback" is true, then primary AND secondary should be dialed.
-	primary.dialed = false   // reset dialed field
+	primary.dialed = false // reset dialed field
+	primary.err = fmt.Errorf("bad handshake")
 	secondary.dialed = false // reset dialed field
+	secondary.negotiatedProtocol = protocol
 	fallbackDialer = NewFallbackDialer(primary, secondary, alwaysTrue)
-	_, _, _ = fallbackDialer.Dial("unused")
+	_, negotiated, err = fallbackDialer.Dial(protocol)
 	assert.True(t, primary.dialed, "fallback; primary should have dialed (first)")
 	assert.True(t, secondary.dialed, "fallback; secondary should have dialed")
+	assert.Equal(t, protocol, negotiated)
+	assert.Nil(t, err)
 }
 
 func alwaysTrue(err error) bool { return true }

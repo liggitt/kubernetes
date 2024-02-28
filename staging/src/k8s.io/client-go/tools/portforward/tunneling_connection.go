@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	gwebsocket "github.com/gorilla/websocket"
@@ -38,6 +39,7 @@ type TunnelingConnection struct {
 	name              string
 	conn              *gwebsocket.Conn
 	inProgressMessage io.Reader
+	closeOnce         sync.Once
 }
 
 // NewTunnelingConnection wraps the passed gorilla/websockets connection
@@ -72,16 +74,11 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 			}
 			c.inProgressMessage = nextReader
 		}
-
 		klog.V(8).Infof("%s: tunneling connection read in progress message...", c.name)
 		i, err := c.inProgressMessage.Read(p)
-		switch {
-		case err == nil:
-			klog.V(8).Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
-			return i, nil
-		case err == io.EOF:
+		if i == 0 && err == io.EOF {
 			c.inProgressMessage = nil
-		case err != nil:
+		} else {
 			klog.V(8).Infof("%s: read %d bytes, error=%v, bytes=% X", c.name, i, err, p[:i])
 			return i, err
 		}
@@ -94,13 +91,6 @@ func (c *TunnelingConnection) Read(p []byte) (int, error) {
 func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
 	klog.V(7).Infof("%s: write: %d bytes, bytes=% X", c.name, len(p), p)
 	defer klog.V(7).Infof("%s: tunneling connection write...complete", c.name)
-	if c.conn == nil {
-		return 0, fmt.Errorf("write on closed tunneling connection")
-	}
-	err = c.SetWriteDeadline(time.Now().Add(writeDeadline))
-	if err != nil {
-		return 0, err
-	}
 	w, err := c.conn.NextWriter(gwebsocket.BinaryMessage)
 	if err != nil {
 		return 0, err
@@ -119,12 +109,18 @@ func (c *TunnelingConnection) Write(p []byte) (n int, err error) {
 }
 
 // Close implements "io.Closer" interface, signaling the other tunneled connection
-// endpoint, and closing the tunneled connection.
+// endpoint, and closing the tunneled connection only once.
 func (c *TunnelingConnection) Close() error {
-	klog.V(7).Infof("%s: tunneling connection Close()...", c.name)
-	// Signal other endpoint that websocket connection is closing; ignore error.
-	c.conn.WriteControl(gwebsocket.CloseMessage, gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, ""), time.Now().Add(writeDeadline)) //nolint:errcheck
-	return c.conn.Close()
+	var err error
+	c.closeOnce.Do(func() {
+		klog.V(7).Infof("%s: tunneling connection Close()...", c.name)
+		// Signal other endpoint that websocket connection is closing; ignore error.
+		normalCloseMsg := gwebsocket.FormatCloseMessage(gwebsocket.CloseNormalClosure, "")
+		deadline := time.Now().Add(writeDeadline)
+		c.conn.WriteControl(gwebsocket.CloseMessage, normalCloseMsg, deadline) //nolint:errcheck
+		err = c.conn.Close()
+	})
+	return err
 }
 
 // LocalAddr implements part of the "net.Conn" interface, returning the local

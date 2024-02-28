@@ -49,9 +49,8 @@ func NewFallbackDialer(primary, secondary httpstream.Dialer, shouldFallback func
 // if one occurs.
 func (f *fallbackDialer) Dial(protocols ...string) (httpstream.Connection, string, error) {
 	conn, version, err := f.primary.Dial(protocols...)
-	klog.V(4).Infof("primary dialer err: %v", err)
-	if f.shouldFallback(err) {
-		klog.V(4).Infoln("fallback: secondary dialer...")
+	if err != nil && f.shouldFallback(err) {
+		klog.V(4).Infof("fallback to secondary dialer from primary dialer err: %v", err)
 		return f.secondary.Dial(protocols...)
 	}
 	return conn, version, err

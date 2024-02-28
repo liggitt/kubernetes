@@ -61,7 +61,7 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return true // Accepting all requests
 		},
 		Subprotocols: []string{
-			constants.TunnelPortForwardV1,
+			constants.WebsocketsSPDYTunnelingPortForwardV1,
 		},
 	}
 	conn, err := upgrader.Upgrade(w, req, nil)
@@ -77,7 +77,7 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Create ResponseWriter which will be hijacked to use the tunnel.
 	writer := createTunnelingResponseWriter(w, headerInterceptingConnection)
 	klog.V(4).Infoln("Tunnel spdy through websockets using the UpgradeAwareProxy")
-	protocol := strings.TrimPrefix(tunnelProtocol, constants.SpdyTunnelingPrefix)
+	protocol := strings.TrimPrefix(tunnelProtocol, constants.WebsocketsSPDYTunnelingPrefix)
 	h.upgradeHandler.ServeHTTP(writer, createSPDYRequest(req, protocol))
 }
 
@@ -94,8 +94,8 @@ func createSPDYRequest(req *http.Request, protocol string) *http.Request {
 	// Update the http request for an upstream SPDY upgrade.
 	clone.Method = "POST"
 	clone.Body = nil // Remove the request body which is unused.
-	clone.Header.Add(httpstream.HeaderUpgrade, spdy.HeaderSpdy31)
-	clone.Header.Add(httpstream.HeaderProtocolVersion, protocol)
+	clone.Header.Set(httpstream.HeaderUpgrade, spdy.HeaderSpdy31)
+	clone.Header.Set(httpstream.HeaderProtocolVersion, protocol)
 	return clone
 }
 

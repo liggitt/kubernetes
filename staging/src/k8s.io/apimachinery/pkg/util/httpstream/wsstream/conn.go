@@ -323,7 +323,7 @@ func protocolSupportsStreamClose(protocol string) bool {
 // supports the tunneling portforward stream functionality for websockets;
 // false otherwise.
 func protocolSupportsWebsocketTunneling(protocol string) bool {
-	return strings.HasPrefix(protocol, portforward.SpdyTunnelingPrefix)
+	return strings.HasPrefix(protocol, portforward.WebsocketsSPDYTunnelingPrefix)
 }
 
 // handle implements a websocket handler.

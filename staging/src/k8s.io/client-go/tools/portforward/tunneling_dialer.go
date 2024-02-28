@@ -69,7 +69,7 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 	// handler will know how to negotiate these protocols.
 	tunnelingProtocols := []string{}
 	for _, protocol := range protocols {
-		tunnelingProtocol := constants.SpdyTunnelingPrefix + protocol
+		tunnelingProtocol := constants.WebsocketsSPDYTunnelingPrefix + protocol
 		tunnelingProtocols = append(tunnelingProtocols, tunnelingProtocol)
 	}
 	klog.V(4).Infoln("Before WebSocket Upgrade Connection...")
@@ -81,7 +81,7 @@ func (d *tunnelingDialer) Dial(protocols ...string) (httpstream.Connection, stri
 		return nil, "", fmt.Errorf("negotiated websocket connection is nil")
 	}
 	protocol := conn.Subprotocol()
-	protocol = strings.TrimPrefix(protocol, constants.SpdyTunnelingPrefix)
+	protocol = strings.TrimPrefix(protocol, constants.WebsocketsSPDYTunnelingPrefix)
 	klog.V(4).Infof("negotiated protocol: %s", protocol)
 
 	// Wrap the websocket connection which implements "net.Conn".
