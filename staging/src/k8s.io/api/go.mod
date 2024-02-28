@@ -2,7 +2,7 @@
 
 module k8s.io/api
 
-go 1.21
+go 1.22.0
 
 require (
 	github.com/gogo/protobuf v1.3.2
@@ -22,7 +22,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/net v0.19.0 // indirect
+	golang.org/x/net v0.21.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
@@ -36,7 +36,4 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
 
-replace (
-	k8s.io/api => ../api
-	k8s.io/apimachinery => ../apimachinery
-)
+replace k8s.io/apimachinery => ../apimachinery

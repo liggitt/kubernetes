@@ -25,9 +25,9 @@ set -o pipefail
 KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 source "${KUBE_ROOT}/hack/lib/init.sh"
 
-# Explicitly opt into go modules, even though we're inside a GOPATH directory
-export GO111MODULE=on
-# Explicitly set GOFLAGS to ignore vendor, since GOFLAGS=-mod=vendor breaks dependency resolution while rebuilding vendor
+# Set the Go environment, otherwise we get "can't compute 'all' using the
+# vendor directory".
+export GOWORK=off
 export GOFLAGS=-mod=mod
 # Detect problematic GOPROXY settings that prevent lookup of dependencies
 if [[ "${GOPROXY:-}" == "off" ]]; then
@@ -35,7 +35,7 @@ if [[ "${GOPROXY:-}" == "off" ]]; then
   exit 1
 fi
 
-kube::golang::verify_go_version
+kube::golang::setup_env
 kube::util::require-jq
 
 # let us log all errors before we exit
@@ -86,7 +86,7 @@ unused=$(comm -23 \
 if [[ -n "${unused}" ]]; then
   echo ""
   echo "Use the given commands to remove pinned module versions that aren't actually used:"
-  echo "${unused}" | xargs -L 1 echo 'GO111MODULE=on go mod edit -dropreplace'
+  echo "${unused}" | xargs -L 1 echo 'go mod edit -dropreplace'
 fi
 
 if [[ -n "${unused}${outdated}${noncanonical}" ]]; then

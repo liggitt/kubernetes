@@ -1449,7 +1449,9 @@
       "required": [
         "type",
         "status",
-        "reason"
+        "lastTransitionTime",
+        "reason",
+        "message"
       ],
       "type": "object"
     },
@@ -13477,6 +13479,9 @@
           "description": "ParentRef references the resource that an IPAddress is attached to. An IPAddress must reference a parent object."
         }
       },
+      "required": [
+        "parentRef"
+      ],
       "type": "object"
     },
     "io.k8s.api.networking.v1alpha1.ParentReference": {
@@ -13499,6 +13504,10 @@
           "type": "string"
         }
       },
+      "required": [
+        "resource",
+        "name"
+      ],
       "type": "object"
     },
     "io.k8s.api.networking.v1alpha1.ServiceCIDR": {

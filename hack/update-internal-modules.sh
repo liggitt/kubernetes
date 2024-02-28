@@ -25,12 +25,8 @@ source "${KUBE_ROOT}/hack/lib/init.sh"
 # decoupled from their parent modules.
 MODULES=(
     hack/tools
-    staging/src/k8s.io/code-generator/examples
     staging/src/k8s.io/kms/internal/plugins/_mock
 )
-
-# Explicitly opt into go modules, even though we're inside a GOPATH directory
-export GO111MODULE=on
 
 # Detect problematic GOPROXY settings that prevent lookup of dependencies
 if [[ "${GOPROXY:-}" == "off" ]]; then
@@ -38,7 +34,7 @@ if [[ "${GOPROXY:-}" == "off" ]]; then
   exit 1
 fi
 
-kube::golang::verify_go_version
+kube::golang::setup_env
 
 for mod in "${MODULES[@]}"; do
   pushd "${KUBE_ROOT}/${mod}" >/dev/null
