@@ -129,11 +129,14 @@ func TestPortforward(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := portForwardOptions.RunPortForward(); err != nil {
+		if err := portForwardOptions.RunPortForwardContext(ctx); err != nil {
 			t.Error(err)
 		}
 	}()
@@ -174,7 +177,7 @@ func TestPortforward(t *testing.T) {
 		}
 	}
 
-	close(portForwardOptions.StopChannel)
+	cancel()
 
 	wg.Wait()
 	t.Logf("stdout: %s", out.String())

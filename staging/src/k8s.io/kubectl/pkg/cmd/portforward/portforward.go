@@ -400,7 +400,14 @@ func (o PortForwardOptions) Validate() error {
 
 // RunPortForward implements all the necessary functionality for port-forward cmd.
 func (o PortForwardOptions) RunPortForward() error {
-	pod, err := o.PodClient.Pods(o.Namespace).Get(context.TODO(), o.PodName, metav1.GetOptions{})
+	return o.RunPortForwardContext(context.Background())
+}
+
+// RunPortForwardContext implements all the necessary functionality for port-forward cmd.
+// It ends portforwarding when an error is received from the backend, or an os.Interrupt
+// signal is received, or the provided context is done.
+func (o PortForwardOptions) RunPortForwardContext(ctx context.Context) error {
+	pod, err := o.PodClient.Pods(o.Namespace).Get(ctx, o.PodName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -414,7 +421,10 @@ func (o PortForwardOptions) RunPortForward() error {
 	defer signal.Stop(signals)
 
 	go func() {
-		<-signals
+		select {
+		case <-signals:
+		case <-ctx.Done():
+		}
 		if o.StopChannel != nil {
 			close(o.StopChannel)
 		}
