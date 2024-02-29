@@ -320,10 +320,9 @@ func protocolSupportsStreamClose(protocol string) bool {
 }
 
 // protocolSupportsWebsocketTunneling returns true if the passed protocol
-// supports the tunneling portforward stream functionality for websockets;
-// false otherwise.
+// is a tunneled Kubernetes spdy protocol; false otherwise.
 func protocolSupportsWebsocketTunneling(protocol string) bool {
-	return strings.HasPrefix(protocol, portforward.WebsocketsSPDYTunnelingPrefix)
+	return strings.HasPrefix(protocol, portforward.WebsocketsSPDYTunnelingPrefix) && strings.HasSuffix(protocol, portforward.KubernetesSuffix)
 }
 
 // handle implements a websocket handler.

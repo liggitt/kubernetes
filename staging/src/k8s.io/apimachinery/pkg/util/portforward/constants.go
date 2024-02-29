@@ -19,5 +19,6 @@ package portforward
 const (
 	PortForwardV1Name                    = "portforward.k8s.io"
 	WebsocketsSPDYTunnelingPrefix        = "SPDY/3.1+"
+	KubernetesSuffix                     = ".k8s.io"
 	WebsocketsSPDYTunnelingPortForwardV1 = WebsocketsSPDYTunnelingPrefix + PortForwardV1Name
 )
