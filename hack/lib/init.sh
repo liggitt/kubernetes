@@ -47,19 +47,24 @@ KUBE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 # Compat: The KUBE_OUTPUT_SUBPATH variable is sometimes passed in by callers.
 # If it is specified, we'll use it as we always have, and fall back on
 # compatible behavior.  Perhaps one day we can remove this.
+_KUBE_OUTPUT_ROOT="${KUBE_ROOT}/_output"
 if [[ -n "${KUBE_OUTPUT_SUBPATH:-}" ]]; then
-    if [[ -n "${KUBE_BUILDNAME:-}" ]]; then
-        echo "ERROR: \$KUBE_OUTPUT_SUBPATH and \$KUBE_BUILDNAME are mutually exclusive"
-        exit 1
-    fi
     export KUBE_OUTPUT="${KUBE_ROOT}/${KUBE_OUTPUT_SUBPATH}"
+    if [[ -n "${KUBE_BUILDNAME:-}" && -z "${_KUBE_OUTPUT_WARNING_DONE:-}" ]]; then
+        echo "WARNING: \$KUBE_OUTPUT_SUBPATH and \$KUBE_BUILDNAME are mutually incompatible"
+        echo "    For this run, \$KUBE_OUTPUT_SUBPATH will be used, resulting in:"
+        echo "        \$KUBE_OUTPUT=${KUBE_OUTPUT}"
+        echo "    Please consider using \$KUBE_BUILDNAME, which would have resulted in:"
+        echo "        \$KUBE_OUTPUT=${_KUBE_OUTPUT_ROOT}/${KUBE_BUILDNAME}}"
+        echo
+        export _KUBE_OUTPUT_WARNING_DONE="true"
+    fi
     export THIS_PLATFORM_BIN="${KUBE_ROOT}/_output/bin"
 else
     # The "name" of this build variety.
     KUBE_BUILDNAME="${KUBE_BUILDNAME:-"local"}"
-    KUBE_OUTPUT_ROOT="${KUBE_ROOT}/_output"
-    export KUBE_OUTPUT="${KUBE_OUTPUT_ROOT}/${KUBE_BUILDNAME}"
-    export THIS_PLATFORM_BIN="${KUBE_OUTPUT_ROOT}/bin"
+    export KUBE_OUTPUT="${_KUBE_OUTPUT_ROOT}/${KUBE_BUILDNAME}"
+    export THIS_PLATFORM_BIN="${_KUBE_OUTPUT_ROOT}/bin"
 fi
 export KUBE_OUTPUT_BIN="${KUBE_OUTPUT}/bin"
 
