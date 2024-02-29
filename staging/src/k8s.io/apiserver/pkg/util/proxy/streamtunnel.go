@@ -54,15 +54,22 @@ func NewTunnelingHandler(upgradeHandler http.Handler) *TunnelingHandler {
 // a wrapped WebSockets connection which communicates SPDY framed data.
 func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	klog.V(4).Infoln("TunnelingHandler ServeHTTP")
+
+	spdyProtocols := spdyProtocolsFromWebsocketProtocols(req)
+	if len(spdyProtocols) == 0 {
+		http.Error(w, "unable to upgrade: no tunneling spdy protocols provided", http.StatusBadRequest)
+		return
+	}
+
+	spdyRequest := createSPDYRequest(req, spdyProtocols...)
+
 	// First, terminate the websocket connection, creating the net.Conn
 	// that will be used to tunnel SPDY.
 	var upgrader = gwebsocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true // Accepting all requests
 		},
-		Subprotocols: []string{
-			constants.WebsocketsSPDYTunnelingPortForwardV1,
-		},
+		Subprotocols: websocketProtocolsFromSPDYProtocols(spdyProtocols),
 	}
 	conn, err := upgrader.Upgrade(w, req, nil)
 	if err != nil {
@@ -76,15 +83,15 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	headerInterceptingConnection := &headerInterceptingConnection{Conn: tunnelingConn, headerBuffer: bytes.NewBuffer(nil)}
 	// Create ResponseWriter which will be hijacked to use the tunnel.
 	writer := createTunnelingResponseWriter(w, headerInterceptingConnection)
+
 	klog.V(4).Infoln("Tunnel spdy through websockets using the UpgradeAwareProxy")
-	protocol := strings.TrimPrefix(tunnelProtocol, constants.WebsocketsSPDYTunnelingPrefix)
-	h.upgradeHandler.ServeHTTP(writer, createSPDYRequest(req, protocol))
+	h.upgradeHandler.ServeHTTP(writer, spdyRequest)
 }
 
 // createSPDYRequest modifies the passed request to remove
 // WebSockets headers and add SPDY upgrade information, including
-// the negotiated protocol (without the tunnel prefix).
-func createSPDYRequest(req *http.Request, protocol string) *http.Request {
+// spdy protocols acceptable to the client.
+func createSPDYRequest(req *http.Request, spdyProtocols ...string) *http.Request {
 	clone := utilnet.CloneRequest(req)
 	// Clean up the websocket headers from the http request.
 	clone.Header.Del(wsstream.WebSocketProtocolHeader)
@@ -95,8 +102,32 @@ func createSPDYRequest(req *http.Request, protocol string) *http.Request {
 	clone.Method = "POST"
 	clone.Body = nil // Remove the request body which is unused.
 	clone.Header.Set(httpstream.HeaderUpgrade, spdy.HeaderSpdy31)
-	clone.Header.Set(httpstream.HeaderProtocolVersion, protocol)
+	clone.Header.Del(httpstream.HeaderProtocolVersion)
+	for i := range spdyProtocols {
+		clone.Header.Add(httpstream.HeaderProtocolVersion, spdyProtocols[i])
+	}
 	return clone
+}
+
+// spdyProtocolsFromWebsocketProtocols returns a list of spdy protocols by filtering
+// to Kubernetes websocket subprotocols prefixed with "SPDY/3.1+", then removing the prefix
+func spdyProtocolsFromWebsocketProtocols(req *http.Request) []string {
+	var spdyProtocols []string
+	for _, protocol := range gwebsocket.Subprotocols(req) {
+		if strings.HasPrefix(protocol, constants.WebsocketsSPDYTunnelingPrefix) && strings.HasSuffix(protocol, constants.KubernetesSuffix) {
+			spdyProtocols = append(spdyProtocols, strings.TrimPrefix(protocol, constants.WebsocketsSPDYTunnelingPrefix))
+		}
+	}
+	return spdyProtocols
+}
+
+// websocketProtocolsFromSPDYProtocols returns a list of "SPDY/3.1+" prefixed websocket protocols
+func websocketProtocolsFromSPDYProtocols(spdyProtocols []string) []string {
+	var websocketProtocols []string
+	for _, spdyProtocol := range spdyProtocols {
+		websocketProtocols = append(websocketProtocols, constants.WebsocketsSPDYTunnelingPrefix+spdyProtocol)
+	}
+	return websocketProtocols
 }
 
 var _ http.ResponseWriter = &tunnelingWriter{}
