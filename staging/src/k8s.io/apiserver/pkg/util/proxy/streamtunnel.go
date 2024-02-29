@@ -66,32 +66,12 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	spdyRequest := createSPDYRequest(req, spdyProtocols...)
 
-	// First, terminate the websocket connection, creating the net.Conn
-	// that will be used to tunnel SPDY.
-	var upgrader = gwebsocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true // Accepting all requests
-		},
-		Subprotocols: websocketProtocolsFromSPDYProtocols(spdyProtocols),
-	}
-	conn, err := upgrader.Upgrade(w, req, nil)
-	if err != nil {
-		klog.Errorf("error upgrading websocket connection: %v", err)
-		return
-	}
-	defer conn.Close() //nolint:errcheck
-	tunnelProtocol := conn.Subprotocol()
-	klog.V(4).Infof("websocket connection created: %s", tunnelProtocol)
-	tunnelingConn := portforward.NewTunnelingConnection("server", conn)
-
 	writer := &tunnelingResponseWriter{
 		w: w,
 		conn: &headerInterceptingConnection{
 			initializableConn: &tunnelingWebsocketUpgraderConn{
 				w:   w,
 				req: req,
-
-				conn: tunnelingConn,
 			},
 		},
 	}
@@ -131,15 +111,6 @@ func spdyProtocolsFromWebsocketProtocols(req *http.Request) []string {
 		}
 	}
 	return spdyProtocols
-}
-
-// websocketProtocolsFromSPDYProtocols returns a list of "SPDY/3.1+" prefixed websocket protocols
-func websocketProtocolsFromSPDYProtocols(spdyProtocols []string) []string {
-	var websocketProtocols []string
-	for _, spdyProtocol := range spdyProtocols {
-		websocketProtocols = append(websocketProtocols, constants.WebsocketsSPDYTunnelingPrefix+spdyProtocol)
-	}
-	return websocketProtocols
 }
 
 var _ http.ResponseWriter = &tunnelingResponseWriter{}
@@ -299,6 +270,76 @@ type tunnelingWebsocketUpgraderConn struct {
 }
 
 func (u *tunnelingWebsocketUpgraderConn) InitializeWrite(backendResponse *http.Response) (err error) {
+	// make sure we close a connection we open in error cases
+	var conn net.Conn
+	defer func() {
+		if err != nil && conn != nil {
+			conn.Close() //nolint:errcheck
+		}
+	}()
+
+	u.lock.Lock()
+	defer u.lock.Unlock()
+	if u.conn != nil {
+		return fmt.Errorf("InitializeWrite already called")
+	}
+	if u.err != nil {
+		return u.err
+	}
+
+	if backendResponse.StatusCode == http.StatusSwitchingProtocols {
+		connectionHeader := strings.ToLower(backendResponse.Header.Get(httpstream.HeaderConnection))
+		upgradeHeader := strings.ToLower(backendResponse.Header.Get(httpstream.HeaderUpgrade))
+		if !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(spdy.HeaderSpdy31)) {
+			klog.Errorf("unable to upgrade: missing upgrade headers in response: %#v", backendResponse.Header)
+			u.err = fmt.Errorf("unable to upgrade: missing upgrade headers in response")
+			http.Error(u.w, u.err.Error(), http.StatusInternalServerError)
+			return u.err
+		}
+
+		// Translate the server's chosen SPDY protocol into the tunneled websocket protocol for the handshake
+		var serverWebsocketProtocols []string
+		if backendSPDYProtocol := strings.TrimSpace(backendResponse.Header.Get(httpstream.HeaderProtocolVersion)); backendSPDYProtocol != "" {
+			serverWebsocketProtocols = []string{constants.WebsocketsSPDYTunnelingPrefix + backendSPDYProtocol}
+		} else {
+			serverWebsocketProtocols = []string{}
+		}
+
+		// Try to upgrade the websocket connection.
+		// Beyond this point, we don't need to write errors to the response.
+		var upgrader = gwebsocket.Upgrader{
+			CheckOrigin:  func(r *http.Request) bool { return true },
+			Subprotocols: serverWebsocketProtocols,
+		}
+		conn, err := upgrader.Upgrade(u.w, u.req, nil)
+		if err != nil {
+			klog.Errorf("error upgrading websocket connection: %v", err)
+			u.err = err
+			return u.err
+		}
+
+		klog.V(4).Infof("websocket connection created: %s", conn.Subprotocol())
+		u.conn = portforward.NewTunnelingConnection("server", conn)
+		return nil
+	}
+
+	// anything other than an upgrade should pass through the backend response
+
+	// try to hijack
+	conn, _, err = u.w.(http.Hijacker).Hijack()
+	if err != nil {
+		klog.Errorf("Unable to hijack response: %v", err)
+		u.err = err
+		return u.err
+	}
+	// replay the backend response to the hijacked conn
+	conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	err = backendResponse.Write(conn)
+	if err != nil {
+		u.err = err
+		return u.err
+	}
+	u.conn = conn
 	return nil
 }
 
