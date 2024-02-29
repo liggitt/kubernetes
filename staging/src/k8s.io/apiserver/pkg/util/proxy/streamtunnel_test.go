@@ -125,10 +125,10 @@ X-App-Protocol: portforward.k8s.io
 
 `
 
-func TestTunnelingHandler_HeaderInterceptingConnection(t *testing.T) {
+func TestTunnelingHandler_HeaderInterceptingConn(t *testing.T) {
 	// Basic http response is intercepted correctly; no extra data sent to net.Conn.
 	testConnConstructor := &mockConnInitializer{mockConn: &mockConn{}}
-	hic := &headerInterceptingConnection{initializableConn: testConnConstructor}
+	hic := &headerInterceptingConn{initializableConn: testConnConstructor}
 	_, err := hic.Write([]byte(responseStr))
 	require.NoError(t, err)
 	assert.True(t, hic.initialized, "successfully parsed http response headers")
@@ -136,14 +136,14 @@ func TestTunnelingHandler_HeaderInterceptingConnection(t *testing.T) {
 	assert.Equal(t, "portforward.k8s.io", testConnConstructor.resp.Header.Get("X-App-Protocol"))
 	assert.Equal(t, 0, len(testConnConstructor.mockConn.written), "no extra data written to net.Conn")
 	// Extra data after response headers should be sent to net.Conn.
-	hic = &headerInterceptingConnection{initializableConn: testConnConstructor}
+	hic = &headerInterceptingConn{initializableConn: testConnConstructor}
 	_, err = hic.Write([]byte(responseWithExtraStr))
 	require.NoError(t, err)
 	assert.True(t, hic.initialized)
 	assert.Equal(t, "101 Switching Protocols", testConnConstructor.resp.Status)
 	assert.Equal(t, "This is extra data.\n", string(testConnConstructor.mockConn.written), "extra data written to net.Conn")
 	// Invalid response returns error.
-	hic = &headerInterceptingConnection{initializableConn: testConnConstructor}
+	hic = &headerInterceptingConn{initializableConn: testConnConstructor}
 	_, err = hic.Write([]byte(invalidResponseStr))
 	assert.Error(t, err, "expected error from invalid http response")
 }

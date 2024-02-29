@@ -68,7 +68,7 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	writer := &tunnelingResponseWriter{
 		w: w,
-		conn: &headerInterceptingConnection{
+		conn: &headerInterceptingConn{
 			initializableConn: &tunnelingWebsocketUpgraderConn{
 				w:   w,
 				req: req,
@@ -194,10 +194,10 @@ func (w *tunnelingResponseWriter) WriteHeader(statusCode int) {
 	w.w.WriteHeader(statusCode)
 }
 
-// headerInterceptingConnection wraps the tunneling "net.Conn" to drain the
+// headerInterceptingConn wraps the tunneling "net.Conn" to drain the
 // HTTP response status/headers from the upstream SPDY connection, then use
 // that to decide how to initialize the delegate connection for writes.
-type headerInterceptingConnection struct {
+type headerInterceptingConn struct {
 	// initializableConn is delegated to for all net.Conn methods.
 	// initializableConn.Write() is not called until response headers have been read
 	// and initializableConn#InitializeWrite() has been called with the result.
@@ -217,7 +217,7 @@ type initializableConn interface {
 // Write intercepts to initially swallow the HTTP response, then
 // delegate to the tunneling "net.Conn" once the response has been
 // seen and processed.
-func (h *headerInterceptingConnection) Write(b []byte) (int, error) {
+func (h *headerInterceptingConn) Write(b []byte) (int, error) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
