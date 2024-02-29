@@ -20,11 +20,13 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	gwebsocket "github.com/gorilla/websocket"
 
@@ -85,8 +87,12 @@ func (h *TunnelingHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	writer := &tunnelingResponseWriter{
 		w: w,
 		conn: &headerInterceptingConnection{
-			Conn:         tunnelingConn,
-			headerBuffer: bytes.NewBuffer(nil),
+			initializableConn: &tunnelingWebsocketUpgraderConn{
+				w:   w,
+				req: req,
+
+				conn: tunnelingConn,
+			},
 		},
 	}
 
@@ -218,54 +224,161 @@ func (w *tunnelingResponseWriter) WriteHeader(statusCode int) {
 }
 
 // headerInterceptingConnection wraps the tunneling "net.Conn" to drain the
-// HTTP response from the upstream SPDY connection, since the client has
-// already received a "101 Switching Protocols" from the WebSockets
-// upgrade.
+// HTTP response status/headers from the upstream SPDY connection, then use
+// that to decide how to initialize the delegate connection for writes.
 type headerInterceptingConnection struct {
-	net.Conn
+	// initializableConn is delegated to for all net.Conn methods.
+	// initializableConn.Write() is not called until response headers have been read
+	// and initializableConn#InitializeWrite() has been called with the result.
+	initializableConn
 
-	headerBuffer     *bytes.Buffer
-	completedHeaders bool
-	parsedStatus     string
-	parsedHeaders    http.Header
+	lock         sync.Mutex
+	headerBuffer []byte
+	initialized  bool
+}
+
+// initializableConn is a connection that will be initialized before any calls to Write are made
+type initializableConn interface {
+	net.Conn
+	InitializeWrite(backendResponse *http.Response) error
 }
 
 // Write intercepts to initially swallow the HTTP response, then
 // delegate to the tunneling "net.Conn" once the response has been
 // seen and processed.
 func (h *headerInterceptingConnection) Write(b []byte) (int, error) {
-	if h.completedHeaders {
-		return h.Conn.Write(b)
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	if h.initialized {
+		return h.initializableConn.Write(b)
 	}
 
 	// Write into the headerBuffer, then attempt to parse the bytes
 	// as an http response.
-	n, err := h.headerBuffer.Write(b)
-	if err != nil {
-		return n, err
-	}
-	bufferedReader := bufio.NewReader(h.headerBuffer)
+	h.headerBuffer = append(h.headerBuffer, b...)
+	bufferedReader := bufio.NewReader(bytes.NewReader(h.headerBuffer))
 	resp, err := http.ReadResponse(bufferedReader, nil)
 	if errors.Is(err, io.ErrUnexpectedEOF) {
 		// don't yet have a complete set of headers
-		// TODO: reset headerBuffer to append to end and read from start
-		return n, nil
+		return len(b), nil
 	}
 	if err != nil {
 		klog.Errorf("invalid headers: %v", err)
-		return n, err
+		return len(b), err
 	}
+	resp.Body.Close()
 
-	h.completedHeaders = true
-	h.parsedStatus = resp.Status
-	h.parsedHeaders = resp.Header
 	h.headerBuffer = nil
+	err = h.initializableConn.InitializeWrite(resp)
+	h.initialized = true
+	if err != nil {
+		return len(b), err
+	}
 
 	// Copy any remaining buffered data to the underlying conn
 	remainingBuffer, _ := io.ReadAll(bufferedReader)
 	if len(remainingBuffer) > 0 {
-		_, err = h.Conn.Write(remainingBuffer)
+		_, err = h.initializableConn.Write(remainingBuffer)
 	}
+	return len(b), err
+}
 
-	return n, err
+type tunnelingWebsocketUpgraderConn struct {
+	// req is the websocket request, used for upgrading
+	req *http.Request
+	// w is the websocket writer, used for upgrading and writing error responses
+	w http.ResponseWriter
+
+	// lock guards conn and err
+	lock sync.RWMutex
+	// if conn is non-nil, InitializeWrite succeeded
+	conn net.Conn
+	// if err is non-nil, InitializeWrite failed or Close was called before InitializeWrite
+	err error
+}
+
+func (u *tunnelingWebsocketUpgraderConn) InitializeWrite(backendResponse *http.Response) (err error) {
+	return nil
+}
+
+func (u *tunnelingWebsocketUpgraderConn) Read(b []byte) (n int, err error) {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	if u.conn != nil {
+		return u.conn.Read(b)
+	}
+	if u.err != nil {
+		return 0, u.err
+	}
+	// return empty read without blocking until we are initialized
+	return 0, nil
+}
+func (u *tunnelingWebsocketUpgraderConn) Write(b []byte) (n int, err error) {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	if u.conn != nil {
+		return u.conn.Write(b)
+	}
+	if u.err != nil {
+		return 0, u.err
+	}
+	return 0, fmt.Errorf("Write called before Initialize")
+}
+func (u *tunnelingWebsocketUpgraderConn) Close() error {
+	u.lock.Lock()
+	defer u.lock.Unlock()
+	if u.conn != nil {
+		return u.conn.Close()
+	}
+	if u.err != nil {
+		return u.err
+	}
+	// record that we closed so we don't write again or try to initialize
+	u.err = fmt.Errorf("connection closed")
+	// write a response
+	http.Error(u.w, u.err.Error(), http.StatusInternalServerError)
+	return nil
+}
+func (u *tunnelingWebsocketUpgraderConn) LocalAddr() net.Addr {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	if u.conn != nil {
+		return u.conn.RemoteAddr()
+	}
+	// TODO: can we do better here?
+	return nil
+}
+func (u *tunnelingWebsocketUpgraderConn) RemoteAddr() net.Addr {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	if u.conn != nil {
+		return u.conn.RemoteAddr()
+	}
+	// TODO: can we do better here?
+	return nil
+}
+func (u *tunnelingWebsocketUpgraderConn) SetDeadline(t time.Time) error {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	if u.conn != nil {
+		return u.conn.SetDeadline(t)
+	}
+	return nil
+}
+func (u *tunnelingWebsocketUpgraderConn) SetReadDeadline(t time.Time) error {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	if u.conn != nil {
+		return u.conn.SetReadDeadline(t)
+	}
+	return nil
+}
+func (u *tunnelingWebsocketUpgraderConn) SetWriteDeadline(t time.Time) error {
+	u.lock.RLock()
+	defer u.lock.RUnlock()
+	if u.conn != nil {
+		return u.conn.SetWriteDeadline(t)
+	}
+	return nil
 }

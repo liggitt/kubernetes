@@ -127,25 +127,36 @@ X-App-Protocol: portforward.k8s.io
 
 func TestTunnelingHandler_HeaderInterceptingConnection(t *testing.T) {
 	// Basic http response is intercepted correctly; no extra data sent to net.Conn.
-	testConn := &mockConn{}
-	hic := &headerInterceptingConnection{Conn: testConn, headerBuffer: bytes.NewBuffer(nil)}
+	testConnConstructor := &mockConnInitializer{mockConn: &mockConn{}}
+	hic := &headerInterceptingConnection{initializableConn: testConnConstructor}
 	_, err := hic.Write([]byte(responseStr))
 	require.NoError(t, err)
-	assert.True(t, hic.completedHeaders, "successfully parsed http response headers")
-	assert.Equal(t, "101 Switching Protocols", hic.parsedStatus)
-	assert.Equal(t, "portforward.k8s.io", hic.parsedHeaders.Get("X-App-Protocol"))
-	assert.Equal(t, 0, len(testConn.written), "no extra data written to net.Conn")
+	assert.True(t, hic.initialized, "successfully parsed http response headers")
+	assert.Equal(t, "101 Switching Protocols", testConnConstructor.resp.Status)
+	assert.Equal(t, "portforward.k8s.io", testConnConstructor.resp.Header.Get("X-App-Protocol"))
+	assert.Equal(t, 0, len(testConnConstructor.mockConn.written), "no extra data written to net.Conn")
 	// Extra data after response headers should be sent to net.Conn.
-	hic = &headerInterceptingConnection{Conn: testConn, headerBuffer: bytes.NewBuffer(nil)}
+	hic = &headerInterceptingConnection{initializableConn: testConnConstructor}
 	_, err = hic.Write([]byte(responseWithExtraStr))
 	require.NoError(t, err)
-	assert.True(t, hic.completedHeaders)
-	assert.Equal(t, "101 Switching Protocols", hic.parsedStatus)
-	assert.Equal(t, "This is extra data.\n", string(testConn.written), "extra data written to net.Conn")
+	assert.True(t, hic.initialized)
+	assert.Equal(t, "101 Switching Protocols", testConnConstructor.resp.Status)
+	assert.Equal(t, "This is extra data.\n", string(testConnConstructor.mockConn.written), "extra data written to net.Conn")
 	// Invalid response returns error.
-	hic = &headerInterceptingConnection{Conn: &mockConn{}, headerBuffer: bytes.NewBuffer(nil)}
+	hic = &headerInterceptingConnection{initializableConn: testConnConstructor}
 	_, err = hic.Write([]byte(invalidResponseStr))
 	assert.Error(t, err, "expected error from invalid http response")
+}
+
+type mockConnInitializer struct {
+	resp *http.Response
+	err  string
+	*mockConn
+}
+
+func (m *mockConnInitializer) InitializeWrite(backendResponse *http.Response) error {
+	m.resp = backendResponse
+	return nil
 }
 
 // mockConn implements "net.Conn" interface.
