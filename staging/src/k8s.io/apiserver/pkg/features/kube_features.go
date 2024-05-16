@@ -317,6 +317,13 @@ const (
 	// the 'nominalConcurrencyShares' field of the 'limited' section of a
 	// priority level.
 	ZeroLimitedNominalConcurrencyShares featuregate.Feature = "ZeroLimitedNominalConcurrencyShares"
+
+	// owner: @vinayakankugoyal
+	// kep: https://kep.k8s.io/4633
+	// alpha: v1.31
+	//
+	// Allows us to enable anonymous auth for only certain apiserver endpoints.
+	AnonymousAuthConfigurableEndpoints = "AnonymousAuthConfigurableEndpoints"
 )
 
 func init() {
@@ -327,6 +334,8 @@ func init() {
 // To add a new feature, define a key for it above and add it here. The features will be
 // available throughout Kubernetes binaries.
 var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
+
+	AnonymousAuthConfigurableEndpoints: {Default: false, PreRelease: featuregate.Alpha},
 
 	AggregatedDiscoveryEndpoint: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.33
 

@@ -44,6 +44,22 @@ import (
 	"k8s.io/client-go/util/cert"
 )
 
+func ValidateAnonymousAuthAuthenticationConfiguration(c *api.AuthenticationConfiguration) field.ErrorList {
+	if c.Anonymous == nil {
+		return nil
+	}
+
+	if !utilfeature.DefaultFeatureGate.Enabled(features.AnonymousAuthConfigurableEndpoints) {
+		root := field.NewPath("anoymous")
+
+		return field.ErrorList{
+			field.Invalid(root, c.Anonymous.Conditions, "anonymous is not supported when when AnonymousAuthConfigurableEnpoints feature gate is disabled"),
+		}
+	}
+
+	return nil
+}
+
 // ValidateAuthenticationConfiguration validates a given AuthenticationConfiguration.
 func ValidateAuthenticationConfiguration(c *api.AuthenticationConfiguration, disallowedIssuers []string) field.ErrorList {
 	root := field.NewPath("jwt")
@@ -76,6 +92,11 @@ func ValidateAuthenticationConfiguration(c *api.AuthenticationConfiguration, dis
 			}
 			seenDiscoveryURLs.Insert(a.Issuer.DiscoveryURL)
 		}
+	}
+
+	root = field.NewPath("anoymous")
+	if c.Anonymous != nil && !c.Anonymous.Enabled && len(c.Anonymous.Conditions) > 0 {
+		allErrs = append(allErrs, field.Invalid(root.Child("conditions"), c.Anonymous.Conditions, "enabled should be set to true when conditions are defined"))
 	}
 
 	return allErrs

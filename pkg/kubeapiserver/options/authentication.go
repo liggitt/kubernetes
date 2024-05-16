@@ -95,7 +95,8 @@ type BuiltInAuthenticationOptions struct {
 
 // AnonymousAuthenticationOptions contains anonymous authentication options for API Server
 type AnonymousAuthenticationOptions struct {
-	Allow bool
+	Allow       bool
+	areFlagsSet func() bool
 }
 
 // BootstrapTokenAuthenticationOptions contains bootstrap token authentication options for API Server
@@ -169,7 +170,10 @@ func (o *BuiltInAuthenticationOptions) WithAll() *BuiltInAuthenticationOptions {
 
 // WithAnonymous set default value for anonymous authentication
 func (o *BuiltInAuthenticationOptions) WithAnonymous() *BuiltInAuthenticationOptions {
-	o.Anonymous = &AnonymousAuthenticationOptions{Allow: true}
+	o.Anonymous = &AnonymousAuthenticationOptions{
+		Allow:       true,
+		areFlagsSet: func() bool { return false },
+	}
 	return o
 }
 
@@ -285,6 +289,13 @@ func (o *BuiltInAuthenticationOptions) Validate() []error {
 		allErrors = append(allErrors, o.RequestHeader.Validate()...)
 	}
 
+	if o.Anonymous != nil &&
+		utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AnonymousAuthConfigurableEndpoints) &&
+		o.Anonymous.areFlagsSet() &&
+		len(o.AuthenticationConfigFile) > 0 {
+		allErrors = append(allErrors, fmt.Errorf("authentication-config file and anonymous-auth flags are mutually exclusive"))
+	}
+
 	return allErrors
 }
 
@@ -293,6 +304,12 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 	if o == nil {
 		return
 	}
+
+	fs.StringVar(&o.AuthenticationConfigFile, "authentication-config", o.AuthenticationConfigFile, ""+
+		"File with Authentication Configuration to configure the JWT Token authenticator. "+
+		"Note: This feature is in Alpha since v1.29."+
+		"--feature-gate=StructuredAuthenticationConfiguration=true needs to be set for enabling this feature."+
+		"This feature is mutually exclusive with the oidc-* flags.")
 
 	fs.StringSliceVar(&o.APIAudiences, "api-audiences", o.APIAudiences, ""+
 		"Identifiers of the API. The service account token authenticator will validate that "+
@@ -305,6 +322,10 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 			"Enables anonymous requests to the secure port of the API server. "+
 			"Requests that are not rejected by another authentication method are treated as anonymous requests. "+
 			"Anonymous requests have a username of system:anonymous, and a group name of system:unauthenticated.")
+
+		o.Anonymous.areFlagsSet = func() bool {
+			return fs.Changed("anonymous-auth")
+		}
 	}
 
 	if o.BootstrapToken != nil {
@@ -357,12 +378,6 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 			"A key=value pair that describes a required claim in the ID Token. "+
 			"If set, the claim is verified to be present in the ID Token with a matching value. "+
 			"Repeat this flag to specify multiple claims.")
-
-		fs.StringVar(&o.AuthenticationConfigFile, "authentication-config", o.AuthenticationConfigFile, ""+
-			"File with Authentication Configuration to configure the JWT Token authenticator. "+
-			"Note: This feature is in Alpha since v1.29."+
-			"--feature-gate=StructuredAuthenticationConfiguration=true needs to be set for enabling this feature."+
-			"This feature is mutually exclusive with the oidc-* flags.")
 
 		o.OIDC.areFlagsConfigured = func() bool {
 			return fs.Changed(oidcIssuerURLFlag) ||
@@ -452,10 +467,6 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 		TokenFailureCacheTTL: o.TokenFailureCacheTTL,
 	}
 
-	if o.Anonymous != nil {
-		ret.Anonymous = o.Anonymous.Allow
-	}
-
 	if o.BootstrapToken != nil {
 		ret.BootstrapToken = o.BootstrapToken.Enable
 	}
@@ -478,66 +489,94 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 		// all known signing algs are allowed when using authentication config
 		// TODO: what we really want to express is 'any alg is fine as long it matches a public key'
 		ret.OIDCSigningAlgs = oidc.AllValidSigningAlgorithms()
-	} else if o.OIDC != nil && len(o.OIDC.IssuerURL) > 0 && len(o.OIDC.ClientID) > 0 {
-		usernamePrefix := o.OIDC.UsernamePrefix
 
-		if o.OIDC.UsernamePrefix == "" && o.OIDC.UsernameClaim != "email" {
-			// Legacy CLI flag behavior. If a usernamePrefix isn't provided, prefix all claims other than "email"
-			// with the issuerURL.
-			//
-			// See https://github.com/kubernetes/kubernetes/issues/31380
-			usernamePrefix = o.OIDC.IssuerURL + "#"
-		}
-		if o.OIDC.UsernamePrefix == "-" {
-			// Special value indicating usernames shouldn't be prefixed.
-			usernamePrefix = ""
-		}
-
-		jwtAuthenticator := apiserver.JWTAuthenticator{
-			Issuer: apiserver.Issuer{
-				URL:       o.OIDC.IssuerURL,
-				Audiences: []string{o.OIDC.ClientID},
-			},
-			ClaimMappings: apiserver.ClaimMappings{
-				Username: apiserver.PrefixedClaimOrExpression{
-					Prefix: pointer.String(usernamePrefix),
-					Claim:  o.OIDC.UsernameClaim,
-				},
-			},
-		}
-
-		if len(o.OIDC.GroupsClaim) > 0 {
-			jwtAuthenticator.ClaimMappings.Groups = apiserver.PrefixedClaimOrExpression{
-				Prefix: pointer.String(o.OIDC.GroupsPrefix),
-				Claim:  o.OIDC.GroupsClaim,
+		// If Anonymous field is not set in the AuthenticationConfig then use
+		// the kube-apiserver default.
+		if ret.AuthenticationConfig.Anonymous == nil && o.Anonymous != nil {
+			ret.AuthenticationConfig.Anonymous = &apiserver.AnonymousAuthConfig{
+				Enabled: o.Anonymous.Allow,
 			}
-		}
-
-		if len(o.OIDC.CAFile) != 0 {
-			caContent, err := os.ReadFile(o.OIDC.CAFile)
-			if err != nil {
+		} else if ret.AuthenticationConfig.Anonymous != nil {
+			if err := apiservervalidation.ValidateAnonymousAuthAuthenticationConfiguration(ret.AuthenticationConfig).ToAggregate(); err != nil {
 				return kubeauthenticator.Config{}, err
 			}
-			jwtAuthenticator.Issuer.CertificateAuthority = string(caContent)
 		}
+	} else {
+		var authConfig *apiserver.AuthenticationConfiguration
+		if o.OIDC != nil && len(o.OIDC.IssuerURL) > 0 && len(o.OIDC.ClientID) > 0 {
+			usernamePrefix := o.OIDC.UsernamePrefix
 
-		if len(o.OIDC.RequiredClaims) > 0 {
-			claimValidationRules := make([]apiserver.ClaimValidationRule, 0, len(o.OIDC.RequiredClaims))
-			for claim, value := range o.OIDC.RequiredClaims {
-				claimValidationRules = append(claimValidationRules, apiserver.ClaimValidationRule{
-					Claim:         claim,
-					RequiredValue: value,
-				})
+			if o.OIDC.UsernamePrefix == "" && o.OIDC.UsernameClaim != "email" {
+				// Legacy CLI flag behavior. If a usernamePrefix isn't provided, prefix all claims other than "email"
+				// with the issuerURL.
+				//
+				// See https://github.com/kubernetes/kubernetes/issues/31380
+				usernamePrefix = o.OIDC.IssuerURL + "#"
 			}
-			jwtAuthenticator.ClaimValidationRules = claimValidationRules
+			if o.OIDC.UsernamePrefix == "-" {
+				// Special value indicating usernames shouldn't be prefixed.
+				usernamePrefix = ""
+			}
+
+			jwtAuthenticator := apiserver.JWTAuthenticator{
+				Issuer: apiserver.Issuer{
+					URL:       o.OIDC.IssuerURL,
+					Audiences: []string{o.OIDC.ClientID},
+				},
+				ClaimMappings: apiserver.ClaimMappings{
+					Username: apiserver.PrefixedClaimOrExpression{
+						Prefix: pointer.String(usernamePrefix),
+						Claim:  o.OIDC.UsernameClaim,
+					},
+				},
+			}
+
+			if len(o.OIDC.GroupsClaim) > 0 {
+				jwtAuthenticator.ClaimMappings.Groups = apiserver.PrefixedClaimOrExpression{
+					Prefix: pointer.String(o.OIDC.GroupsPrefix),
+					Claim:  o.OIDC.GroupsClaim,
+				}
+			}
+
+			if len(o.OIDC.CAFile) != 0 {
+				caContent, err := os.ReadFile(o.OIDC.CAFile)
+				if err != nil {
+					return kubeauthenticator.Config{}, err
+				}
+				jwtAuthenticator.Issuer.CertificateAuthority = string(caContent)
+			}
+
+			if len(o.OIDC.RequiredClaims) > 0 {
+				claimValidationRules := make([]apiserver.ClaimValidationRule, 0, len(o.OIDC.RequiredClaims))
+				for claim, value := range o.OIDC.RequiredClaims {
+					claimValidationRules = append(claimValidationRules, apiserver.ClaimValidationRule{
+						Claim:         claim,
+						RequiredValue: value,
+					})
+				}
+				jwtAuthenticator.ClaimValidationRules = claimValidationRules
+			}
+
+			if authConfig == nil {
+				authConfig = &apiserver.AuthenticationConfiguration{}
+			}
+
+			authConfig.JWT = []apiserver.JWTAuthenticator{jwtAuthenticator}
+
+			ret.OIDCSigningAlgs = o.OIDC.SigningAlgs
 		}
 
-		authConfig := &apiserver.AuthenticationConfiguration{
-			JWT: []apiserver.JWTAuthenticator{jwtAuthenticator},
+		if o.Anonymous != nil {
+			if authConfig == nil {
+				authConfig = &apiserver.AuthenticationConfiguration{}
+			}
+
+			authConfig.Anonymous = &apiserver.AnonymousAuthConfig{
+				Enabled: o.Anonymous.Allow,
+			}
 		}
 
 		ret.AuthenticationConfig = authConfig
-		ret.OIDCSigningAlgs = o.OIDC.SigningAlgs
 	}
 
 	if ret.AuthenticationConfig != nil {

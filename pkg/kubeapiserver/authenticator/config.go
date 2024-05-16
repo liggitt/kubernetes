@@ -55,7 +55,6 @@ import (
 
 // Config contains the data on how to authenticate a request to the Kube API Server
 type Config struct {
-	Anonymous      bool
 	BootstrapToken bool
 
 	TokenAuthFile               string
@@ -212,8 +211,10 @@ func (config Config) New(serverLifecycle context.Context) (authenticator.Request
 	}
 
 	if len(authenticators) == 0 {
-		if config.Anonymous {
-			return anonymous.NewAuthenticator(), nil, &securityDefinitionsV2, securitySchemesV3, nil
+		if config.AuthenticationConfig != nil &&
+			config.AuthenticationConfig.Anonymous != nil &&
+			config.AuthenticationConfig.Anonymous.Enabled {
+			return anonymous.NewAuthenticator(config.AuthenticationConfig.Anonymous.Conditions), nil, &securityDefinitionsV2, securitySchemesV3, nil
 		}
 		return nil, nil, &securityDefinitionsV2, securitySchemesV3, nil
 	}
@@ -222,10 +223,12 @@ func (config Config) New(serverLifecycle context.Context) (authenticator.Request
 
 	authenticator = group.NewAuthenticatedGroupAdder(authenticator)
 
-	if config.Anonymous {
+	if config.AuthenticationConfig != nil &&
+		config.AuthenticationConfig.Anonymous != nil &&
+		config.AuthenticationConfig.Anonymous.Enabled {
 		// If the authenticator chain returns an error, return an error (don't consider a bad bearer token
 		// or invalid username/password combination anonymous).
-		authenticator = union.NewFailOnError(authenticator, anonymous.NewAuthenticator())
+		authenticator = union.NewFailOnError(authenticator, anonymous.NewAuthenticator(config.AuthenticationConfig.Anonymous.Conditions))
 	}
 
 	return authenticator, updateAuthenticationConfig, &securityDefinitionsV2, securitySchemesV3, nil
@@ -317,6 +320,8 @@ func (c *authenticationConfigUpdater) updateAuthenticationConfig(ctx context.Con
 		// TODO maybe track requests so we know when this is safe to do
 		oldJWTAuthenticator.cancel()
 	}()
+
+	authConfig.Anonymous = c.config.AuthenticationConfig.Anonymous
 
 	return nil
 }
