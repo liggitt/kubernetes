@@ -30,8 +30,12 @@ source "${KUBE_ROOT}/hack/lib/protoc.sh"
 kube::protoc::check_protoc
 kube::golang::setup_env
 
+GO111MODULE=on GOPROXY=off GOTOOLCHAIN= go env
+echo "1"
 GO111MODULE=on GOPROXY=off go install k8s.io/code-generator/cmd/go-to-protobuf
+echo "2"
 GO111MODULE=on GOPROXY=off go install k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo
+echo "3"
 
 gotoprotobuf=$(kube::util::find-binary "go-to-protobuf")
 

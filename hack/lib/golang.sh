@@ -465,11 +465,15 @@ kube::golang::create_gopath_tree() {
 #   env-var GO_VERSION is the desired go version to use, downloading it if needed (defaults to content of .go-version)
 #   env-var FORCE_HOST_GO set to a non-empty value uses the go version in the $PATH and skips ensuring $GO_VERSION is used
 kube::golang::verify_go_version() {
+  echo "verify_go_version"
   # default GO_VERSION to content of .go-version
   GO_VERSION="${GO_VERSION:-"$(cat "${KUBE_ROOT}/.go-version")"}"
   if [ "${GOTOOLCHAIN:-auto}" != 'auto' ]; then
-    # no-op, just respect GOTOOLCHAIN
-    :
+    # silently run go version to give it a chance to download the appropriate toolchain version
+    echo "honoring GOTOOLCHAIN=${GOTOOLCHAIN}"
+    GO111MODULE=on go version
+    GO111MODULE=on go env
+    echo "done"
   elif [ -n "${FORCE_HOST_GO:-}" ]; then
     # ensure existing host version is used, like before GOTOOLCHAIN existed
     export GOTOOLCHAIN='local'
