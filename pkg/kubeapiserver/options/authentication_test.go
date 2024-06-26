@@ -238,16 +238,6 @@ func TestAuthenticationValidate(t *testing.T) {
 			expectErr:        "the \"ServiceAccountTokenNodeBinding\" feature gate can only be enabled if the \"ServiceAccountTokenNodeBindingValidation\" feature gate is also enabled",
 		},
 		{
-			name:                         "test when authentication config file and anonymous-auth flags are set AnonymousAuthConfigurableEndpoints enabled",
-			enabledFeatures:              []featuregate.Feature{features.AnonymousAuthConfigurableEndpoints},
-			testAuthenticationConfigFile: "configfile",
-			testAnonymous: &AnonymousAuthenticationOptions{
-				Allow:       true,
-				areFlagsSet: func() bool { return true },
-			},
-			expectErr: "authentication-config file and anonymous-auth flags are mutually exclusive",
-		},
-		{
 			name:                         "test when authentication config file and anonymous-auth flags are set AnonymousAuthConfigurableEndpoints disabled",
 			disabledFeatures:             []featuregate.Feature{features.AnonymousAuthConfigurableEndpoints},
 			testAuthenticationConfigFile: "configfile",
@@ -325,11 +315,11 @@ func TestToAuthenticationConfig(t *testing.T) {
 
 	expectConfig := kubeauthenticator.Config{
 		APIAudiences:            authenticator.Audiences{"http://foo.bar.com"},
+		Anonymous:               apiserver.AnonymousAuthConfig{Enabled: false},
 		BootstrapToken:          false,
 		ClientCAContentProvider: nil, // this is nil because you can't compare functions
 		TokenAuthFile:           "/testTokenFile",
 		AuthenticationConfig: &apiserver.AuthenticationConfiguration{
-			Anonymous: &apiserver.AnonymousAuthConfig{Enabled: false},
 			JWT: []apiserver.JWTAuthenticator{
 				{
 					Issuer: apiserver.Issuer{
@@ -501,9 +491,8 @@ func TestToAuthenticationConfig_Anonymous(t *testing.T) {
 			name: "flag-none",
 			args: []string{},
 			expectConfig: kubeauthenticator.Config{
-				AuthenticationConfig: &apiserver.AuthenticationConfiguration{
-					Anonymous: &apiserver.AnonymousAuthConfig{Enabled: true},
-				},
+				Anonymous:            apiserver.AnonymousAuthConfig{Enabled: true},
+				AuthenticationConfig: &apiserver.AuthenticationConfiguration{},
 				TokenSuccessCacheTTL: 10 * time.Second,
 			},
 		},
@@ -511,9 +500,8 @@ func TestToAuthenticationConfig_Anonymous(t *testing.T) {
 			name: "flag-anonymous-enabled",
 			args: []string{"--anonymous-auth=True"},
 			expectConfig: kubeauthenticator.Config{
-				AuthenticationConfig: &apiserver.AuthenticationConfiguration{
-					Anonymous: &apiserver.AnonymousAuthConfig{Enabled: true},
-				},
+				Anonymous:            apiserver.AnonymousAuthConfig{Enabled: true},
+				AuthenticationConfig: &apiserver.AuthenticationConfiguration{},
 				TokenSuccessCacheTTL: 10 * time.Second,
 			},
 		},
@@ -521,14 +509,13 @@ func TestToAuthenticationConfig_Anonymous(t *testing.T) {
 			name: "flag-anonymous-disabled",
 			args: []string{"--anonymous-auth=False"},
 			expectConfig: kubeauthenticator.Config{
-				AuthenticationConfig: &apiserver.AuthenticationConfiguration{
-					Anonymous: &apiserver.AnonymousAuthConfig{Enabled: false},
-				},
+				Anonymous:            apiserver.AnonymousAuthConfig{Enabled: false},
+				AuthenticationConfig: &apiserver.AuthenticationConfiguration{},
 				TokenSuccessCacheTTL: 10 * time.Second,
 			},
 		},
 		{
-			name: "file-anonymous-diabled-AnonymousAuthConfigurableEndpoints-disabled",
+			name: "file-anonymous-disabled-AnonymousAuthConfigurableEndpoints-disabled",
 			args: []string{
 				"--authentication-config=" + writeTempFile(t, `
 apiVersion: apiserver.config.k8s.io/v1alpha1
@@ -540,7 +527,7 @@ anonymous:
 			expectErr: "anonymous is not supported when when AnonymousAuthConfigurableEnpoints feature gate is disabled",
 		},
 		{
-			name:                     "file-anonymous-diabled-AnonymousAuthConfigurableEndpoints-enabled",
+			name:                     "file-anonymous-disabled-AnonymousAuthConfigurableEndpoints-enabled",
 			enableAnonymousEndpoints: true,
 			args: []string{
 				"--authentication-config=" + writeTempFile(t, `
@@ -551,6 +538,7 @@ anonymous:
 `),
 			},
 			expectConfig: kubeauthenticator.Config{
+				Anonymous:            apiserver.AnonymousAuthConfig{Enabled: false},
 				TokenSuccessCacheTTL: 10 * time.Second,
 				AuthenticationConfig: &apiserver.AuthenticationConfiguration{
 					Anonymous: &apiserver.AnonymousAuthConfig{Enabled: false},
@@ -576,6 +564,7 @@ anonymous:
 `),
 			},
 			expectConfig: kubeauthenticator.Config{
+				Anonymous:            apiserver.AnonymousAuthConfig{Enabled: true},
 				TokenSuccessCacheTTL: 10 * time.Second,
 				AuthenticationConfig: &apiserver.AuthenticationConfiguration{
 					Anonymous: &apiserver.AnonymousAuthConfig{Enabled: true},
@@ -632,6 +621,14 @@ anonymous:
 `),
 			},
 			expectConfig: kubeauthenticator.Config{
+				Anonymous: apiserver.AnonymousAuthConfig{
+					Enabled: true,
+					Conditions: []apiserver.AnonymousAuthCondition{
+						{
+							Path: "/livez",
+						},
+					},
+				},
 				TokenSuccessCacheTTL: 10 * time.Second,
 				AuthenticationConfig: &apiserver.AuthenticationConfiguration{
 					Anonymous: &apiserver.AnonymousAuthConfig{

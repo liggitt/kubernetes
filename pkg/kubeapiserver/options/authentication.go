@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/apis/apiserver"
 	"k8s.io/apiserver/pkg/apis/apiserver/install"
@@ -289,13 +291,6 @@ func (o *BuiltInAuthenticationOptions) Validate() []error {
 		allErrors = append(allErrors, o.RequestHeader.Validate()...)
 	}
 
-	if o.Anonymous != nil &&
-		utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AnonymousAuthConfigurableEndpoints) &&
-		o.Anonymous.areFlagsSet() &&
-		len(o.AuthenticationConfigFile) > 0 {
-		allErrors = append(allErrors, fmt.Errorf("authentication-config file and anonymous-auth flags are mutually exclusive"))
-	}
-
 	return allErrors
 }
 
@@ -480,109 +475,97 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 	}
 
 	// When the StructuredAuthenticationConfiguration feature is enabled and the authentication config file is provided,
-	// load the authentication config from the file.
+	// load the authentication config from the file, otherwise set up an empty configuration.
 	if len(o.AuthenticationConfigFile) > 0 {
 		var err error
 		if ret.AuthenticationConfig, ret.AuthenticationConfigData, err = loadAuthenticationConfig(o.AuthenticationConfigFile); err != nil {
 			return kubeauthenticator.Config{}, err
 		}
+	} else {
+		ret.AuthenticationConfig = &apiserver.AuthenticationConfiguration{}
+	}
+
+	// Set up JWT authenticators from config file or from flags
+	if len(o.AuthenticationConfigFile) > 0 {
 		// all known signing algs are allowed when using authentication config
 		// TODO: what we really want to express is 'any alg is fine as long it matches a public key'
 		ret.OIDCSigningAlgs = oidc.AllValidSigningAlgorithms()
+	} else if o.OIDC != nil && len(o.OIDC.IssuerURL) > 0 && len(o.OIDC.ClientID) > 0 {
+		usernamePrefix := o.OIDC.UsernamePrefix
 
-		// If Anonymous field is not set in the AuthenticationConfig then use
-		// the kube-apiserver default.
-		if ret.AuthenticationConfig.Anonymous == nil && o.Anonymous != nil {
-			ret.AuthenticationConfig.Anonymous = &apiserver.AnonymousAuthConfig{
-				Enabled: o.Anonymous.Allow,
+		if o.OIDC.UsernamePrefix == "" && o.OIDC.UsernameClaim != "email" {
+			// Legacy CLI flag behavior. If a usernamePrefix isn't provided, prefix all claims other than "email"
+			// with the issuerURL.
+			//
+			// See https://github.com/kubernetes/kubernetes/issues/31380
+			usernamePrefix = o.OIDC.IssuerURL + "#"
+		}
+		if o.OIDC.UsernamePrefix == "-" {
+			// Special value indicating usernames shouldn't be prefixed.
+			usernamePrefix = ""
+		}
+
+		jwtAuthenticator := apiserver.JWTAuthenticator{
+			Issuer: apiserver.Issuer{
+				URL:       o.OIDC.IssuerURL,
+				Audiences: []string{o.OIDC.ClientID},
+			},
+			ClaimMappings: apiserver.ClaimMappings{
+				Username: apiserver.PrefixedClaimOrExpression{
+					Prefix: pointer.String(usernamePrefix),
+					Claim:  o.OIDC.UsernameClaim,
+				},
+			},
+		}
+
+		if len(o.OIDC.GroupsClaim) > 0 {
+			jwtAuthenticator.ClaimMappings.Groups = apiserver.PrefixedClaimOrExpression{
+				Prefix: pointer.String(o.OIDC.GroupsPrefix),
+				Claim:  o.OIDC.GroupsClaim,
 			}
-		} else if ret.AuthenticationConfig.Anonymous != nil {
-			if err := apiservervalidation.ValidateAnonymousAuthAuthenticationConfiguration(ret.AuthenticationConfig).ToAggregate(); err != nil {
+		}
+
+		if len(o.OIDC.CAFile) != 0 {
+			caContent, err := os.ReadFile(o.OIDC.CAFile)
+			if err != nil {
 				return kubeauthenticator.Config{}, err
 			}
-		}
-	} else {
-		var authConfig *apiserver.AuthenticationConfiguration
-		if o.OIDC != nil && len(o.OIDC.IssuerURL) > 0 && len(o.OIDC.ClientID) > 0 {
-			usernamePrefix := o.OIDC.UsernamePrefix
-
-			if o.OIDC.UsernamePrefix == "" && o.OIDC.UsernameClaim != "email" {
-				// Legacy CLI flag behavior. If a usernamePrefix isn't provided, prefix all claims other than "email"
-				// with the issuerURL.
-				//
-				// See https://github.com/kubernetes/kubernetes/issues/31380
-				usernamePrefix = o.OIDC.IssuerURL + "#"
-			}
-			if o.OIDC.UsernamePrefix == "-" {
-				// Special value indicating usernames shouldn't be prefixed.
-				usernamePrefix = ""
-			}
-
-			jwtAuthenticator := apiserver.JWTAuthenticator{
-				Issuer: apiserver.Issuer{
-					URL:       o.OIDC.IssuerURL,
-					Audiences: []string{o.OIDC.ClientID},
-				},
-				ClaimMappings: apiserver.ClaimMappings{
-					Username: apiserver.PrefixedClaimOrExpression{
-						Prefix: pointer.String(usernamePrefix),
-						Claim:  o.OIDC.UsernameClaim,
-					},
-				},
-			}
-
-			if len(o.OIDC.GroupsClaim) > 0 {
-				jwtAuthenticator.ClaimMappings.Groups = apiserver.PrefixedClaimOrExpression{
-					Prefix: pointer.String(o.OIDC.GroupsPrefix),
-					Claim:  o.OIDC.GroupsClaim,
-				}
-			}
-
-			if len(o.OIDC.CAFile) != 0 {
-				caContent, err := os.ReadFile(o.OIDC.CAFile)
-				if err != nil {
-					return kubeauthenticator.Config{}, err
-				}
-				jwtAuthenticator.Issuer.CertificateAuthority = string(caContent)
-			}
-
-			if len(o.OIDC.RequiredClaims) > 0 {
-				claimValidationRules := make([]apiserver.ClaimValidationRule, 0, len(o.OIDC.RequiredClaims))
-				for claim, value := range o.OIDC.RequiredClaims {
-					claimValidationRules = append(claimValidationRules, apiserver.ClaimValidationRule{
-						Claim:         claim,
-						RequiredValue: value,
-					})
-				}
-				jwtAuthenticator.ClaimValidationRules = claimValidationRules
-			}
-
-			if authConfig == nil {
-				authConfig = &apiserver.AuthenticationConfiguration{}
-			}
-
-			authConfig.JWT = []apiserver.JWTAuthenticator{jwtAuthenticator}
-
-			ret.OIDCSigningAlgs = o.OIDC.SigningAlgs
+			jwtAuthenticator.Issuer.CertificateAuthority = string(caContent)
 		}
 
-		if o.Anonymous != nil {
-			if authConfig == nil {
-				authConfig = &apiserver.AuthenticationConfiguration{}
+		if len(o.OIDC.RequiredClaims) > 0 {
+			claimValidationRules := make([]apiserver.ClaimValidationRule, 0, len(o.OIDC.RequiredClaims))
+			for claim, value := range o.OIDC.RequiredClaims {
+				claimValidationRules = append(claimValidationRules, apiserver.ClaimValidationRule{
+					Claim:         claim,
+					RequiredValue: value,
+				})
 			}
-
-			authConfig.Anonymous = &apiserver.AnonymousAuthConfig{
-				Enabled: o.Anonymous.Allow,
-			}
+			jwtAuthenticator.ClaimValidationRules = claimValidationRules
 		}
 
-		ret.AuthenticationConfig = authConfig
+		ret.AuthenticationConfig.JWT = []apiserver.JWTAuthenticator{jwtAuthenticator}
+
+		ret.OIDCSigningAlgs = o.OIDC.SigningAlgs
 	}
 
-	if ret.AuthenticationConfig != nil {
-		if err := apiservervalidation.ValidateAuthenticationConfiguration(ret.AuthenticationConfig, ret.ServiceAccountIssuers).ToAggregate(); err != nil {
-			return kubeauthenticator.Config{}, err
+	// Set up anonymous authenticator from config file or flags
+	if o.Anonymous != nil {
+		switch {
+		case ret.AuthenticationConfig.Anonymous != nil && o.Anonymous.areFlagsSet():
+			// Flags and config file are mutually exclusive
+			return kubeauthenticator.Config{}, field.Forbidden(field.NewPath("anonymous"), "changed from initial configuration file")
+		case ret.AuthenticationConfig.Anonymous != nil:
+			// Use the config-file-specified values
+			ret.Anonymous = *ret.AuthenticationConfig.Anonymous
+		default:
+			// Use the flag-specified values
+			ret.Anonymous = apiserver.AnonymousAuthConfig{Enabled: o.Anonymous.Allow}
 		}
+	}
+
+	if err := apiservervalidation.ValidateAuthenticationConfiguration(ret.AuthenticationConfig, ret.ServiceAccountIssuers).ToAggregate(); err != nil {
+		return kubeauthenticator.Config{}, err
 	}
 
 	if o.RequestHeader != nil {
@@ -706,6 +689,10 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(
 		authenticationconfigmetrics.RegisterMetrics()
 		trackedAuthenticationConfigData := authenticatorConfig.AuthenticationConfigData
 		var mu sync.Mutex
+
+		// ensure anonymous config doesn't change on reload
+		originalFileAnonymousConfig := authenticatorConfig.AuthenticationConfig.DeepCopy().Anonymous
+
 		go filesystem.WatchUntil(
 			ctx,
 			time.Minute,
@@ -739,7 +726,11 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(
 					return
 				}
 
-				if err := apiservervalidation.ValidateAuthenticationConfiguration(authConfig, authenticatorConfig.ServiceAccountIssuers).ToAggregate(); err != nil {
+				validationErrs := apiservervalidation.ValidateAuthenticationConfiguration(authConfig, authenticatorConfig.ServiceAccountIssuers)
+				if !reflect.DeepEqual(originalFileAnonymousConfig, authConfig.Anonymous) {
+					validationErrs = append(validationErrs, field.Forbidden(field.NewPath("anonymous"), "changed from initial configuration file"))
+				}
+				if err := validationErrs.ToAggregate(); err != nil {
 					klog.ErrorS(err, "failed to validate authentication config")
 					authenticationconfigmetrics.RecordAuthenticationConfigAutomaticReloadFailure(apiServerID)
 					// this config is not semantically valid and never will be, update the tracker so we stop retrying
