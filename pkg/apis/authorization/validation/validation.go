@@ -18,6 +18,7 @@ package validation
 
 import (
 	"fmt"
+
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
@@ -129,32 +130,10 @@ func validateFieldSelectorAttributes(selector *authorizationapi.FieldSelectorAtt
 		allErrs = append(allErrs, field.Required(fldPath.Child("requirements"), fmt.Sprintf("when %s is specified, requirements or rawSelector is required", fldPath)))
 	}
 
+	// AllowUnknownOperatorInRequirement enables *SubjectAccessReview requests from newer skewed clients which understand operators kube-apiserver does not know about to be authorized.
+	validationOptions := metav1validation.FieldSelectorValidationOptions{AllowUnknownOperatorInRequirement: true}
 	for i, requirement := range selector.Requirements {
-		allErrs = append(allErrs, validateFieldSelectorRequirement(requirement, fldPath.Child("requirements").Index(i))...)
-	}
-
-	return allErrs
-}
-
-func validateFieldSelectorRequirement(requirement authorizationapi.FieldSelectorRequirement, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-
-	if len(requirement.Key) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("key"), "must be specified"))
-	}
-
-	switch requirement.Operator {
-	case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
-		if len(requirement.Values) == 0 {
-			allErrs = append(allErrs, field.Required(fldPath.Child("values"), "must be specified when `operator` is 'In' or 'NotIn'"))
-		}
-	case metav1.LabelSelectorOpExists, metav1.LabelSelectorOpDoesNotExist:
-		if len(requirement.Values) > 0 {
-			allErrs = append(allErrs, field.Forbidden(fldPath.Child("values"), "may not be specified when `operator` is 'Exists' or 'DoesNotExist'"))
-		}
-	default:
-		// this is unrecognized, but we don't hard fail.  Instead the consuming code will skip evaluating these requirements.  Since requirements
-		// are all AND'd, this is safe since the requirement checked will be broader (covers) the requested requirements.
+		allErrs = append(allErrs, metav1validation.ValidateFieldSelectorRequirement(requirement, validationOptions, fldPath.Child("requirements").Index(i))...)
 	}
 
 	return allErrs
@@ -173,6 +152,7 @@ func validateLabelSelectorAttributes(selector *authorizationapi.LabelSelectorAtt
 		allErrs = append(allErrs, field.Required(fldPath.Child("requirements"), fmt.Sprintf("when %s is specified, requirements or rawSelector is required", fldPath)))
 	}
 
+	// AllowUnknownOperatorInRequirement enables *SubjectAccessReview requests from newer skewed clients which understand operators kube-apiserver does not know about to be authorized.
 	validationOptions := metav1validation.LabelSelectorValidationOptions{AllowUnknownOperatorInRequirement: true}
 	for i, requirement := range selector.Requirements {
 		allErrs = append(allErrs, metav1validation.ValidateLabelSelectorRequirement(requirement, validationOptions, fldPath.Child("requirements").Index(i))...)

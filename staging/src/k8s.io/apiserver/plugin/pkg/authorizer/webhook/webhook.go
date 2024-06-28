@@ -328,8 +328,8 @@ func resourceAttributesFrom(attr authorizer.Attributes) *authorizationv1.Resourc
 	return ret
 }
 
-func fieldSelectorToAuthorizationAPI(attr authorizer.Attributes) ([]authorizationv1.FieldSelectorRequirement, error) {
-	requirements, err := attr.ParseFieldSelector()
+func fieldSelectorToAuthorizationAPI(attr authorizer.Attributes) ([]metav1.FieldSelectorRequirement, error) {
+	requirements, err := attr.GetFieldSelector()
 	if err != nil {
 		return nil, err
 	}
@@ -337,16 +337,16 @@ func fieldSelectorToAuthorizationAPI(attr authorizer.Attributes) ([]authorizatio
 		return nil, nil
 	}
 
-	retRequirements := []authorizationv1.FieldSelectorRequirement{}
+	retRequirements := []metav1.FieldSelectorRequirement{}
 	for _, requirement := range requirements {
-		retRequirement := authorizationv1.FieldSelectorRequirement{}
+		retRequirement := metav1.FieldSelectorRequirement{}
 		switch {
 		case requirement.Operator == selection.Equals || requirement.Operator == selection.DoubleEquals || requirement.Operator == selection.In:
-			retRequirement.Operator = metav1.LabelSelectorOpIn
+			retRequirement.Operator = metav1.FieldSelectorOpIn
 			retRequirement.Key = requirement.Field
 			retRequirement.Values = []string{requirement.Value}
 		case requirement.Operator == selection.NotEquals || requirement.Operator == selection.NotIn:
-			retRequirement.Operator = metav1.LabelSelectorOpNotIn
+			retRequirement.Operator = metav1.FieldSelectorOpNotIn
 			retRequirement.Key = requirement.Field
 			retRequirement.Values = []string{requirement.Value}
 		default:
@@ -366,7 +366,7 @@ func fieldSelectorToAuthorizationAPI(attr authorizer.Attributes) ([]authorizatio
 }
 
 func labelSelectorToAuthorizationAPI(attr authorizer.Attributes) ([]metav1.LabelSelectorRequirement, error) {
-	requirements, err := attr.ParseLabelSelector()
+	requirements, err := attr.GetLabelSelector()
 	if err != nil {
 		return nil, err
 	}

@@ -252,7 +252,7 @@ func TestAuthorizationAttributesFrom(t *testing.T) {
 				spec: authorizationapi.SubjectAccessReviewSpec{
 					ResourceAttributes: &authorizationapi.ResourceAttributes{
 						FieldSelector: &authorizationapi.FieldSelectorAttributes{
-							Requirements: []authorizationapi.FieldSelectorRequirement{
+							Requirements: []metav1.FieldSelectorRequirement{
 								{
 									Key:      "one",
 									Operator: "In",
@@ -285,7 +285,7 @@ func TestAuthorizationAttributesFrom(t *testing.T) {
 				spec: authorizationapi.SubjectAccessReviewSpec{
 					ResourceAttributes: &authorizationapi.ResourceAttributes{
 						FieldSelector: &authorizationapi.FieldSelectorAttributes{
-							Requirements: []authorizationapi.FieldSelectorRequirement{
+							Requirements: []metav1.FieldSelectorRequirement{
 								{
 									Key:      "one",
 									Operator: "In",
@@ -310,7 +310,7 @@ func TestAuthorizationAttributesFrom(t *testing.T) {
 				spec: authorizationapi.SubjectAccessReviewSpec{
 					ResourceAttributes: &authorizationapi.ResourceAttributes{
 						FieldSelector: &authorizationapi.FieldSelectorAttributes{
-							Requirements: []authorizationapi.FieldSelectorRequirement{
+							Requirements: []metav1.FieldSelectorRequirement{
 								{
 									Key:      "one",
 									Operator: "In",
@@ -335,7 +335,7 @@ func TestAuthorizationAttributesFrom(t *testing.T) {
 				spec: authorizationapi.SubjectAccessReviewSpec{
 					ResourceAttributes: &authorizationapi.ResourceAttributes{
 						FieldSelector: &authorizationapi.FieldSelectorAttributes{
-							Requirements: []authorizationapi.FieldSelectorRequirement{
+							Requirements: []metav1.FieldSelectorRequirement{
 								{
 									Key:      "one",
 									Operator: "NotIn",
@@ -360,7 +360,7 @@ func TestAuthorizationAttributesFrom(t *testing.T) {
 				spec: authorizationapi.SubjectAccessReviewSpec{
 					ResourceAttributes: &authorizationapi.ResourceAttributes{
 						FieldSelector: &authorizationapi.FieldSelectorAttributes{
-							Requirements: []authorizationapi.FieldSelectorRequirement{
+							Requirements: []metav1.FieldSelectorRequirement{
 								{
 									Key:      "one",
 									Operator: "Exists",
@@ -385,7 +385,7 @@ func TestAuthorizationAttributesFrom(t *testing.T) {
 				spec: authorizationapi.SubjectAccessReviewSpec{
 					ResourceAttributes: &authorizationapi.ResourceAttributes{
 						FieldSelector: &authorizationapi.FieldSelectorAttributes{
-							Requirements: []authorizationapi.FieldSelectorRequirement{
+							Requirements: []metav1.FieldSelectorRequirement{
 								{
 									Key:      "one",
 									Operator: "DoesNotExist",
@@ -410,7 +410,7 @@ func TestAuthorizationAttributesFrom(t *testing.T) {
 				spec: authorizationapi.SubjectAccessReviewSpec{
 					ResourceAttributes: &authorizationapi.ResourceAttributes{
 						FieldSelector: &authorizationapi.FieldSelectorAttributes{
-							Requirements: []authorizationapi.FieldSelectorRequirement{
+							Requirements: []metav1.FieldSelectorRequirement{
 								{
 									Key:      "one",
 									Operator: "bad",

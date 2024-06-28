@@ -49,10 +49,10 @@ func TestValidateSARSpec(t *testing.T) {
 			User: "me",
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				FieldSelector: &authorizationapi.FieldSelectorAttributes{
-					Requirements: []authorizationapi.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "k",
-							Operator: metav1.LabelSelectorOperator("fake"),
+							Operator: metav1.FieldSelectorOperator("fake"),
 							Values:   []string{"val"},
 						},
 					},
@@ -109,7 +109,7 @@ func TestValidateSARSpec(t *testing.T) {
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				FieldSelector: &authorizationapi.FieldSelectorAttributes{
 					RawSelector: "foo",
-					Requirements: []authorizationapi.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{},
 					},
 				},
@@ -131,7 +131,7 @@ func TestValidateSARSpec(t *testing.T) {
 			User: "me",
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				FieldSelector: &authorizationapi.FieldSelectorAttributes{
-					Requirements: []authorizationapi.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key: "",
 						},
@@ -146,10 +146,10 @@ func TestValidateSARSpec(t *testing.T) {
 			User: "me",
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				FieldSelector: &authorizationapi.FieldSelectorAttributes{
-					Requirements: []authorizationapi.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "k",
-							Operator: metav1.LabelSelectorOpIn,
+							Operator: metav1.FieldSelectorOpIn,
 							Values:   []string{},
 						},
 					},
@@ -163,10 +163,10 @@ func TestValidateSARSpec(t *testing.T) {
 			User: "me",
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				FieldSelector: &authorizationapi.FieldSelectorAttributes{
-					Requirements: []authorizationapi.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "k",
-							Operator: metav1.LabelSelectorOpNotIn,
+							Operator: metav1.FieldSelectorOpNotIn,
 							Values:   []string{},
 						},
 					},
@@ -180,10 +180,10 @@ func TestValidateSARSpec(t *testing.T) {
 			User: "me",
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				FieldSelector: &authorizationapi.FieldSelectorAttributes{
-					Requirements: []authorizationapi.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "k",
-							Operator: metav1.LabelSelectorOpExists,
+							Operator: metav1.FieldSelectorOpExists,
 							Values:   []string{"val"},
 						},
 					},
@@ -197,10 +197,10 @@ func TestValidateSARSpec(t *testing.T) {
 			User: "me",
 			ResourceAttributes: &authorizationapi.ResourceAttributes{
 				FieldSelector: &authorizationapi.FieldSelectorAttributes{
-					Requirements: []authorizationapi.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "k",
-							Operator: metav1.LabelSelectorOpDoesNotExist,
+							Operator: metav1.FieldSelectorOpDoesNotExist,
 							Values:   []string{"val"},
 						},
 					},

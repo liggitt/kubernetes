@@ -137,10 +137,10 @@ func (d *defaultAttributes) GetAPIGroup() string     { return d.apiGroup }
 func (d *defaultAttributes) GetAPIVersion() string   { return "" }
 func (d *defaultAttributes) IsResourceRequest() bool { return true }
 func (d *defaultAttributes) GetPath() string         { return "" }
-func (d *defaultAttributes) ParseFieldSelector() (fields.Requirements, error) {
+func (d *defaultAttributes) GetFieldSelector() (fields.Requirements, error) {
 	panic("not supported for RBAC")
 }
-func (d *defaultAttributes) ParseLabelSelector() (labels.Requirements, error) {
+func (d *defaultAttributes) GetLabelSelector() (labels.Requirements, error) {
 	panic("not supported for RBAC")
 }
 

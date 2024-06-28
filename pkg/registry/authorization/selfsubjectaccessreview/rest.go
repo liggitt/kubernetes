@@ -101,9 +101,7 @@ func (r *REST) Create(ctx context.Context, obj runtime.Object, createValidation 
 		Denied:  (decision == authorizer.DecisionDeny),
 		Reason:  reason,
 	}
-	if evaluationErr != nil {
-		selfSAR.Status.EvaluationError = evaluationErr.Error()
-	}
+	selfSAR.Status.EvaluationError = authorizationutil.BuildEvaluationError(evaluationErr, authorizationAttributes)
 
 	return selfSAR, nil
 }

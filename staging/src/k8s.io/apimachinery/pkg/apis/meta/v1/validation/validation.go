@@ -119,6 +119,39 @@ func ValidateLabels(labels map[string]string, fldPath *field.Path) field.ErrorLi
 	return allErrs
 }
 
+// FieldSelectorValidationOptions is a struct that can be passed to ValidateFieldSelectorRequirement to record the validate options
+type FieldSelectorValidationOptions struct {
+	// Allows an operator that is not interpretable to pass validation.  This is useful for cases where a broader check
+	// can be performed, as in a *SubjectAccessReview
+	AllowUnknownOperatorInRequirement bool
+}
+
+// ValidateLabelSelectorRequirement validates the requirement according to the opts and returns any validation errors.
+func ValidateFieldSelectorRequirement(requirement metav1.FieldSelectorRequirement, opts FieldSelectorValidationOptions, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if len(requirement.Key) == 0 {
+		allErrs = append(allErrs, field.Required(fldPath.Child("key"), "must be specified"))
+	}
+
+	switch requirement.Operator {
+	case metav1.FieldSelectorOpIn, metav1.FieldSelectorOpNotIn:
+		if len(requirement.Values) == 0 {
+			allErrs = append(allErrs, field.Required(fldPath.Child("values"), "must be specified when `operator` is 'In' or 'NotIn'"))
+		}
+	case metav1.FieldSelectorOpExists, metav1.FieldSelectorOpDoesNotExist:
+		if len(requirement.Values) > 0 {
+			allErrs = append(allErrs, field.Forbidden(fldPath.Child("values"), "may not be specified when `operator` is 'Exists' or 'DoesNotExist'"))
+		}
+	default:
+		if !opts.AllowUnknownOperatorInRequirement {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("operator"), requirement.Operator, "not a valid selector operator"))
+		}
+	}
+
+	return allErrs
+}
+
 func ValidateDeleteOptions(options *metav1.DeleteOptions) field.ErrorList {
 	allErrs := field.ErrorList{}
 	//lint:file-ignore SA1019 Keep validation for deprecated OrphanDependents option until it's being removed

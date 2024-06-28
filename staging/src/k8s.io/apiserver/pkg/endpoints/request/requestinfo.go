@@ -19,8 +19,6 @@ package request
 import (
 	"context"
 	"fmt"
-	genericfeatures "k8s.io/apiserver/pkg/features"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"net/http"
 	"strings"
 
@@ -29,6 +27,8 @@ import (
 	metainternalversionscheme "k8s.io/apimachinery/pkg/apis/meta/internalversion/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+	genericfeatures "k8s.io/apiserver/pkg/features"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	"k8s.io/klog/v2"
 )
@@ -160,6 +160,7 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 	currentParts = currentParts[1:]
 
 	// handle input of form /{specialVerb}/*
+	verbViaPathPrefix := false
 	if specialVerbs.Has(currentParts[0]) {
 		if len(currentParts) < 2 {
 			return &requestInfo, fmt.Errorf("unable to determine kind and namespace from url, %v", req.URL)
@@ -167,6 +168,7 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 
 		requestInfo.Verb = currentParts[0]
 		currentParts = currentParts[1:]
+		verbViaPathPrefix = true
 
 	} else {
 		switch req.Method {
@@ -254,7 +256,7 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 	}
 
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AuthorizeWithSelectors) {
-		if requestInfo.Verb == "list" || requestInfo.Verb == "watch" {
+		if !verbViaPathPrefix && (requestInfo.Verb == "list" || requestInfo.Verb == "watch" || requestInfo.Verb == "deletecollection") {
 			// interestingly these are parsed above, but the current structure there means that if one (or anything) in the
 			// listOptions fails to decode, the field and label selectors are lost.
 			// therefore, do the straight query param read here.

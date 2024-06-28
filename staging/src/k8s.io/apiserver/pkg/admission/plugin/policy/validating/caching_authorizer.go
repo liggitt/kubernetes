@@ -60,8 +60,8 @@ var _ authorizer.Attributes = (interface {
 	GetAPIVersion() string
 	IsResourceRequest() bool
 	GetPath() string
-	ParseFieldSelector() (fields.Requirements, error)
-	ParseLabelSelector() (labels.Requirements, error)
+	GetFieldSelector() (fields.Requirements, error)
+	GetLabelSelector() (labels.Requirements, error)
 })(nil)
 
 // The user info accessors known to cache key construction. If this fails to compile, the cache
@@ -95,10 +95,10 @@ func (ca *cachingAuthorizer) Authorize(ctx context.Context, a authorizer.Attribu
 		},
 	}
 	// in the error case, we won't honor this field selector, so the cache doesn't need it.
-	if fieldSelector, err := a.ParseFieldSelector(); len(fieldSelector) > 0 {
+	if fieldSelector, err := a.GetFieldSelector(); len(fieldSelector) > 0 {
 		serializableAttributes.FieldSelectorRequirements, serializableAttributes.FieldSelectorParsingErr = fieldSelector, err
 	}
-	if labelSelector, _ := a.ParseLabelSelector(); len(labelSelector) > 0 {
+	if labelSelector, _ := a.GetLabelSelector(); len(labelSelector) > 0 {
 		// the labels requirements have private elements so those don't help us serialize to a unique key
 		serializableAttributes.LabelSelector = labelSelector.String()
 	}

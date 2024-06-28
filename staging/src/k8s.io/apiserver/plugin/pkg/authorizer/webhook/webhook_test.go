@@ -111,7 +111,7 @@ func Test_resourceAttributesFrom(t *testing.T) {
 			},
 			want: &authorizationv1.ResourceAttributes{
 				FieldSelector: &authorizationv1.FieldSelectorAttributes{
-					Requirements: []authorizationv1.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "foo",
 							Operator: "In",
@@ -145,7 +145,7 @@ func Test_resourceAttributesFrom(t *testing.T) {
 			},
 			want: &authorizationv1.ResourceAttributes{
 				FieldSelector: &authorizationv1.FieldSelectorAttributes{
-					Requirements: []authorizationv1.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "foo",
 							Operator: "NotIn",
@@ -174,7 +174,7 @@ func Test_resourceAttributesFrom(t *testing.T) {
 			},
 			want: &authorizationv1.ResourceAttributes{
 				FieldSelector: &authorizationv1.FieldSelectorAttributes{
-					Requirements: []authorizationv1.FieldSelectorRequirement{
+					Requirements: []metav1.FieldSelectorRequirement{
 						{
 							Key:      "foo",
 							Operator: "NotIn",

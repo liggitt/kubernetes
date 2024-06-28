@@ -18,6 +18,8 @@ package util
 
 import (
 	"fmt"
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -83,7 +85,7 @@ func ResourceAttributesFrom(user user.Info, in authorizationapi.ResourceAttribut
 	return ret
 }
 
-func fieldSelectorAsSelector(requirements []authorizationapi.FieldSelectorRequirement) (fields.Requirements, error) {
+func fieldSelectorAsSelector(requirements []metav1.FieldSelectorRequirement) (fields.Requirements, error) {
 	if requirements == nil {
 		return nil, nil
 	}
@@ -96,7 +98,7 @@ func fieldSelectorAsSelector(requirements []authorizationapi.FieldSelectorRequir
 		}
 
 		switch expr.Operator {
-		case metav1.LabelSelectorOpIn:
+		case metav1.FieldSelectorOpIn:
 			if len(expr.Values) != 1 {
 				// this fails here instead of validation so that a SAR with an invalid field selector can be tried without the selector
 				return nil, fmt.Errorf("fieldSelectors in must have one value")
@@ -104,7 +106,7 @@ func fieldSelectorAsSelector(requirements []authorizationapi.FieldSelectorRequir
 
 			selectors = append(selectors, fields.OneTermEqualSelector(expr.Key, expr.Values[0]))
 
-		case metav1.LabelSelectorOpNotIn:
+		case metav1.FieldSelectorOpNotIn:
 			if len(expr.Values) != 1 {
 				// this fails here instead of validation so that a SAR with an invalid field selector can be tried without the selector
 				return nil, fmt.Errorf("fieldSelectors not in must have one value")
@@ -112,10 +114,10 @@ func fieldSelectorAsSelector(requirements []authorizationapi.FieldSelectorRequir
 
 			selectors = append(selectors, fields.OneTermNotEqualSelector(expr.Key, expr.Values[0]))
 
-		case metav1.LabelSelectorOpExists:
+		case metav1.FieldSelectorOpExists:
 			// this fails here instead of validation so that a SAR with an invalid field selector can be tried without the selector
-			return nil, fmt.Errorf("fieldSelectors do not yet support %v", metav1.LabelSelectorOpExists)
-		case metav1.LabelSelectorOpDoesNotExist:
+			return nil, fmt.Errorf("fieldSelectors do not yet support %v", metav1.FieldSelectorOpExists)
+		case metav1.FieldSelectorOpDoesNotExist:
 			// this fails here instead of validation so that a SAR with an invalid field selector can be tried without the selector
 			return nil, fmt.Errorf("fieldSelectors do not yet support %v", metav1.LabelSelectorOpDoesNotExist)
 		default:
@@ -173,4 +175,20 @@ func matchAllVersionIfEmpty(version string) string {
 		return "*"
 	}
 	return version
+}
+
+// BuildEvaluationError constructs the evaluation error string to include in *SubjectAccessReview status
+// based on the authorizer evaluation error and any field and label selector parse errors.
+func BuildEvaluationError(evaluationError error, attrs authorizer.AttributesRecord) string {
+	var evaluationErrors []string
+	if evaluationError != nil {
+		evaluationErrors = append(evaluationErrors, evaluationError.Error())
+	}
+	if _, err := attrs.GetFieldSelector(); err != nil {
+		evaluationErrors = append(evaluationErrors, "spec.resourceAttributes.fieldSelector ignored due to parse error")
+	}
+	if _, err := attrs.GetLabelSelector(); err != nil {
+		evaluationErrors = append(evaluationErrors, "spec.resourceAttributes.labelSelector ignored due to parse error")
+	}
+	return strings.Join(evaluationErrors, "; ")
 }

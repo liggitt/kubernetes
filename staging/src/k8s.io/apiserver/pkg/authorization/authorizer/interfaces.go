@@ -68,12 +68,12 @@ type Attributes interface {
 	// ParseFieldSelector is lazy, thread-safe, and stores the parsed result and error.
 	// It returns an error if the field selector cannot be parsed.
 	// The returned requirements must be treated as readonly and not modified.
-	ParseFieldSelector() (fields.Requirements, error)
+	GetFieldSelector() (fields.Requirements, error)
 
 	// ParseLabelSelector is lazy, thread-safe, and stores the parsed result and error.
 	// It returns an error if the label selector cannot be parsed.
 	// The returned requirements must be treated as readonly and not modified.
-	ParseLabelSelector() (labels.Requirements, error)
+	GetLabelSelector() (labels.Requirements, error)
 }
 
 // Authorizer makes an authorization decision based on information gained by making
@@ -163,11 +163,11 @@ func (a AttributesRecord) GetPath() string {
 	return a.Path
 }
 
-func (a AttributesRecord) ParseFieldSelector() (fields.Requirements, error) {
+func (a AttributesRecord) GetFieldSelector() (fields.Requirements, error) {
 	return a.FieldSelectorRequirements, a.FieldSelectorParsingErr
 }
 
-func (a AttributesRecord) ParseLabelSelector() (labels.Requirements, error) {
+func (a AttributesRecord) GetLabelSelector() (labels.Requirements, error) {
 	return a.LabelSelectorRequirements, a.LabelSelectorParsingErr
 }
 

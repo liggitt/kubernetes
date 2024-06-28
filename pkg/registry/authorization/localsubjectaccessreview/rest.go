@@ -99,9 +99,7 @@ func (r *REST) Create(ctx context.Context, obj runtime.Object, createValidation 
 		Denied:  (decision == authorizer.DecisionDeny),
 		Reason:  reason,
 	}
-	if evaluationErr != nil {
-		localSubjectAccessReview.Status.EvaluationError = evaluationErr.Error()
-	}
+	localSubjectAccessReview.Status.EvaluationError = authorizationutil.BuildEvaluationError(evaluationErr, authorizationAttributes)
 
 	return localSubjectAccessReview, nil
 }
