@@ -183,26 +183,7 @@ type FieldSelectorAttributes struct {
 	// are not understood.
 	// +optional
 	// +listType=atomic
-	Requirements []FieldSelectorRequirement `json:"requirements,omitempty" protobuf:"bytes,2,rep,name=requirements"`
-}
-
-// FieldSelectorRequirement is a selector that contains values, a key, and an operator that
-// relates the key and values.
-type FieldSelectorRequirement struct {
-	// key is the field selector key that the requirement applies to.
-	Key string `json:"key" protobuf:"bytes,1,opt,name=key"`
-	// operator represents a key's relationship to a set of values.
-	// Valid operators are In, NotIn, Exists, DoesNotExist
-	// The list of operators may grow in the future.
-	// Webhook authors are encouraged to ignore unrecognized operators and assume they don't limit the request.
-	// The semantics of "all requirements are AND'd" will not change, so other requirements can continue to be enforced.
-	Operator metav1.LabelSelectorOperator `json:"operator" protobuf:"bytes,2,opt,name=operator,casttype=LabelSelectorOperator"`
-	// values is an array of string values. If the operator is In or NotIn,
-	// the values array must be non-empty. If the operator is Exists or DoesNotExist,
-	// the values array must be empty.
-	// +optional
-	// +listType=atomic
-	Values []string `json:"values,omitempty" protobuf:"bytes,3,rep,name=values"`
+	Requirements []metav1.FieldSelectorRequirement `json:"requirements,omitempty" protobuf:"bytes,2,rep,name=requirements"`
 }
 
 // NonResourceAttributes includes the authorization attributes available for non-resource requests to the Authorizer interface
