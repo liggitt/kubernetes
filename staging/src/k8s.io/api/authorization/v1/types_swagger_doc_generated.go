@@ -37,17 +37,6 @@ func (FieldSelectorAttributes) SwaggerDoc() map[string]string {
 	return map_FieldSelectorAttributes
 }
 
-var map_FieldSelectorRequirement = map[string]string{
-	"":         "FieldSelectorRequirement is a selector that contains values, a key, and an operator that relates the key and values.",
-	"key":      "key is the field selector key that the requirement applies to.",
-	"operator": "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist The list of operators may grow in the future. Webhook authors are encouraged to ignore unrecognized operators and assume they don't limit the request. The semantics of \"all requirements are AND'd\" will not change, so other requirements can continue to be enforced.",
-	"values":   "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty.",
-}
-
-func (FieldSelectorRequirement) SwaggerDoc() map[string]string {
-	return map_FieldSelectorRequirement
-}
-
 var map_LabelSelectorAttributes = map[string]string{
 	"":             "LabelSelectorAttributes indicates a label limited access. Webhook authors are encouraged to * ensure rawSelector and requirements are not both set * consider the requirements field if set * not try to parse or consider the rawSelector field if set. This is to avoid another CVE-2022-2880 (i.e. getting different systems to agree on how exactly to parse a query is not something we want), see https://www.oxeye.io/resources/golang-parameter-smuggling-attack for more details. For the *SubjectAccessReview endpoints of the kube-apiserver: * If rawSelector is empty and requirements are empty, the request is not limited. * If rawSelector is present and requirements are empty, the rawSelector will be parsed and limited if the parsing succeeds. * If rawSelector is empty and requirements are present, the requirements should be honored * If rawSelector is present and requirements are present, the request is invalid.",
 	"rawSelector":  "rawSelector is the serialization of a field selector that would be included in a query parameter. Webhook implementations are encouraged to ignore rawSelector. The kube-apiserver's *SubjectAccessReview will parse the rawSelector as long as the requirements are not present.",

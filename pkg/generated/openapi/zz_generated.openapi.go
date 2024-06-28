@@ -224,7 +224,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/api/authentication/v1beta1.TokenReviewStatus":                                                   schema_k8sio_api_authentication_v1beta1_TokenReviewStatus(ref),
 		"k8s.io/api/authentication/v1beta1.UserInfo":                                                            schema_k8sio_api_authentication_v1beta1_UserInfo(ref),
 		"k8s.io/api/authorization/v1.FieldSelectorAttributes":                                                   schema_k8sio_api_authorization_v1_FieldSelectorAttributes(ref),
-		"k8s.io/api/authorization/v1.FieldSelectorRequirement":                                                  schema_k8sio_api_authorization_v1_FieldSelectorRequirement(ref),
 		"k8s.io/api/authorization/v1.LabelSelectorAttributes":                                                   schema_k8sio_api_authorization_v1_LabelSelectorAttributes(ref),
 		"k8s.io/api/authorization/v1.LocalSubjectAccessReview":                                                  schema_k8sio_api_authorization_v1_LocalSubjectAccessReview(ref),
 		"k8s.io/api/authorization/v1.NonResourceAttributes":                                                     schema_k8sio_api_authorization_v1_NonResourceAttributes(ref),
@@ -1046,6 +1045,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/apimachinery/pkg/apis/meta/v1.CreateOptions":                                                    schema_pkg_apis_meta_v1_CreateOptions(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                    schema_pkg_apis_meta_v1_DeleteOptions(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                         schema_pkg_apis_meta_v1_Duration(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldSelectorRequirement":                                         schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldsV1":                                                         schema_pkg_apis_meta_v1_FieldsV1(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                       schema_pkg_apis_meta_v1_GetOptions(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                        schema_pkg_apis_meta_v1_GroupKind(ref),
@@ -11568,7 +11568,7 @@ func schema_k8sio_api_authorization_v1_FieldSelectorAttributes(ref common.Refere
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("k8s.io/api/authorization/v1.FieldSelectorRequirement"),
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.FieldSelectorRequirement"),
 									},
 								},
 							},
@@ -11578,57 +11578,7 @@ func schema_k8sio_api_authorization_v1_FieldSelectorAttributes(ref common.Refere
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/authorization/v1.FieldSelectorRequirement"},
-	}
-}
-
-func schema_k8sio_api_authorization_v1_FieldSelectorRequirement(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "FieldSelectorRequirement is a selector that contains values, a key, and an operator that relates the key and values.",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"key": {
-						SchemaProps: spec.SchemaProps{
-							Description: "key is the field selector key that the requirement applies to.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"operator": {
-						SchemaProps: spec.SchemaProps{
-							Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist The list of operators may grow in the future. Webhook authors are encouraged to ignore unrecognized operators and assume they don't limit the request. The semantics of \"all requirements are AND'd\" will not change, so other requirements can continue to be enforced.",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"values": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty.",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"key", "operator"},
-			},
-		},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.FieldSelectorRequirement"},
 	}
 }
 
@@ -53758,6 +53708,56 @@ func schema_pkg_apis_meta_v1_Duration(ref common.ReferenceCallback) common.OpenA
 				Description: "Duration is a wrapper around time.Duration which supports correct marshaling to YAML and JSON. In particular, it marshals into strings, which can be used as map keys in json.",
 				Type:        metav1.Duration{}.OpenAPISchemaType(),
 				Format:      metav1.Duration{}.OpenAPISchemaFormat(),
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "FieldSelectorRequirement is a selector that contains values, a key, and an operator that relates the key and values.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"key": {
+						SchemaProps: spec.SchemaProps{
+							Description: "key is the field selector key that the requirement applies to.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"operator": {
+						SchemaProps: spec.SchemaProps{
+							Description: "operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists, DoesNotExist. The list of operators may grow in the future.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"values": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"key", "operator"},
 			},
 		},
 	}
