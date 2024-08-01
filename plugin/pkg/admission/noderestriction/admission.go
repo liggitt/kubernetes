@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
+
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -594,6 +595,27 @@ func (p *Plugin) admitServiceAccount(nodeName string, a admission.Attributes) er
 		return admission.NewForbidden(a, fmt.Errorf("node requested token bound to a pod scheduled on a different node"))
 	}
 
+	// ensure all items in tr.Spec.Audiences are present in a volume mount in pod
+	requestedAudience := ""
+	switch len(tr.Spec.Audiences) {
+	case 0:
+		requestedAudience = ""
+	case 1:
+		requestedAudience = tr.Spec.Audiences[0]
+	default:
+		return admission.NewForbidden(a, fmt.Errorf("node may only request 0 or 1 audiences"))
+	}
+
+	foundAudienceInPodSpec := podReferencesAudience(pod, requestedAudience)
+	if !foundAudienceInPodSpec {
+		return admission.NewForbidden(a, fmt.Errorf("audience %q not found in pod spec volume", requestedAudience))
+	}
+
+	// also allow audiences for CSI token requests
+	// - pod --> ephemeral --> pvc --> pv --> csi --> driver --> tokenrequest with audience
+	// - pod --> pvc --> pv --> csi --> driver --> tokenrequest with audience
+	// - pod --> csi --> driver --> tokenrequest with audience
+
 	// Note: A token may only be bound to one object at a time. By requiring
 	// the Pod binding, noderestriction eliminates the opportunity to spoof
 	// a Node binding. Instead, kube-apiserver automatically infers and sets
@@ -601,6 +623,19 @@ func (p *Plugin) admitServiceAccount(nodeName string, a admission.Attributes) er
 	// https://github.com/kubernetes/kubernetes/issues/121723 for more info.
 
 	return nil
+}
+
+func podReferencesAudience(pod *v1.Pod, audience string) bool {
+	for _, v := range pod.Spec.Volumes {
+		if v.Projected != nil {
+			for _, source := range v.Projected.Sources {
+				if source.ServiceAccountToken != nil && source.ServiceAccountToken.Audience == audience {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (p *Plugin) admitLease(nodeName string, a admission.Attributes) error {
