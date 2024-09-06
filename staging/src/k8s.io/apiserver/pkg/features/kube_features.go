@@ -306,6 +306,113 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.32"), Default: true, PreRelease: featuregate.Beta},
 	},
+	AdmissionWebhookMatchConditions: {
+		{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.28"), Default: true, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA},
+	},
+	AggregatedDiscoveryEndpoint: {
+		{Version: version.MustParse("1.26"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.27"), Default: true, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA},
+	},
+	APIListChunking: {
+		{Version: version.MustParse("1.8"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.9"), Default: true, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.29"), Default: true, PreRelease: featuregate.GA},
+	},
+	APIResponseCompression: {
+		{Version: version.MustParse("1.7"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.16"), Default: true, PreRelease: featuregate.Beta},
+	},
+	APIServerIdentity: {
+		{Version: version.MustParse("1.20"), Default: false, PreRelease: featuregate.Beta},
+	},
+	APIServerTracing: {
+		{Version: version.MustParse("1.22"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.27"), Default: true, PreRelease: featuregate.Beta},
+	},
+	APIServingWithRoutine: {
+		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	AuthorizeWithSelectors: {
+		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	ConcurrentWatchObjectDecode: {
+		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Beta},
+	},
+	ConsistentListFromCache: {
+		{Version: version.MustParse("1.28"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.Beta},
+	},
+	CoordinatedLeaderElection: {
+		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	EfficientWatchResumption: {
+		{Version: version.MustParse("1.20"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.21"), Default: true, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.24"), Default: true, PreRelease: featuregate.GA},
+	},
+	MutatingAdmissionPolicy: {
+		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	OpenAPIEnums: {
+		{Version: version.MustParse("1.23"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.24"), Default: true, PreRelease: featuregate.Beta},
+	},
+	RemainingItemCount: {
+		{Version: version.MustParse("1.15"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.16"), Default: true, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.29"), Default: true, PreRelease: featuregate.GA},
+	},
+	ResilientWatchCacheInitialization: {
+		{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.Beta},
+	},
+	SeparateCacheWatchRPC: {
+		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.Beta},
+	},
+	StorageVersionAPI: {
+		{Version: version.MustParse("1.20"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	StorageVersionHash: {
+		{Version: version.MustParse("1.14"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.15"), Default: true, PreRelease: featuregate.Beta},
+	},
+	StrictCostEnforcementForVAP: {
+		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	StrictCostEnforcementForWebhooks: {
+		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	StructuredAuthenticationConfiguration: {
+		{Version: version.MustParse("1.29"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.Beta},
+	},
+	StructuredAuthorizationConfiguration: {
+		{Version: version.MustParse("1.29"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.Beta},
+	},
+	UnauthenticatedHTTP2DOSMitigation: {
+		{Version: version.MustParse("1.29"), Default: true, PreRelease: featuregate.Beta},
+	},
+	WatchBookmark: {
+		{Version: version.MustParse("1.15"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.16"), Default: true, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.17"), Default: true, PreRelease: featuregate.GA},
+	},
+	WatchCacheInitializationPostStartHook: {
+		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Beta},
+	},
+	WatchFromStorageWithoutResourceVersion: {
+		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Beta},
+	},
+	WatchList: {
+		{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
+	},
+	ZeroLimitedNominalConcurrencyShares: {
+		{Version: version.MustParse("1.29"), Default: false, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA},
+	},
 }
 
 // defaultKubernetesFeatureGates consists of all known Kubernetes-specific feature keys.
@@ -313,65 +420,9 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 // available throughout Kubernetes binaries.
 var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 
-	AggregatedDiscoveryEndpoint: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.33
-
-	AdmissionWebhookMatchConditions: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.33
-
-	APIListChunking: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
-
-	APIResponseCompression: {Default: true, PreRelease: featuregate.Beta},
-
-	APIServerIdentity: {Default: true, PreRelease: featuregate.Beta},
-
-	APIServerTracing: {Default: true, PreRelease: featuregate.Beta},
-
-	APIServingWithRoutine: {Default: false, PreRelease: featuregate.Alpha},
-
-	AuthorizeWithSelectors: {Default: false, PreRelease: featuregate.Alpha},
-
-	ConcurrentWatchObjectDecode: {Default: false, PreRelease: featuregate.Beta},
-
-	CoordinatedLeaderElection: {Default: false, PreRelease: featuregate.Alpha},
-
-	EfficientWatchResumption: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
-
 	KMSv1: {Default: false, PreRelease: featuregate.Deprecated},
-
-	OpenAPIEnums: {Default: true, PreRelease: featuregate.Beta},
-
-	RemainingItemCount: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
-
-	ResilientWatchCacheInitialization: {Default: true, PreRelease: featuregate.Beta},
 
 	RetryGenerateName: {Default: true, PreRelease: featuregate.Beta},
 
-	SeparateCacheWatchRPC: {Default: true, PreRelease: featuregate.Beta},
-
-	StorageVersionAPI: {Default: false, PreRelease: featuregate.Alpha},
-
-	StorageVersionHash: {Default: true, PreRelease: featuregate.Beta},
-
-	StrictCostEnforcementForVAP: {Default: false, PreRelease: featuregate.Beta},
-
-	StrictCostEnforcementForWebhooks: {Default: false, PreRelease: featuregate.Beta},
-
-	StructuredAuthenticationConfiguration: {Default: true, PreRelease: featuregate.Beta},
-
-	StructuredAuthorizationConfiguration: {Default: true, PreRelease: featuregate.Beta},
-
-	UnauthenticatedHTTP2DOSMitigation: {Default: true, PreRelease: featuregate.Beta},
-
-	WatchBookmark: {Default: true, PreRelease: featuregate.GA, LockToDefault: true},
-
-	WatchCacheInitializationPostStartHook: {Default: false, PreRelease: featuregate.Beta},
-
-	WatchFromStorageWithoutResourceVersion: {Default: false, PreRelease: featuregate.Beta},
-
 	InPlacePodVerticalScaling: {Default: false, PreRelease: featuregate.Alpha},
-
-	WatchList: {Default: false, PreRelease: featuregate.Alpha},
-
-	ConsistentListFromCache: {Default: true, PreRelease: featuregate.Beta},
-
-	ZeroLimitedNominalConcurrencyShares: {Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
 }
