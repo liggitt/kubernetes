@@ -941,7 +941,7 @@
   - default: true
     lockToDefault: false
     preRelease: Beta
-    version: "1.31"
+    version: "1.30"
 - name: SeparateTaintEvictionController
   versionedSpecs:
   - default: true
