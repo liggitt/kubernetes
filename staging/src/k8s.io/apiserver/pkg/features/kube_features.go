@@ -300,115 +300,145 @@ func init() {
 // To add a new feature, define a key for it above and add it here. The features will be
 // available throughout Kubernetes binaries.
 //
-// Entries are alphabetized.
+// Entries are alphabetized and separated from each other with blank lines to avoid sweeping gofmt changes
+// when adding or removing one entry.
 var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate.VersionedSpecs{
-	AnonymousAuthConfigurableEndpoints: {
-		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
-		{Version: version.MustParse("1.32"), Default: true, PreRelease: featuregate.Beta},
-	},
 	AdmissionWebhookMatchConditions: {
 		{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.28"), Default: true, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA},
 	},
+
 	AggregatedDiscoveryEndpoint: {
 		{Version: version.MustParse("1.26"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.27"), Default: true, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA},
 	},
+
+	AnonymousAuthConfigurableEndpoints: {
+		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
+		{Version: version.MustParse("1.32"), Default: true, PreRelease: featuregate.Beta},
+	},
+
 	APIListChunking: {
 		{Version: version.MustParse("1.8"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.9"), Default: true, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.29"), Default: true, PreRelease: featuregate.GA},
 	},
+
 	APIResponseCompression: {
 		{Version: version.MustParse("1.7"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.16"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	APIServerIdentity: {
 		{Version: version.MustParse("1.20"), Default: false, PreRelease: featuregate.Beta},
 	},
+
 	APIServerTracing: {
 		{Version: version.MustParse("1.22"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.27"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	APIServingWithRoutine: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	AuthorizeWithSelectors: {
 		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	ConcurrentWatchObjectDecode: {
 		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Beta},
 	},
+
 	ConsistentListFromCache: {
 		{Version: version.MustParse("1.28"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	CoordinatedLeaderElection: {
 		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	EfficientWatchResumption: {
 		{Version: version.MustParse("1.20"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.21"), Default: true, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.24"), Default: true, PreRelease: featuregate.GA},
 	},
+
 	MutatingAdmissionPolicy: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	OpenAPIEnums: {
 		{Version: version.MustParse("1.23"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.24"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	RemainingItemCount: {
 		{Version: version.MustParse("1.15"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.16"), Default: true, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.29"), Default: true, PreRelease: featuregate.GA},
 	},
+
 	ResilientWatchCacheInitialization: {
 		{Version: version.MustParse("1.31"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	SeparateCacheWatchRPC: {
 		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	StorageVersionAPI: {
 		{Version: version.MustParse("1.20"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	StorageVersionHash: {
 		{Version: version.MustParse("1.14"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.15"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	StrictCostEnforcementForVAP: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	StrictCostEnforcementForWebhooks: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	StructuredAuthenticationConfiguration: {
 		{Version: version.MustParse("1.29"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	StructuredAuthorizationConfiguration: {
 		{Version: version.MustParse("1.29"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	UnauthenticatedHTTP2DOSMitigation: {
 		{Version: version.MustParse("1.29"), Default: true, PreRelease: featuregate.Beta},
 	},
+
 	WatchBookmark: {
 		{Version: version.MustParse("1.15"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.16"), Default: true, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.17"), Default: true, PreRelease: featuregate.GA},
 	},
+
 	WatchCacheInitializationPostStartHook: {
 		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Beta},
 	},
+
 	WatchFromStorageWithoutResourceVersion: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Beta},
 	},
+
 	WatchList: {
 		{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
 	},
+
 	ZeroLimitedNominalConcurrencyShares: {
 		{Version: version.MustParse("1.29"), Default: false, PreRelease: featuregate.Beta},
 		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA},
