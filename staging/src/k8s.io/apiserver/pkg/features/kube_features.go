@@ -332,7 +332,7 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 	},
 
 	APIServerIdentity: {
-		{Version: version.MustParse("1.20"), Default: false, PreRelease: featuregate.Beta},
+		{Version: version.MustParse("1.20"), Default: true, PreRelease: featuregate.Beta},
 	},
 
 	APIServerTracing: {
