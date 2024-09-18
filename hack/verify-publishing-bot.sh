@@ -1,4 +1,6 @@
-# Copyright 2021 The Kubernetes Authors.
+#!/usr/bin/env bash
+
+# Copyright 2024 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,16 +14,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ARG BASEIMAGE
-FROM $BASEIMAGE
+# This script checks whether staging/publishing/rules.yaml is correct
+# as per the dependencies in the go.mod of the staging directories
+# Usage: `hack/verify-publishing-bot.sh`.
 
-CROSS_BUILD_COPY qemu-QEMUARCH-static /usr/bin/
+set -o errexit
+set -o nounset
+set -o pipefail
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        cuda-samples-$CUDA_PKG_VERSION && \
-    rm -rf /var/lib/apt/lists/*
+KUBE_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
+source "${KUBE_ROOT}/hack/lib/init.sh"
 
-WORKDIR /usr/local/cuda/samples/0_Simple/vectorAdd
-RUN make
+kube::golang::setup_env
 
-CMD ./vectorAdd
+go -C "${KUBE_ROOT}/hack/tools" install ./publishing-verifier
+
+publishing-verifier "${KUBE_ROOT}"

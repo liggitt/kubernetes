@@ -56,6 +56,7 @@ const (
 	// for better performance in requeueing.
 	UpdateNodeAllocatable
 	UpdateNodeLabel
+	// UpdateNodeTaint is an update for node's taints or node.Spec.Unschedulable.
 	UpdateNodeTaint
 	UpdateNodeCondition
 	UpdateNodeAnnotation
@@ -264,6 +265,7 @@ func (pqi *QueuedPodInfo) DeepCopy() *QueuedPodInfo {
 		Attempts:                pqi.Attempts,
 		InitialAttemptTimestamp: pqi.InitialAttemptTimestamp,
 		UnschedulablePlugins:    pqi.UnschedulablePlugins.Clone(),
+		PendingPlugins:          pqi.PendingPlugins.Clone(),
 		Gated:                   pqi.Gated,
 	}
 }
