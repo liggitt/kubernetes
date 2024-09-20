@@ -91,7 +91,7 @@ const (
 	APIServerTracing featuregate.Feature = "APIServerTracing"
 
 	// owner: @linxiulei
-	// beta: v1.30
+	// alpha: v1.30
 	//
 	// Enables serving watch requests in separate goroutines.
 	APIServingWithRoutine featuregate.Feature = "APIServingWithRoutine"
@@ -260,13 +260,6 @@ const (
 	// Enables watches without resourceVersion to be served from storage.
 	// Used to prevent https://github.com/kubernetes/kubernetes/issues/123072 until etcd fixes the issue.
 	WatchFromStorageWithoutResourceVersion featuregate.Feature = "WatchFromStorageWithoutResourceVersion"
-
-	// owner: @vinaykul
-	// kep: http://kep.k8s.io/1287
-	// alpha: v1.27
-	//
-	// Enables In-Place Pod Vertical Scaling
-	InPlacePodVerticalScaling featuregate.Feature = "InPlacePodVerticalScaling"
 
 	// owner: @p0lyn0mial
 	// alpha: v1.27

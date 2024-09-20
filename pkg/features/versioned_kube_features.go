@@ -23,11 +23,15 @@ import (
 )
 
 // defaultVersionedKubernetesFeatureGates consists of all known Kubernetes-specific feature keys with VersionedSpecs.
-// To add a new feature, define a key for it and add it here. The features will be
+// To add a new feature, define a key for it in pkg/features/kube_features.go and add it here. The features will be
 // available throughout Kubernetes binaries.
+// For features available via specific kubernetes components like apiserver,
+// cloud-controller-manager, etc find the respective kube_features.go file
+// (eg:staging/src/apiserver/pkg/features/kube_features.go), define the versioned
+// feature gate there, and reference it in this file.
+// To support n-3 compatibility version, features may only be removed 3 releases after graduation.
 //
-// Entries are alphabetized and separated from each other with blank lines to avoid sweeping gofmt changes
-// when adding or removing one entry.
+// Entries are alphabetized.
 var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate.VersionedSpecs{
 	AnyVolumeDataSource: {
 		{Version: version.MustParse("1.18"), Default: false, PreRelease: featuregate.Alpha},
@@ -420,23 +424,9 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 		{Version: version.MustParse("1.22"), Default: false, PreRelease: featuregate.Alpha},
 	},
 
-	MinDomainsInPodTopologySpread: {
-		{Version: version.MustParse("1.24"), Default: false, PreRelease: featuregate.Alpha},
-		{Version: version.MustParse("1.25"), Default: false, PreRelease: featuregate.Beta},
-		{Version: version.MustParse("1.27"), Default: true, PreRelease: featuregate.Beta},
-		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
-	},
-
 	MultiCIDRServiceAllocator: {
 		{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Beta},
-	},
-
-	NewVolumeManagerReconstruction: {
-		{Version: version.MustParse("1.25"), Default: false, PreRelease: featuregate.Alpha},
-		{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Beta},
-		{Version: version.MustParse("1.28"), Default: true, PreRelease: featuregate.Beta},
-		{Version: version.MustParse("1.30"), Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.32
 	},
 
 	NFTablesProxyMode: {
@@ -452,12 +442,6 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 	NodeLogQuery: {
 		{Version: version.MustParse("1.27"), Default: false, PreRelease: featuregate.Alpha},
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: featuregate.Beta},
-	},
-
-	NodeOutOfServiceVolumeDetach: {
-		{Version: version.MustParse("1.24"), Default: false, PreRelease: featuregate.Alpha},
-		{Version: version.MustParse("1.26"), Default: true, PreRelease: featuregate.Beta},
-		{Version: version.MustParse("1.28"), Default: true, PreRelease: featuregate.GA, LockToDefault: true}, // remove in 1.31
 	},
 
 	NodeSwap: {
@@ -535,11 +519,6 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 
 	RecoverVolumeExpansionFailure: {
 		{Version: version.MustParse("1.23"), Default: false, PreRelease: featuregate.Alpha},
-	},
-
-	genericfeatures.AnonymousAuthConfigurableEndpoints: {
-		{Version: version.MustParse("1.31"), Default: false, PreRelease: featuregate.Alpha},
-		{Version: version.MustParse("1.32"), Default: true, PreRelease: featuregate.Beta},
 	},
 
 	RelaxedDNSSearchValidation: {

@@ -381,6 +381,11 @@ apiserver_watch_cache_consistent_read_total{fallback="true", resource="pods", su
 				t.Fatalf("Couldn't create cacher: %v", err)
 			}
 			defer cacher.Stop()
+			if !utilfeature.DefaultFeatureGate.Enabled(features.ResilientWatchCacheInitialization) {
+				if err := cacher.ready.wait(context.Background()); err != nil {
+					t.Fatalf("unexpected error waiting for the cache to be ready")
+				}
+			}
 
 			if fmt.Sprintf("%d", cacher.watchCache.resourceVersion) != tc.watchCacheRV {
 				t.Fatalf("Expected watch cache RV to equal watchCacheRV, got: %d, want: %s", cacher.watchCache.resourceVersion, tc.watchCacheRV)
@@ -861,8 +866,8 @@ func TestCacherDontAcceptRequestsStopped(t *testing.T) {
 		},
 	}, listResult)
 	if !utilfeature.DefaultFeatureGate.Enabled(features.ResilientWatchCacheInitialization) {
-		if err == nil {
-			t.Fatalf("Success to create GetList: %v", err)
+		if err != nil {
+			t.Fatalf("Failed to create GetList: %v", err)
 		}
 	} else {
 		if err != nil {
