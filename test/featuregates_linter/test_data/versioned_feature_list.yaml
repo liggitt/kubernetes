@@ -1030,13 +1030,13 @@
   versionedSpecs:
   - default: false
     lockToDefault: false
-    preRelease: Alpha
+    preRelease: Beta
     version: "1.30"
 - name: StrictCostEnforcementForWebhooks
   versionedSpecs:
   - default: false
     lockToDefault: false
-    preRelease: Alpha
+    preRelease: Beta
     version: "1.30"
 - name: StructuredAuthenticationConfiguration
   versionedSpecs:
