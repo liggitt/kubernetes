@@ -448,5 +448,4 @@ var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureS
 
 	RetryGenerateName: {Default: true, PreRelease: featuregate.Beta},
 
-	InPlacePodVerticalScaling: {Default: false, PreRelease: featuregate.Alpha},
 }
