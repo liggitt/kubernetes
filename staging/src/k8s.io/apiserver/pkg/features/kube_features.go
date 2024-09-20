@@ -443,9 +443,7 @@ var defaultVersionedKubernetesFeatureGates = map[featuregate.Feature]featuregate
 // To add a new feature, define a key for it above and add it here. The features will be
 // available throughout Kubernetes binaries.
 var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-
 	KMSv1: {Default: false, PreRelease: featuregate.Deprecated},
 
 	RetryGenerateName: {Default: true, PreRelease: featuregate.Beta},
-
 }
