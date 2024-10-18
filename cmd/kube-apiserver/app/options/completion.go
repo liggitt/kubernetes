@@ -17,6 +17,7 @@ limitations under the License.
 package options
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -45,7 +46,7 @@ type CompletedOptions struct {
 
 // Complete set default ServerRunOptions.
 // Should be called after kube-apiserver flags parsed.
-func (opts *ServerRunOptions) Complete() (CompletedOptions, error) {
+func (opts *ServerRunOptions) Complete(ctx context.Context) (CompletedOptions, error) {
 	if opts == nil {
 		return CompletedOptions{completedOptions: &completedOptions{}}, nil
 	}
@@ -56,7 +57,7 @@ func (opts *ServerRunOptions) Complete() (CompletedOptions, error) {
 	if err != nil {
 		return CompletedOptions{}, err
 	}
-	controlplane, err := opts.Options.Complete([]string{"kubernetes.default.svc", "kubernetes.default", "kubernetes"}, []net.IP{apiServerServiceIP})
+	controlplane, err := opts.Options.Complete(ctx, []string{"kubernetes.default.svc", "kubernetes.default", "kubernetes"}, []net.IP{apiServerServiceIP})
 	if err != nil {
 		return CompletedOptions{}, err
 	}

@@ -107,7 +107,7 @@ func StartRealAPIServerOrDie(t *testing.T, configFuncs ...func(*options.ServerRu
 	for _, f := range configFuncs {
 		f(opts)
 	}
-	completedOptions, err := opts.Complete()
+	completedOptions, err := opts.Complete(tCtx)
 	if err != nil {
 		t.Fatal(err)
 	}
