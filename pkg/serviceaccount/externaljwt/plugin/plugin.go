@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
+
 	externaljwtv1alpha1 "k8s.io/externaljwt/apis/v1alpha1"
 	"k8s.io/kubernetes/pkg/serviceaccount"
 	externaljwtmetrics "k8s.io/kubernetes/pkg/serviceaccount/externaljwt/metrics"
@@ -75,7 +76,7 @@ func New(ctx context.Context, issuer, socketPath string, keySyncTimeout time.Dur
 
 	go func() {
 		<-ctx.Done()
-		conn.Close()
+		_ = conn.Close()
 	}()
 
 	return plugin, plugin.keyCache, nil

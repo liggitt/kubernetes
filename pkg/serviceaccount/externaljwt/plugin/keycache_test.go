@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+
 	externaljwtv1alpha1 "k8s.io/externaljwt/apis/v1alpha1"
 	"k8s.io/kubernetes/pkg/serviceaccount"
 )
@@ -91,6 +93,7 @@ func TestExternalPublicKeyGetter(t *testing.T) {
 			ctx := context.Background()
 
 			sockname := fmt.Sprintf("@test-external-public-key-getter-%d.sock", i)
+			t.Cleanup(func() { _ = os.Remove(sockname) })
 
 			addr := &net.UnixAddr{Name: sockname, Net: "unix"}
 			listener, err := net.ListenUnix(addr.Network(), addr)
@@ -124,7 +127,9 @@ func TestExternalPublicKeyGetter(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to dial buffconn client: %v", err)
 			}
-			defer clientConn.Close()
+			defer func() {
+				_ = clientConn.Close()
+			}()
 
 			plugin := newPlugin("iss", clientConn, true)
 
@@ -156,7 +161,8 @@ func TestExternalPublicKeyGetter(t *testing.T) {
 func TestInitialFill(t *testing.T) {
 	ctx := context.Background()
 
-	sockname := fmt.Sprintf("@test-initial-fill.sock")
+	sockname := "@test-initial-fill.sock"
+	t.Cleanup(func() { _ = os.Remove(sockname) })
 
 	addr := &net.UnixAddr{Name: sockname, Net: "unix"}
 	listener, err := net.ListenUnix(addr.Network(), addr)
@@ -203,7 +209,7 @@ func TestInitialFill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to dial buffconn client: %v", err)
 	}
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	plugin := newPlugin("iss", clientConn, true)
 
@@ -220,7 +226,8 @@ func TestInitialFill(t *testing.T) {
 func TestReflectChanges(t *testing.T) {
 	ctx := context.Background()
 
-	sockname := fmt.Sprintf("@test-reflect-changes.sock")
+	sockname := "@test-reflect-changes.sock"
+	t.Cleanup(func() { _ = os.Remove(sockname) })
 
 	addr := &net.UnixAddr{Name: sockname, Net: "unix"}
 	listener, err := net.ListenUnix(addr.Network(), addr)
@@ -267,7 +274,7 @@ func TestReflectChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to dial buffconn client: %v", err)
 	}
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	plugin := newPlugin("iss", clientConn, true)
 

@@ -104,6 +104,8 @@ func validateUnknownVersionInteroperabilityProxyFlags(options *Options) []error 
 	return err
 }
 
+var pathOrSocket = regexp.MustCompile(`(^(/[^/ ]*)+/?$)|(^@([a-zA-Z0-9_-]+\.)*[a-zA-Z0-9_-]+$)`)
+
 func validateServiceAccountTokenSigningConfig(options *Options) []error {
 	if len(options.ServiceAccountSigningEndpoint) == 0 {
 		return nil
@@ -112,18 +114,14 @@ func validateServiceAccountTokenSigningConfig(options *Options) []error {
 	errors := []error{}
 
 	if len(options.ServiceAccountSigningKeyFile) != 0 || len(options.Authentication.ServiceAccounts.KeyFiles) != 0 {
-		errors = append(errors, fmt.Errorf("Can't set `--service-account-signing-key-file` and/or `--service-account-key-file` with `--service-account-signing-endpoint` (They are mutually exclusive)"))
+		errors = append(errors, fmt.Errorf("can't set `--service-account-signing-key-file` and/or `--service-account-key-file` with `--service-account-signing-endpoint` (They are mutually exclusive)"))
 	}
 	if !utilfeature.DefaultFeatureGate.Enabled(features.ExternalServiceAccountTokenSigner) {
-		errors = append(errors, fmt.Errorf("Setting `--service-account-signing-endpoint` requires enabling ExternalServiceAccountTokenSigner feature gate."))
+		errors = append(errors, fmt.Errorf("setting `--service-account-signing-endpoint` requires enabling ExternalServiceAccountTokenSigner feature gate"))
 	}
 	// Check if ServiceAccountSigningEndpoint is a linux file path or an abstract socket name.
-	match, err := regexp.MatchString("(^(/[^/ ]*)+/?$)|(^@([a-zA-Z0-9_-]+\\.)*[a-zA-Z0-9_-]+$)", options.ServiceAccountSigningEndpoint)
-	if err != nil {
-		errors = append(errors, fmt.Errorf("Failed to validate input value for `--service-account-signing-endpoint`."))
-	}
-	if !match {
-		errors = append(errors, fmt.Errorf("Invalid value %q passed for `--service-account-signing-endpoint`, should be a valid location on the filesystem or must be prefixed with @ to name UDS in abstract namespace.", options.ServiceAccountSigningEndpoint))
+	if !pathOrSocket.MatchString(options.ServiceAccountSigningEndpoint) {
+		errors = append(errors, fmt.Errorf("invalid value %q passed for `--service-account-signing-endpoint`, should be a valid location on the filesystem or must be prefixed with @ to name UDS in abstract namespace", options.ServiceAccountSigningEndpoint))
 	}
 
 	return errors

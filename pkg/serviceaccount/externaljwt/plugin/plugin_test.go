@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -35,15 +36,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gopkg.in/square/go-jose.v2/jwt"
+
 	"k8s.io/kubernetes/pkg/serviceaccount"
 
 	externaljwtv1alpha1 "k8s.io/externaljwt/apis/v1alpha1"
 )
 
 var (
-	unixSocket      = "/tmp/mysocket.sock"
-	commonSignature = "common-signature"
-
 	rsaKey1 *rsa.PrivateKey
 	rsaKey2 *rsa.PrivateKey
 )
@@ -236,6 +235,7 @@ func TestExternalTokenGenerator(t *testing.T) {
 			ctx := context.Background()
 
 			sockname := fmt.Sprintf("@test-external-token-generator-%d.sock", i)
+			t.Cleanup(func() { _ = os.Remove(sockname) })
 
 			addr := &net.UnixAddr{Name: sockname, Net: "unix"}
 			listener, err := net.ListenUnix(addr.Network(), addr)
@@ -272,7 +272,7 @@ func TestExternalTokenGenerator(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to dial buffconn client: %v", err)
 			}
-			defer clientConn.Close()
+			defer func() { _ = clientConn.Close() }()
 
 			plugin := newPlugin(tc.iss, clientConn, tc.allowSigningWithNonOIDCKeys)
 			err = plugin.keyCache.initialFill(ctx)
@@ -297,7 +297,7 @@ func TestExternalTokenGenerator(t *testing.T) {
 
 			gotClaimBytes, err := base64.RawURLEncoding.DecodeString(payloadBase64)
 			if err != nil {
-				t.Fatalf("error converting recieved tokens to bytes: %v", err)
+				t.Fatalf("error converting received tokens to bytes: %v", err)
 			}
 
 			gotClaims := unifiedClaimsT{}
@@ -317,22 +317,7 @@ func TestExternalTokenGenerator(t *testing.T) {
 }
 
 func sortPublicKeySlice(a, b serviceaccount.PublicKey) bool {
-	if a.KeyID < b.KeyID {
-		return true
-	} else if a.KeyID == b.KeyID {
-		// We don't have a meaningful way to order arbitary public keys.
-		return false
-	} else {
-		return false
-	}
-}
-
-type claim struct {
-	Subject  string   `json:"sub,omitempty"`
-	Audience []string `json:"aud,omitempty"`
-	ID       string   `json:"jti,omitempty"`
-	Pc       string   `json:"pc,omitempty"`
-	Issuer   string   `json:"iss,omitempty"`
+	return a.KeyID < b.KeyID
 }
 
 type headerT struct {

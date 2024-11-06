@@ -106,7 +106,7 @@ func TestExternalJWTSigningAndAuth(t *testing.T) {
 			desc: "signing key not among supported set",
 			preTestSignerUpdate: func() {
 				mockSigner.SigningKey = key1
-				mockSigner.SigningKeyId = "updated-kid-1"
+				mockSigner.SigningKeyID = "updated-kid-1"
 			},
 			preValidationSignerUpdate: func() { /*no-op*/ },
 			shouldPassAuth:            false,
@@ -115,7 +115,7 @@ func TestExternalJWTSigningAndAuth(t *testing.T) {
 			desc: "signing key corresponds to public key that is excluded from OIDC",
 			preTestSignerUpdate: func() {
 				mockSigner.SigningKey = key1
-				mockSigner.SigningKeyId = "updated-kid-1"
+				mockSigner.SigningKeyID = "updated-kid-1"
 
 				cpy := make(map[string]v1alpha1testing.KeyT)
 				for key, value := range *mockSigner.SupportedKeys.Load() {

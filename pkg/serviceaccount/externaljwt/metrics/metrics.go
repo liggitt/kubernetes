@@ -18,7 +18,6 @@ package metrics
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"sync"
 	"time"
@@ -95,15 +94,9 @@ var (
 )
 
 var registerMetrics sync.Once
-var hashPool *sync.Pool
 
 func RegisterMetrics() {
 	registerMetrics.Do(func() {
-		hashPool = &sync.Pool{
-			New: func() interface{} {
-				return sha256.New()
-			},
-		}
 		legacyregistry.MustRegister(lastKeyFetchTimeStamp)
 		legacyregistry.MustRegister(dataTimeStamp)
 		legacyregistry.MustRegister(totalKeyFetch)

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package v1alpha1
 
 import (
@@ -32,6 +33,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"k8s.io/externaljwt/apis/v1alpha1"
 	"k8s.io/klog/v2"
 )
@@ -42,7 +44,7 @@ type MockSigner struct {
 	listener   net.Listener
 
 	SigningKey                *rsa.PrivateKey
-	SigningKeyId              string
+	SigningKeyID              string
 	SigningAlg                string
 	TokenType                 string
 	SupportedKeys             atomic.Pointer[map[string]KeyT]
@@ -75,7 +77,7 @@ func NewMockSigner(t *testing.T, socketPath string) *MockSigner {
 	}
 
 	v1alpha1.RegisterExternalJWTSignerServer(server, m)
-	if err := m.start(); err != nil {
+	if err := m.start(t); err != nil {
 		t.Fatalf("failed to start Mock Signer with error: %v", err)
 	}
 
@@ -96,7 +98,7 @@ func (m *MockSigner) Sign(ctx context.Context, req *v1alpha1.SignJWTRequest) (*v
 	}{
 		Type:      m.TokenType,
 		Algorithm: m.SigningAlg,
-		KeyID:     m.SigningKeyId,
+		KeyID:     m.SigningKeyID,
 	}
 
 	headerJSON, err := json.Marshal(header)
@@ -174,7 +176,7 @@ func (m *MockSigner) Reset() error {
 	}
 
 	m.SigningKey = priv1
-	m.SigningKeyId = "kid-1"
+	m.SigningKeyID = "kid-1"
 	m.SigningAlg = "RS256"
 	m.TokenType = "JWT"
 	m.SupportedKeys.Store(&map[string]KeyT{
@@ -190,16 +192,20 @@ func (m *MockSigner) Reset() error {
 }
 
 // start makes the gRpc MockServer listen on unix socket.
-func (m *MockSigner) start() error {
+func (m *MockSigner) start(t *testing.T) error {
 	var err error
 
 	m.listener, err = net.Listen("unix", m.socketPath)
 	if err != nil {
-		return fmt.Errorf("failed to listen on the unix socket, error: %v", err)
+		return fmt.Errorf("failed to listen on the unix socket, error: %w", err)
 	}
 
 	klog.Infof("Starting Mock Signer at socketPath %s", m.socketPath)
-	go m.server.Serve(m.listener)
+	go func() {
+		if err := m.server.Serve(m.listener); err != nil {
+			t.Error(err)
+		}
+	}()
 	klog.Infof("Mock Signer listening at socketPath %s", m.socketPath)
 
 	return nil
@@ -217,7 +223,7 @@ func (m *MockSigner) waitForMockServerToStart() error {
 	for range 30 {
 		select {
 		case <-doneCh:
-			return fmt.Errorf("failed to start Mock signer: %v", ctx.Err())
+			return fmt.Errorf("failed to start Mock signer: %w", ctx.Err())
 		default:
 		}
 		if _, gRPCErr = m.FetchKeys(context.Background(), &v1alpha1.FetchKeysRequest{}); gRPCErr == nil {
@@ -227,7 +233,7 @@ func (m *MockSigner) waitForMockServerToStart() error {
 	}
 
 	if gRPCErr != nil {
-		return fmt.Errorf("failed to start Mock signer, gRPC error: %v", gRPCErr)
+		return fmt.Errorf("failed to start Mock signer, gRPC error: %w", gRPCErr)
 	}
 
 	return nil
@@ -261,6 +267,5 @@ func generateKeyPair() (*rsa.PrivateKey, []byte, error) {
 func hashBytes(bytes []byte) []byte {
 	hasher := crypto.SHA256.New()
 	hasher.Write(bytes)
-	hash := hasher.Sum(nil)
-	return hash[:]
+	return hasher.Sum(nil)
 }

@@ -278,7 +278,7 @@ func (o *Options) completeServiceAccountOptions(ctx context.Context, completed *
 	if len(completed.Authentication.ServiceAccounts.Issuers) != 0 && completed.Authentication.ServiceAccounts.Issuers[0] != "" {
 		switch {
 		case completed.ServiceAccountSigningEndpoint != "" && completed.ServiceAccountSigningKeyFile != "":
-			return fmt.Errorf("service-account-signing-key-file and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time.")
+			return fmt.Errorf("service-account-signing-key-file and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time")
 		case completed.ServiceAccountSigningKeyFile != "":
 			sk, err := keyutil.PrivateKeyFromFile(completed.ServiceAccountSigningKeyFile)
 			if err != nil {
@@ -300,10 +300,10 @@ func (o *Options) completeServiceAccountOptions(ctx context.Context, completed *
 				return fmt.Errorf("while setting up external-jwt-signer: %w", err)
 			}
 			if metadata.MaxTokenExpirationSeconds < validation.MinTokenAgeSec {
-				return fmt.Errorf("Max token life supported by external-jwt-signer (%ds) is less than acceptable (min %ds)", metadata.MaxTokenExpirationSeconds, validation.MinTokenAgeSec)
+				return fmt.Errorf("max token life supported by external-jwt-signer (%ds) is less than acceptable (min %ds)", metadata.MaxTokenExpirationSeconds, validation.MinTokenAgeSec)
 			}
 			if completed.Authentication.ServiceAccounts.MaxExpiration != 0 {
-				return fmt.Errorf("service-account-max-token-expiration and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time.")
+				return fmt.Errorf("service-account-max-token-expiration and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time")
 			}
 			transitionWarningFmt = "service-account-extend-token-expiration is true, in order to correctly trigger safe transition logic, token lifetime supported by external-jwt-signer must be longer than %d seconds (currently %s)"
 			expExtensionWarningFmt = "service-account-extend-token-expiration is true, tokens validity will be caped at the smaller of %d seconds and maximum token lifetime supported by external-jwt-signer (%s)"

@@ -336,8 +336,8 @@ func TestCompleteForServiceAccount(t *testing.T) {
 		t.Fatalf("Failed to create private key file: %v", err)
 	}
 	t.Cleanup(func() {
-		privateKeyFile.Close()
-		os.Remove("private_key.pem")
+		_ = privateKeyFile.Close()
+		_ = os.Remove("private_key.pem")
 	})
 
 	// Write the PEM-encoded private key to the file
@@ -374,7 +374,7 @@ func TestCompleteForServiceAccount(t *testing.T) {
 			signingKeyFiles: "private_key.pem",
 			maxExpiration:   time.Second * 3600,
 
-			wantError: fmt.Errorf("service-account-signing-key-file and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time."),
+			wantError: fmt.Errorf("service-account-signing-key-file and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time"),
 		},
 		{
 			desc: "max token expiration breaching accepteable values",
@@ -424,7 +424,7 @@ func TestCompleteForServiceAccount(t *testing.T) {
 			maxExpiration:            time.Second * 3600,
 			externalMaxExpirationSec: 600, // 10m
 
-			wantError: fmt.Errorf("service-account-max-token-expiration and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time."),
+			wantError: fmt.Errorf("service-account-max-token-expiration and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time"),
 		},
 		{
 			desc: "signing endpoint provided but return smaller than accaptable max token exp",
@@ -436,7 +436,7 @@ func TestCompleteForServiceAccount(t *testing.T) {
 			maxExpiration:            0,
 			externalMaxExpirationSec: 300, // 5m
 
-			wantError: fmt.Errorf("Max token life supported by external-jwt-signer (300s) is less than acceptable (min 600s)"),
+			wantError: fmt.Errorf("max token life supported by external-jwt-signer (300s) is less than acceptable (min 600s)"),
 		},
 		{
 			desc: "signing endpoint provided and error when getting metadata",
@@ -478,7 +478,7 @@ func TestCompleteForServiceAccount(t *testing.T) {
 				},
 			}
 
-			mockSigner.Reset()
+			_ = mockSigner.Reset()
 			mockSigner.MaxTokenExpirationSeconds = tc.externalMaxExpirationSec
 			mockSigner.MetadataError = tc.metadataError
 			mockSigner.FetchError = tc.fetchError

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"gopkg.in/square/go-jose.v2/jwt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
@@ -69,14 +70,14 @@ func TestCreate_Token_WithExpiryCap(t *testing.T) {
 			isExternal:           false,
 		},
 		{
-			desc:                 "requested time use with extention disabled",
+			desc:                 "requested time use with extension disabled",
 			extendExpiration:     false,
 			maxExpirationSeconds: 5 * 60 * 60, // 5h
 			expectedTokenAgeSec:  3607,        // 1h
 			isExternal:           true,
 		},
 		{
-			desc:                 "maxExpirationSeconds honoured with extention disabled",
+			desc:                 "maxExpirationSeconds honoured with extension disabled",
 			extendExpiration:     false,
 			maxExpirationSeconds: 30 * 60, // 30m
 			expectedTokenAgeSec:  30 * 60, // 30m
