@@ -306,15 +306,37 @@ func (o *Options) completeServiceAccountOptions(ctx context.Context, completed *
 			if metadata.MaxTokenExpirationSeconds < validation.MinTokenAgeSec {
 				return fmt.Errorf("max token life supported by external-jwt-signer (%ds) is less than acceptable (min %ds)", metadata.MaxTokenExpirationSeconds, validation.MinTokenAgeSec)
 			}
-			if completed.Authentication.ServiceAccounts.MaxExpiration != 0 {
-				return fmt.Errorf("service-account-max-token-expiration and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time")
+
+			maxExternalExpiration := time.Duration(metadata.MaxTokenExpirationSeconds) * time.Second
+			switch {
+			case completed.Authentication.ServiceAccounts.MaxExpiration == 0,
+				completed.Authentication.ServiceAccounts.MaxExpiration == maxExternalExpiration:
+
+				// no local max is set, or the local max matches the external expiration, so use the external expiration.
+				completed.Authentication.ServiceAccounts.MaxExpiration = maxExternalExpiration
+				// require extended token duration to honor MaxExpiration as a hard limit.
+				completed.Authentication.ServiceAccounts.IsTokenSignerExternal = true
+
+			case completed.Authentication.ServiceAccounts.MaxExpiration < maxExternalExpiration:
+				// a shorter local max is already set, leave that as-is for non-extended tokens.
+
+				switch {
+				case !completed.Authentication.ServiceAccounts.ExtendExpiration:
+					// extended expiration tokens are not enabled.
+				case metadata.MaxTokenExpirationSeconds >= serviceaccount.ExpirationExtensionSeconds:
+					// extended expiration tokens are enabled, but the external signer is longer than the natural lifetime of extended tokens.
+				default:
+					return fmt.Errorf("service-account-max-token-expiration shorter than the token expiration supported by service-account-signing-endpoint (%s < %s) cannot be honored when extended tokens are enabled and the external signer expiration is shorter than default extended token expiration (%s < %s)", completed.Authentication.ServiceAccounts.MaxExpiration, maxExternalExpiration, maxExternalExpiration, time.Duration(serviceaccount.ExpirationExtensionSeconds*time.Second))
+				}
+
+			default:
+				return fmt.Errorf("service-account-max-token-expiration cannot be set longer than the token expiration supported by service-account-signing-endpoint: %s > %s", completed.Authentication.ServiceAccounts.MaxExpiration, maxExternalExpiration)
 			}
+
 			transitionWarningFmt = "service-account-extend-token-expiration is true, in order to correctly trigger safe transition logic, token lifetime supported by external-jwt-signer must be longer than %d seconds (currently %s)"
 			expExtensionWarningFmt = "service-account-extend-token-expiration is true, tokens validity will be caped at the smaller of %d seconds and maximum token lifetime supported by external-jwt-signer (%s)"
 			completed.ServiceAccountIssuer = plugin
 			completed.Authentication.ServiceAccounts.ExternalPublicKeysGetter = cache
-			completed.Authentication.ServiceAccounts.MaxExpiration = time.Duration(metadata.MaxTokenExpirationSeconds) * time.Second
-			completed.Authentication.ServiceAccounts.IsTokenSignerExternal = true
 		}
 	}
 

@@ -46,6 +46,7 @@ import (
 	"k8s.io/component-base/metrics"
 	utilversion "k8s.io/component-base/version"
 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
+	"k8s.io/kubernetes/pkg/serviceaccount"
 	v1alpha1testing "k8s.io/kubernetes/pkg/serviceaccount/externaljwt/plugin/testing/v1alpha1"
 	netutils "k8s.io/utils/net"
 )
@@ -357,6 +358,7 @@ func TestCompleteForServiceAccount(t *testing.T) {
 		signingKeyFiles          string
 		maxExpiration            time.Duration
 		externalMaxExpirationSec int64
+		extendExpiration         bool
 		fetchError               error
 		metadataError            error
 
@@ -415,7 +417,7 @@ func TestCompleteForServiceAccount(t *testing.T) {
 			expectedMaxtokenExp:            time.Second * 600, // 10m
 		},
 		{
-			desc: "signing endpoint provided and max token expiration set",
+			desc: "signing endpoint provided and longer max token expiration set",
 			issuers: []string{
 				"iss",
 			},
@@ -424,7 +426,50 @@ func TestCompleteForServiceAccount(t *testing.T) {
 			maxExpiration:            time.Second * 3600,
 			externalMaxExpirationSec: 600, // 10m
 
-			wantError: fmt.Errorf("service-account-max-token-expiration and service-account-signing-endpoint are mutually exclusive and cannot be set at the same time"),
+			wantError: fmt.Errorf("service-account-max-token-expiration cannot be set longer than the token expiration supported by service-account-signing-endpoint: 1h0m0s > 10m0s"),
+		},
+		{
+			desc: "signing endpoint provided disallowing natural extended tokens, shorter max token expiration",
+			issuers: []string{
+				"iss",
+			},
+			signingEndpoint:          socketPath,
+			signingKeyFiles:          "",
+			maxExpiration:            time.Second * 3600,
+			externalMaxExpirationSec: serviceaccount.ExpirationExtensionSeconds - 1,
+			extendExpiration:         true,
+
+			wantError: fmt.Errorf("service-account-max-token-expiration shorter than the token expiration supported by service-account-signing-endpoint (1h0m0s < 8759h59m59s) cannot be honored when extended tokens are enabled and the external signer expiration is shorter than default extended token expiration (8759h59m59s < 8760h0m0s)"),
+		},
+		{
+			desc: "signing endpoint provided allowing natural extended tokens, shorter max token expiration",
+			issuers: []string{
+				"iss",
+			},
+			signingEndpoint:          socketPath,
+			signingKeyFiles:          "",
+			maxExpiration:            time.Second * 3600,
+			externalMaxExpirationSec: serviceaccount.ExpirationExtensionSeconds, // external signer allows extended tokens naturally
+			extendExpiration:         true,
+
+			expectedIsExternalSigner:       false,
+			externalPublicKeyGetterPresent: true,
+			expectedMaxtokenExp:            time.Second * 3600,
+		},
+		{
+			desc: "signing endpoint provided disallowing natural extended tokens, shorter max token expiration, extended tokens disabled",
+			issuers: []string{
+				"iss",
+			},
+			signingEndpoint:          socketPath,
+			signingKeyFiles:          "",
+			maxExpiration:            time.Second * 3600,
+			externalMaxExpirationSec: serviceaccount.ExpirationExtensionSeconds - 1,
+			extendExpiration:         false,
+
+			expectedIsExternalSigner:       false,
+			externalPublicKeyGetterPresent: true,
+			expectedMaxtokenExp:            time.Second * 3600,
 		},
 		{
 			desc: "signing endpoint provided but return smaller than accaptable max token exp",
@@ -475,6 +520,8 @@ func TestCompleteForServiceAccount(t *testing.T) {
 				ServiceAccounts: &kubeoptions.ServiceAccountAuthenticationOptions{
 					Issuers:       tc.issuers,
 					MaxExpiration: tc.maxExpiration,
+
+					ExtendExpiration: tc.extendExpiration,
 				},
 			}
 
