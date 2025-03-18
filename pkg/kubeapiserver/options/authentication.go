@@ -100,8 +100,10 @@ type BuiltInAuthenticationOptions struct {
 
 // AnonymousAuthenticationOptions contains anonymous authentication options for API Server
 type AnonymousAuthenticationOptions struct {
-	Allow       bool
-	areFlagsSet func() bool
+	Allow bool
+
+	// FlagsSet tracks whether any of the configuration options were set via a command-line flag.
+	FlagsSet bool
 }
 
 // BootstrapTokenAuthenticationOptions contains bootstrap token authentication options for API Server
@@ -121,8 +123,8 @@ type OIDCAuthenticationOptions struct {
 	SigningAlgs    []string
 	RequiredClaims map[string]string
 
-	// areFlagsConfigured is a function that returns true if any of the oidc-* flags are configured.
-	areFlagsConfigured func() bool
+	// FlagsSet tracks whether any of the configuration options were set via a command-line flag.
+	FlagsSet bool
 }
 
 // ServiceAccountAuthenticationOptions contains service account authentication options for API Server
@@ -183,8 +185,7 @@ func (o *BuiltInAuthenticationOptions) WithAll() *BuiltInAuthenticationOptions {
 // WithAnonymous set default value for anonymous authentication
 func (o *BuiltInAuthenticationOptions) WithAnonymous() *BuiltInAuthenticationOptions {
 	o.Anonymous = &AnonymousAuthenticationOptions{
-		Allow:       true,
-		areFlagsSet: func() bool { return false },
+		Allow: true,
 	}
 	return o
 }
@@ -204,9 +205,8 @@ func (o *BuiltInAuthenticationOptions) WithClientCert() *BuiltInAuthenticationOp
 // WithOIDC set default value for OIDC authentication
 func (o *BuiltInAuthenticationOptions) WithOIDC() *BuiltInAuthenticationOptions {
 	o.OIDC = &OIDCAuthenticationOptions{
-		areFlagsConfigured: func() bool { return false },
-		UsernameClaim:      "sub",
-		SigningAlgs:        []string{"RS256"},
+		UsernameClaim: "sub",
+		SigningAlgs:   []string{"RS256"},
 	}
 	return o
 }
@@ -333,14 +333,10 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 		"defaults to a single element list containing the issuer URL.")
 
 	if o.Anonymous != nil {
-		fs.BoolVar(&o.Anonymous.Allow, "anonymous-auth", o.Anonymous.Allow, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewBoolRef(&o.Anonymous.Allow), &o.Anonymous.FlagsSet), "anonymous-auth", ""+
 			"Enables anonymous requests to the secure port of the API server. "+
 			"Requests that are not rejected by another authentication method are treated as anonymous requests. "+
 			"Anonymous requests have a username of system:anonymous, and a group name of system:unauthenticated.")
-
-		o.Anonymous.areFlagsSet = func() bool {
-			return fs.Changed("anonymous-auth")
-		}
 	}
 
 	if o.BootstrapToken != nil {
@@ -354,57 +350,45 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 	}
 
 	if o.OIDC != nil {
-		fs.StringVar(&o.OIDC.IssuerURL, oidcIssuerURLFlag, o.OIDC.IssuerURL, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringRef(&o.OIDC.IssuerURL), &o.OIDC.FlagsSet), oidcIssuerURLFlag, ""+
 			"The URL of the OpenID issuer, only HTTPS scheme will be accepted. "+
 			"If set, it will be used to verify the OIDC JSON Web Token (JWT).")
 
-		fs.StringVar(&o.OIDC.ClientID, oidcClientIDFlag, o.OIDC.ClientID, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringRef(&o.OIDC.ClientID), &o.OIDC.FlagsSet), oidcClientIDFlag, ""+
 			"The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.")
 
-		fs.StringVar(&o.OIDC.CAFile, oidcCAFileFlag, o.OIDC.CAFile, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringRef(&o.OIDC.CAFile), &o.OIDC.FlagsSet), oidcCAFileFlag, ""+
 			"If set, the OpenID server's certificate will be verified by one of the authorities "+
 			"in the oidc-ca-file, otherwise the host's root CA set will be used.")
 
-		fs.StringVar(&o.OIDC.UsernameClaim, oidcUsernameClaimFlag, o.OIDC.UsernameClaim, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringRef(&o.OIDC.UsernameClaim), &o.OIDC.FlagsSet), oidcUsernameClaimFlag, ""+
 			"The OpenID claim to use as the user name. Note that claims other than the default ('sub') "+
 			"is not guaranteed to be unique and immutable. This flag is experimental, please see "+
 			"the authentication documentation for further details.")
 
-		fs.StringVar(&o.OIDC.UsernamePrefix, oidcUsernamePrefixFlag, o.OIDC.UsernamePrefix, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringRef(&o.OIDC.UsernamePrefix), &o.OIDC.FlagsSet), oidcUsernamePrefixFlag, ""+
 			"If provided, all usernames will be prefixed with this value. If not provided, "+
 			"username claims other than 'email' are prefixed by the issuer URL to avoid "+
 			"clashes. To skip any prefixing, provide the value '-'.")
 
-		fs.StringVar(&o.OIDC.GroupsClaim, oidcGroupsClaimFlag, o.OIDC.GroupsClaim, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringRef(&o.OIDC.GroupsClaim), &o.OIDC.FlagsSet), oidcGroupsClaimFlag, ""+
 			"If provided, the name of a custom OpenID Connect claim for specifying user groups. "+
 			"The claim value is expected to be a string or array of strings. This flag is experimental, "+
 			"please see the authentication documentation for further details.")
 
-		fs.StringVar(&o.OIDC.GroupsPrefix, oidcGroupsPrefixFlag, o.OIDC.GroupsPrefix, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringRef(&o.OIDC.GroupsPrefix), &o.OIDC.FlagsSet), oidcGroupsPrefixFlag, ""+
 			"If provided, all groups will be prefixed with this value to prevent conflicts with "+
 			"other authentication strategies.")
 
-		fs.StringSliceVar(&o.OIDC.SigningAlgs, oidcSigningAlgsFlag, o.OIDC.SigningAlgs, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewStringSlice(&o.OIDC.SigningAlgs), &o.OIDC.FlagsSet), oidcSigningAlgsFlag, ""+
 			"Comma-separated list of allowed JOSE asymmetric signing algorithms. JWTs with a "+
 			"supported 'alg' header values are: RS256, RS384, RS512, ES256, ES384, ES512, PS256, PS384, PS512. "+
 			"Values are defined by RFC 7518 https://tools.ietf.org/html/rfc7518#section-3.1.")
 
-		fs.Var(cliflag.NewMapStringStringNoSplit(&o.OIDC.RequiredClaims), oidcRequiredClaimFlag, ""+
+		fs.Var(cliflag.NewTracker(cliflag.NewMapStringStringNoSplit(&o.OIDC.RequiredClaims), &o.OIDC.FlagsSet), oidcRequiredClaimFlag, ""+
 			"A key=value pair that describes a required claim in the ID Token. "+
 			"If set, the claim is verified to be present in the ID Token with a matching value. "+
 			"Repeat this flag to specify multiple claims.")
-
-		o.OIDC.areFlagsConfigured = func() bool {
-			return fs.Changed(oidcIssuerURLFlag) ||
-				fs.Changed(oidcClientIDFlag) ||
-				fs.Changed(oidcCAFileFlag) ||
-				fs.Changed(oidcUsernameClaimFlag) ||
-				fs.Changed(oidcUsernamePrefixFlag) ||
-				fs.Changed(oidcGroupsClaimFlag) ||
-				fs.Changed(oidcGroupsPrefixFlag) ||
-				fs.Changed(oidcSigningAlgsFlag) ||
-				fs.Changed(oidcRequiredClaimFlag)
-		}
 	}
 
 	if o.RequestHeader != nil {
@@ -572,7 +556,7 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 	// Set up anonymous authenticator from config file or flags
 	if o.Anonymous != nil {
 		switch {
-		case ret.AuthenticationConfig.Anonymous != nil && o.Anonymous.areFlagsSet():
+		case ret.AuthenticationConfig.Anonymous != nil && o.Anonymous.FlagsSet:
 			// Flags and config file are mutually exclusive
 			return kubeauthenticator.Config{}, field.Forbidden(field.NewPath("anonymous"), "--anonynous-auth flag cannot be set when anonymous field is configured in authentication configuration file")
 		case ret.AuthenticationConfig.Anonymous != nil:
@@ -828,7 +812,7 @@ func (o *BuiltInAuthenticationOptions) validateOIDCOptions() []error {
 
 	// Existing validation when jwt authenticator is configured with oidc-* flags
 	if len(o.AuthenticationConfigFile) == 0 {
-		if o.OIDC != nil && o.OIDC.areFlagsConfigured() && (len(o.OIDC.IssuerURL) == 0 || len(o.OIDC.ClientID) == 0) {
+		if o.OIDC != nil && o.OIDC.FlagsSet && (len(o.OIDC.IssuerURL) == 0 || len(o.OIDC.ClientID) == 0) {
 			allErrors = append(allErrors, fmt.Errorf("oidc-issuer-url and oidc-client-id must be specified together when any oidc-* flags are set"))
 		}
 
@@ -843,7 +827,7 @@ func (o *BuiltInAuthenticationOptions) validateOIDCOptions() []error {
 	}
 
 	// Authentication config file and oidc-* flags are mutually exclusive
-	if o.OIDC != nil && o.OIDC.areFlagsConfigured() {
+	if o.OIDC != nil && o.OIDC.FlagsSet {
 		allErrors = append(allErrors, fmt.Errorf("authentication-config file and oidc-* flags are mutually exclusive"))
 	}
 
