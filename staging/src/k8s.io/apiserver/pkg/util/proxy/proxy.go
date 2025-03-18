@@ -28,16 +28,14 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	auditinternal "k8s.io/apiserver/pkg/apis/audit"
 	"k8s.io/apiserver/pkg/audit"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	listersv1 "k8s.io/client-go/listers/core/v1"
-	discoveryv1listers "k8s.io/client-go/listers/discovery/v1"
 )
 
 const (
@@ -58,7 +56,7 @@ func findServicePort(svc *v1.Service, port int32) (*v1.ServicePort, error) {
 // ResolveEndpoint returns a URL to which one can send traffic for the specified service.
 // If the service is dual-stack, the URL will preferentially point to an endpoint of the
 // service's primary IP family.
-func ResolveEndpoint(services listersv1.ServiceLister, endpointSlices discoveryv1listers.EndpointSliceLister, namespace, id string, port int32) (*url.URL, error) {
+func ResolveEndpoint(services listersv1.ServiceLister, endpointSlices EndpointSliceGetter, namespace, id string, port int32) (*url.URL, error) {
 	svc, err := services.Services(namespace).Get(id)
 	if err != nil {
 		return nil, err
@@ -76,8 +74,7 @@ func ResolveEndpoint(services listersv1.ServiceLister, endpointSlices discoveryv
 		return nil, err
 	}
 
-	endpointSliceSelector := labels.SelectorFromSet(labels.Set{discoveryv1.LabelServiceName: svc.Name})
-	slices, err := endpointSlices.EndpointSlices(namespace).List(endpointSliceSelector)
+	slices, err := endpointSlices.GetEndpointSlices(namespace, svc.Name)
 	if err != nil {
 		return nil, err
 	}

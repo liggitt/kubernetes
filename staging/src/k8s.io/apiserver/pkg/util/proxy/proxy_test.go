@@ -293,7 +293,12 @@ func TestResolve(t *testing.T) {
 		clusterURL, err := ResolveCluster(serviceLister, "one", "alfa", 443)
 		check("cluster", test.clusterMode, clusterURL, err)
 
-		endpointURL, err := ResolveEndpoint(serviceLister, endpointSliceLister, "one", "alfa", 443)
+		endpointSliceGetter, err := NewEndpointSliceListerGetter(endpointSliceLister)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		endpointURL, err := ResolveEndpoint(serviceLister, endpointSliceGetter, "one", "alfa", 443)
 		check("endpoint", test.endpointMode, endpointURL, err)
 	}
 }
@@ -585,10 +590,15 @@ func TestResolveEndpointDistribution(t *testing.T) {
 				}
 			}
 
+			endpointSliceGetter, err := NewEndpointSliceListerGetter(endpointSliceLister)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			expectedURLs := sets.New(tc.expectedURLs...)
 			gotURLs := sets.New[string]()
 			for i := 0; i < 100; i++ {
-				endpointURL, err := ResolveEndpoint(serviceLister, endpointSliceLister, tc.service.Namespace, tc.service.Name, tc.service.Spec.Ports[0].Port)
+				endpointURL, err := ResolveEndpoint(serviceLister, endpointSliceGetter, tc.service.Namespace, tc.service.Name, tc.service.Spec.Ports[0].Port)
 				if err != nil {
 					t.Fatalf("unexpected error from ResolveEndpoint: %v", err)
 				}
