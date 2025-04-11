@@ -2470,7 +2470,7 @@ func TestValidateServiceCIDRUpdate(t *testing.T) {
 				out.Spec.CIDRs = []string{"10.0.0.0/16"}
 				return out
 			}(),
-			expectedErrs: field.ErrorList{field.Invalid(cidrsPath, []string{"10.0.0.0/16"}, apimachineryvalidation.FieldImmutableErrorMsg)},
+			expectedErrs: field.ErrorList{field.Invalid(cidr0Path, "10.0.0.0/16", apimachineryvalidation.FieldImmutableErrorMsg)},
 		},
 		{
 			name: "Failed update, single IPv4 to dual stack upgrade with primary change",

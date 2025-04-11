@@ -449,7 +449,7 @@ func (c *MetaAllocator) Destroy() {
 	select {
 	case <-c.internalStopCh:
 	default:
-		if !utilfeature.DefaultFeatureGate.Enabled(features.DisableAllocatorDualWrite) && c.bitmapAllocator != nil {
+		if !utilfeature.DefaultFeatureGate.Enabled(features.DisableAllocatorDualWrite) {
 			c.bitmapAllocator.Destroy()
 		}
 		close(c.internalStopCh)

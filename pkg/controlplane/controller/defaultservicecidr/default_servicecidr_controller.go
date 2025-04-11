@@ -92,7 +92,8 @@ type Controller struct {
 	serviceCIDRsSynced  cache.InformerSynced
 
 	interval time.Duration
-	once     bool
+
+	reportedMismatchedCIDRs bool
 }
 
 // Start will not return until the default ServiceCIDR exists or stopCh is closed.
@@ -212,9 +213,9 @@ func (c *Controller) syncStatus(serviceCIDR *networkingapiv1.ServiceCIDR) {
 			klog.Infof("error updating default ServiceCIDR status: %v", errApply)
 			c.eventRecorder.Eventf(serviceCIDR, v1.EventTypeWarning, "KubernetesDefaultServiceCIDRError", "The default ServiceCIDR Status can not be set to Ready=True")
 		}
-	} else if !c.once {
-		klog.Infof("unconsistent ServiceCIDR status, global configuration: %v local configuration: %v, configure the flags to match current ServiceCIDR or manually delete the default ServiceCIDR", serviceCIDR.Spec.CIDRs, c.cidrs)
+	} else if !c.reportedMismatchedCIDRs {
+		klog.Infof("inconsistent ServiceCIDR status, global configuration: %v local configuration: %v, configure the flags to match current ServiceCIDR or manually delete the default ServiceCIDR", serviceCIDR.Spec.CIDRs, c.cidrs)
 		c.eventRecorder.Eventf(serviceCIDR, v1.EventTypeWarning, "KubernetesDefaultServiceCIDRInconsistent", "The default ServiceCIDR %v does not match the flag configurations %s", serviceCIDR.Spec.CIDRs, c.cidrs)
-		c.once = true
+		c.reportedMismatchedCIDRs = true
 	}
 }
