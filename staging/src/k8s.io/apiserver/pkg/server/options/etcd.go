@@ -363,7 +363,7 @@ func (s *EtcdOptions) addEtcdHealthEndpoint(c *server.Config) error {
 	if err != nil {
 		return err
 	}
-	c.AddHealthChecks(healthz.NamedCheck("etcd", func(r *http.Request) error {
+	c.AddHealthChecks(healthz.NamedGroupedCheck("etcd", "etcd", func(r *http.Request) error {
 		return healthCheck()
 	}))
 
@@ -371,7 +371,7 @@ func (s *EtcdOptions) addEtcdHealthEndpoint(c *server.Config) error {
 	if err != nil {
 		return err
 	}
-	c.AddReadyzChecks(healthz.NamedCheck("etcd-readiness", func(r *http.Request) error {
+	c.AddReadyzChecks(healthz.NamedGroupedCheck("etcd-readiness", "etcd-readiness", func(r *http.Request) error {
 		return readyCheck()
 	}))
 
