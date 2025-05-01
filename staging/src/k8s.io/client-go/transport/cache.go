@@ -94,6 +94,20 @@ func (c *tlsTransportCache) get(config *Config) (http.RoundTripper, error) {
 		metrics.TransportCreateCalls.Increment("uncacheable")
 	}
 
+	transport, err := UncachedTransportFor(config)
+	if err != nil {
+		return nil, err
+	}
+
+	if canCache {
+		// Cache a single transport for these options
+		c.transports[key] = transport
+	}
+
+	return transport, nil
+}
+
+func UncachedTransportFor(config *Config) (*http.Transport, error) {
 	// Get the TLS options for this client config
 	tlsConfig, err := TLSConfigFor(config)
 	if err != nil {
@@ -101,7 +115,7 @@ func (c *tlsTransportCache) get(config *Config) (http.RoundTripper, error) {
 	}
 	// The options didn't require a custom TLS config
 	if tlsConfig == nil && config.DialHolder == nil && config.Proxy == nil {
-		return http.DefaultTransport, nil
+		return http.DefaultTransport.(*http.Transport), nil
 	}
 
 	var dial func(ctx context.Context, network, address string) (net.Conn, error)
@@ -139,12 +153,6 @@ func (c *tlsTransportCache) get(config *Config) (http.RoundTripper, error) {
 		DialContext:         dial,
 		DisableCompression:  config.DisableCompression,
 	})
-
-	if canCache {
-		// Cache a single transport for these options
-		c.transports[key] = transport
-	}
-
 	return transport, nil
 }
 

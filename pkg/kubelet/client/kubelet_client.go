@@ -107,6 +107,19 @@ func makeTransport(config *KubeletClientConfig, insecureSkipTLSVerify bool) (htt
 			transportConfig.DialHolder = &transport.DialHolder{Dial: dialer}
 		}
 	}
+
+	if !insecureSkipTLSVerify && !transportConfig.TLS.Insecure && true /* feature gate enabled */ {
+		baseTransport, err := transport.UncachedTransportFor(transportConfig)
+		if err != nil {
+			return nil, err
+		}
+		nodeVerifyingTransport, err := newNodeVerifyingTransport(baseTransport)
+		if err != nil {
+			return nil, err
+		}
+		return nodeVerifyingTransport, nil
+	}
+
 	return transport.New(transportConfig)
 }
 
@@ -203,11 +216,16 @@ func (k *NodeConnectionInfoGetter) GetConnectionInfo(ctx context.Context, nodeNa
 		port = k.defaultPort
 	}
 
+	secureTransport := k.transport
+	if true /* feature gate enabled */ {
+		secureTransport = newNodeInfoInjectingTransport(nodeName, secureTransport)
+	}
+
 	return &ConnectionInfo{
 		Scheme:                         k.scheme,
 		Hostname:                       host,
 		Port:                           strconv.Itoa(port),
-		Transport:                      k.transport,
+		Transport:                      secureTransport,
 		InsecureSkipTLSVerifyTransport: k.insecureSkipTLSVerifyTransport,
 	}, nil
 }
