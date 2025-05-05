@@ -101,6 +101,10 @@ type Config struct {
 	// server.
 	DisableCompression bool
 
+	// RedirectPolicy controls how redirects are handled.
+	// Valid values are: "AllowAll", "AllowNone", "AllowSameHost" (the default)
+	RedirectPolicy RedirectPolicy
+
 	// Transport may be used for custom HTTP behavior. This attribute may not
 	// be specified with the TLS client certificate options. Use WrapTransport
 	// to provide additional per-server middleware behavior.
@@ -163,6 +167,14 @@ type Config struct {
 	// Do we need this?
 	// Version string
 }
+
+type RedirectPolicy string
+
+const (
+	RedirectPolicyAllowAll      RedirectPolicy = "AllowAll"
+	RedirectPolicyAllowNone     RedirectPolicy = "AllowNone"
+	RedirectPolicyAllowSameHost RedirectPolicy = "AllowSameHost"
+)
 
 var _ fmt.Stringer = new(Config)
 var _ fmt.GoStringer = new(Config)
@@ -648,6 +660,7 @@ func AnonymousClientConfig(config *Config) *Config {
 		WarningHandlerWithContext: config.WarningHandlerWithContext,
 		UserAgent:                 config.UserAgent,
 		DisableCompression:        config.DisableCompression,
+		RedirectPolicy:            config.RedirectPolicy,
 		QPS:                       config.QPS,
 		Burst:                     config.Burst,
 		Timeout:                   config.Timeout,
@@ -688,6 +701,7 @@ func CopyConfig(config *Config) *Config {
 		},
 		UserAgent:                 config.UserAgent,
 		DisableCompression:        config.DisableCompression,
+		RedirectPolicy:            config.RedirectPolicy,
 		Transport:                 config.Transport,
 		WrapTransport:             config.WrapTransport,
 		QPS:                       config.QPS,

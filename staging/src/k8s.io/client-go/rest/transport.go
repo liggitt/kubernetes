@@ -35,10 +35,29 @@ func HTTPClientFor(config *Config) (*http.Client, error) {
 		return nil, err
 	}
 	var httpClient *http.Client
-	if transport != http.DefaultTransport || config.Timeout > 0 {
+	if transport != http.DefaultTransport || config.Timeout > 0 || config.RedirectPolicy != RedirectPolicyAllowAll {
 		httpClient = &http.Client{
 			Transport: transport,
 			Timeout:   config.Timeout,
+		}
+		switch config.RedirectPolicy {
+		case RedirectPolicyAllowAll:
+			// Use the default http client checker which allows redirecting between different hostnames.
+		case RedirectPolicyAllowNone:
+			httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+		case RedirectPolicyAllowSameHost, "":
+			httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				if req.URL.Hostname() != via[0].URL.Hostname() {
+					return http.ErrUseLastResponse
+				}
+				// Default behavior: stop after 10 redirects.
+				if len(via) >= 10 {
+					return errors.New("stopped after 10 redirects")
+				}
+				return nil
+			}
 		}
 	} else {
 		httpClient = http.DefaultClient
