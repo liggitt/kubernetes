@@ -122,8 +122,6 @@ func evaluatePolicyAndCreateAuditEvent(req *http.Request, policy audit.PolicyRul
 		return nil, nil
 	}
 
-	ac.Sink = sink
-
 	attribs, err := GetAuthorizerAttributes(ctx)
 	if err != nil {
 		return ac, fmt.Errorf("failed to GetAuthorizerAttributes: %v", err)
@@ -131,7 +129,7 @@ func evaluatePolicyAndCreateAuditEvent(req *http.Request, policy audit.PolicyRul
 
 	rac := policy.EvaluatePolicyRule(attribs)
 	audit.ObservePolicyLevel(ctx, rac.Level)
-	ac.RequestAuditConfig = rac
+	ac.Init(rac, sink)
 	if rac.Level == auditinternal.LevelNone {
 		// Don't audit.
 		return ac, nil

@@ -158,7 +158,9 @@ func TestDecorateResponseWriterChannel(t *testing.T) {
 	ctx := audit.WithAuditContext(context.Background())
 	sink := &fakeAuditSink{}
 	auditContext := audit.AuditContextFrom(ctx)
-	auditContext.Sink = sink
+	if err := auditContext.Init(audit.RequestAuditConfig{}, sink); err != nil {
+		t.Fatal(err)
+	}
 	actual := decorateResponseWriter(ctx, &responsewriter.FakeResponseWriter{}, true)
 
 	done := make(chan struct{})

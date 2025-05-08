@@ -104,7 +104,7 @@ func LogRequestObject(ctx context.Context, obj runtime.Object, objGV schema.Grou
 
 	// meta.Accessor is more general than ObjectMetaAccessor, but if it fails, we can just skip setting these bits
 	objMeta, _ := meta.Accessor(obj)
-	if shouldOmitManagedFields(ctx) {
+	if shouldOmitManagedFields(ac) {
 		copy, ok, err := copyWithoutManagedFields(obj)
 		if err != nil {
 			klog.ErrorS(err, "Error while dropping managed fields from the request", "auditID", ac.AuditID())
@@ -178,7 +178,7 @@ func LogResponseObject(ctx context.Context, obj runtime.Object, gv schema.GroupV
 
 	status, _ := obj.(*metav1.Status)
 
-	if shouldOmitManagedFields(ctx) {
+	if shouldOmitManagedFields(ac) {
 		copy, ok, err := copyWithoutManagedFields(obj)
 		if err != nil {
 			klog.ErrorS(err, "Error while dropping managed fields from the response", "auditID", ac.AuditID())
@@ -285,9 +285,9 @@ func removeManagedFields(obj runtime.Object) error {
 	return nil
 }
 
-func shouldOmitManagedFields(ctx context.Context) bool {
-	if auditContext := AuditContextFrom(ctx); auditContext != nil {
-		return auditContext.RequestAuditConfig.OmitManagedFields
+func shouldOmitManagedFields(ac *AuditContext) bool {
+	if ac != nil && ac.initialized.Load() && ac.requestAuditConfig.OmitManagedFields {
+		return true
 	}
 
 	// If we can't decide, return false to maintain current behavior which is

@@ -18,6 +18,7 @@ package audit
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"sync"
 	"sync/atomic"
@@ -42,12 +43,17 @@ const auditKey key = iota
 
 // AuditContext holds the information for constructing the audit events for the current request.
 type AuditContext struct {
-	// RequestAuditConfig is the audit configuration that applies to the request
-	// TODO: is this safe to leave public / unguarded?
-	RequestAuditConfig RequestAuditConfig
-	// Sink is the sink to use when processing event stages
-	// TODO: is this safe to leave public / unguarded?
-	Sink Sink
+	// initialized indicates whether requestAuditConfig and sink have been populated and are safe to read unguarded.
+	// This should only be set via Init().
+	initialized atomic.Bool
+	// initialize wraps setting requestAuditConfig and sink, and is only called via Init().
+	initialize sync.Once
+	// requestAuditConfig is the audit configuration that applies to the request.
+	// This should only be written via Init(RequestAuditConfig, Sink), and only read when initialized.Load() is true.
+	requestAuditConfig RequestAuditConfig
+	// sink is the sink to use when processing event stages.
+	// This should only be written via Init(RequestAuditConfig, Sink), and only read when initialized.Load() is true.
+	sink Sink
 
 	// lock guards event
 	lock sync.Mutex
@@ -62,9 +68,30 @@ type AuditContext struct {
 
 // Enabled checks whether auditing is enabled for this audit context.
 func (ac *AuditContext) Enabled() bool {
-	// Note: An unset Level should be considered Enabled, so that request data (e.g. annotations)
-	// can still be captured before the audit policy is evaluated.
-	return ac != nil && ac.RequestAuditConfig.Level != auditinternal.LevelNone
+	if ac == nil {
+		// protect against nil pointers
+		return false
+	}
+	if !ac.initialized.Load() {
+		// Note: An unset Level should be considered Enabled, so that request data (e.g. annotations)
+		// can still be captured before the audit policy is evaluated.
+		return true
+	}
+	return ac.requestAuditConfig.Level != auditinternal.LevelNone
+}
+
+func (ac *AuditContext) Init(requestAuditConfig RequestAuditConfig, sink Sink) error {
+	initialized := false
+	ac.initialize.Do(func() {
+		ac.requestAuditConfig = requestAuditConfig
+		ac.sink = sink
+		ac.initialized.Store(true)
+		initialized = true
+	})
+	if !initialized {
+		return errors.New("audit context was already initialized")
+	}
+	return nil
 }
 
 func (ac *AuditContext) AuditID() types.UID {
@@ -81,10 +108,13 @@ func (ac *AuditContext) visitEvent(f func(event *auditinternal.Event)) {
 
 // ProcessEventStage returns true on success, false if there was an error processing the stage.
 func (ac *AuditContext) ProcessEventStage(ctx context.Context, stage auditinternal.Stage) bool {
-	if ac == nil || ac.Sink == nil {
+	if ac == nil || !ac.initialized.Load() {
 		return true
 	}
-	for _, omitStage := range ac.RequestAuditConfig.OmitStages {
+	if ac.sink == nil {
+		return true
+	}
+	for _, omitStage := range ac.requestAuditConfig.OmitStages {
 		if stage == omitStage {
 			return true
 		}
@@ -100,7 +130,7 @@ func (ac *AuditContext) ProcessEventStage(ctx context.Context, stage auditintern
 		}
 
 		ObserveEvent(ctx)
-		processed = ac.Sink.ProcessEvents(event)
+		processed = ac.sink.ProcessEvents(event)
 	})
 	return processed
 }

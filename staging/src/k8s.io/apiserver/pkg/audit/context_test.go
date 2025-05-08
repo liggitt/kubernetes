@@ -40,16 +40,34 @@ func TestEnabled(t *testing.T) {
 		ctx:           &AuditContext{},
 		expectEnabled: true, // An AuditContext should be considered enabled before the level is set
 	}, {
-		name:          "level None",
-		ctx:           &AuditContext{RequestAuditConfig: RequestAuditConfig{Level: auditinternal.LevelNone}},
+		name: "level None",
+		ctx: func() *AuditContext {
+			ctx := &AuditContext{}
+			if err := ctx.Init(RequestAuditConfig{Level: auditinternal.LevelNone}, nil); err != nil {
+				t.Fatal(err)
+			}
+			return ctx
+		}(),
 		expectEnabled: false,
 	}, {
-		name:          "level Metadata",
-		ctx:           &AuditContext{RequestAuditConfig: RequestAuditConfig{Level: auditinternal.LevelMetadata}},
+		name: "level Metadata",
+		ctx: func() *AuditContext {
+			ctx := &AuditContext{}
+			if err := ctx.Init(RequestAuditConfig{Level: auditinternal.LevelMetadata}, nil); err != nil {
+				t.Fatal(err)
+			}
+			return ctx
+		}(),
 		expectEnabled: true,
 	}, {
-		name:          "level RequestResponse",
-		ctx:           &AuditContext{RequestAuditConfig: RequestAuditConfig{Level: auditinternal.LevelRequestResponse}},
+		name: "level RequestResponse",
+		ctx: func() *AuditContext {
+			ctx := &AuditContext{}
+			if err := ctx.Init(RequestAuditConfig{Level: auditinternal.LevelRequestResponse}, nil); err != nil {
+				t.Fatal(err)
+			}
+			return ctx
+		}(),
 		expectEnabled: true,
 	}}
 
@@ -72,7 +90,7 @@ func TestAddAuditAnnotation(t *testing.T) {
 		assert.Len(t, annotations, numAnnotations)
 	}
 
-	ctxWithAnnotation := withAuditContextAndLevel(context.Background(), auditinternal.LevelMetadata)
+	ctxWithAnnotation := withAuditContextAndLevel(context.Background(), t, auditinternal.LevelMetadata)
 	AddAuditAnnotation(ctxWithAnnotation, fmt.Sprintf(annotationKeyTemplate, 0), annotationExtraValue)
 
 	tests := []struct {
@@ -94,14 +112,14 @@ func TestAddAuditAnnotation(t *testing.T) {
 		},
 	}, {
 		description: "with metadata level",
-		ctx:         withAuditContextAndLevel(context.Background(), auditinternal.LevelMetadata),
+		ctx:         withAuditContextAndLevel(context.Background(), t, auditinternal.LevelMetadata),
 		validator: func(t *testing.T, ctx context.Context) {
 			ev := AuditContextFrom(ctx).event
 			expectAnnotations(t, ev.Annotations)
 		},
 	}, {
 		description: "with none level",
-		ctx:         withAuditContextAndLevel(context.Background(), auditinternal.LevelNone),
+		ctx:         withAuditContextAndLevel(context.Background(), t, auditinternal.LevelNone),
 		validator: func(t *testing.T, ctx context.Context) {
 			ev := AuditContextFrom(ctx).event
 			assert.Empty(t, ev.Annotations)
@@ -144,8 +162,8 @@ func TestAuditAnnotationsWithAuditLoggingSetup(t *testing.T) {
 	AddAuditAnnotation(ctx, "before-evaluation", "1")
 
 	// policy evaluated, audit logging enabled
-	if ac := AuditContextFrom(ctx); ac != nil {
-		ac.RequestAuditConfig.Level = auditinternal.LevelMetadata
+	if err := AuditContextFrom(ctx).Init(RequestAuditConfig{Level: auditinternal.LevelMetadata}, nil); err != nil {
+		t.Fatal(err)
 	}
 	AddAuditAnnotation(ctx, "after-evaluation", "2")
 
@@ -157,9 +175,10 @@ func TestAuditAnnotationsWithAuditLoggingSetup(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func withAuditContextAndLevel(ctx context.Context, l auditinternal.Level) context.Context {
+func withAuditContextAndLevel(ctx context.Context, t *testing.T, l auditinternal.Level) context.Context {
 	ctx = WithAuditContext(ctx)
-	ac := AuditContextFrom(ctx)
-	ac.RequestAuditConfig.Level = l
+	if err := AuditContextFrom(ctx).Init(RequestAuditConfig{Level: l}, nil); err != nil {
+		t.Fatal(err)
+	}
 	return ctx
 }
