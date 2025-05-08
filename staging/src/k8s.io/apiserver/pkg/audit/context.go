@@ -20,6 +20,7 @@ import (
 	"context"
 	"maps"
 	"sync"
+	"sync/atomic"
 
 	authnv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,7 +52,7 @@ type AuditContext struct {
 	event auditinternal.Event
 
 	// unguarded copy of auditID from the event
-	auditID types.UID
+	auditID atomic.Value
 }
 
 // Enabled checks whether auditing is enabled for this audit context.
@@ -63,7 +64,8 @@ func (ac *AuditContext) Enabled() bool {
 
 func (ac *AuditContext) AuditID() types.UID {
 	// return the unguarded copy of the auditID
-	return ac.auditID
+	id, _ := ac.auditID.Load().(types.UID)
+	return id
 }
 
 func (ac *AuditContext) visitEvent(f func(event *auditinternal.Event)) {
@@ -305,7 +307,7 @@ func WithAuditID(ctx context.Context, auditID types.UID) {
 	}
 	if ac := AuditContextFrom(ctx); ac != nil {
 		ac.visitEvent(func(event *auditinternal.Event) {
-			ac.auditID = auditID
+			ac.auditID.Store(auditID)
 			event.AuditID = auditID
 		})
 	}
@@ -315,7 +317,8 @@ func WithAuditID(ctx context.Context, auditID types.UID) {
 // auditing is enabled.
 func AuditIDFrom(ctx context.Context) (types.UID, bool) {
 	if ac := AuditContextFrom(ctx); ac != nil {
-		return ac.auditID, true
+		id, _ := ac.auditID.Load().(types.UID)
+		return id, true
 	}
 	return "", false
 }
