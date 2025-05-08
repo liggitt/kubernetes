@@ -89,7 +89,7 @@ func (s *fakeAuditSink) Pop(timeout time.Duration) (*auditinternal.Event, error)
 
 func TestConstructResponseWriter(t *testing.T) {
 	inner := &responsewriter.FakeResponseWriter{}
-	actual := decorateResponseWriter(context.Background(), inner, nil, nil)
+	actual := decorateResponseWriter(context.Background(), inner, false)
 	switch v := actual.(type) {
 	case *auditResponseWriter:
 	default:
@@ -99,7 +99,7 @@ func TestConstructResponseWriter(t *testing.T) {
 		t.Errorf("Expected the decorator to return the inner http.ResponseWriter object")
 	}
 
-	actual = decorateResponseWriter(context.Background(), &responsewriter.FakeResponseWriterFlusherCloseNotifier{}, nil, nil)
+	actual = decorateResponseWriter(context.Background(), &responsewriter.FakeResponseWriterFlusherCloseNotifier{}, false)
 	//lint:file-ignore SA1019 Keep supporting deprecated http.CloseNotifier
 	if _, ok := actual.(http.CloseNotifier); !ok {
 		t.Errorf("Expected http.ResponseWriter to implement http.CloseNotifier")
@@ -111,7 +111,7 @@ func TestConstructResponseWriter(t *testing.T) {
 		t.Errorf("Expected http.ResponseWriter not to implement http.Hijacker")
 	}
 
-	actual = decorateResponseWriter(context.Background(), &responsewriter.FakeResponseWriterFlusherCloseNotifierHijacker{}, nil, nil)
+	actual = decorateResponseWriter(context.Background(), &responsewriter.FakeResponseWriterFlusherCloseNotifierHijacker{}, false)
 	//lint:file-ignore SA1019 Keep supporting deprecated http.CloseNotifier
 	if _, ok := actual.(http.CloseNotifier); !ok {
 		t.Errorf("Expected http.ResponseWriter to implement http.CloseNotifier")
@@ -127,7 +127,7 @@ func TestConstructResponseWriter(t *testing.T) {
 func TestDecorateResponseWriterWithoutChannel(t *testing.T) {
 	ctx := audit.WithAuditContext(context.Background())
 	ac := audit.AuditContextFrom(ctx)
-	actual := decorateResponseWriter(ctx, &responsewriter.FakeResponseWriter{}, nil, nil)
+	actual := decorateResponseWriter(ctx, &responsewriter.FakeResponseWriter{}, false)
 
 	// write status. This will not block because firstEventSentCh is nil
 	actual.WriteHeader(42)
@@ -142,7 +142,7 @@ func TestDecorateResponseWriterWithoutChannel(t *testing.T) {
 func TestDecorateResponseWriterWithImplicitWrite(t *testing.T) {
 	ctx := audit.WithAuditContext(context.Background())
 	ac := audit.AuditContextFrom(ctx)
-	actual := decorateResponseWriter(ctx, &responsewriter.FakeResponseWriter{}, nil, nil)
+	actual := decorateResponseWriter(ctx, &responsewriter.FakeResponseWriter{}, false)
 
 	// write status. This will not block because firstEventSentCh is nil
 	actual.Write([]byte("foo"))
@@ -157,7 +157,9 @@ func TestDecorateResponseWriterWithImplicitWrite(t *testing.T) {
 func TestDecorateResponseWriterChannel(t *testing.T) {
 	ctx := audit.WithAuditContext(context.Background())
 	sink := &fakeAuditSink{}
-	actual := decorateResponseWriter(ctx, &responsewriter.FakeResponseWriter{}, sink, nil)
+	auditContext := audit.AuditContextFrom(ctx)
+	auditContext.Sink = sink
+	actual := decorateResponseWriter(ctx, &responsewriter.FakeResponseWriter{}, true)
 
 	done := make(chan struct{})
 	go func() {
@@ -179,7 +181,6 @@ func TestDecorateResponseWriterChannel(t *testing.T) {
 	}
 	t.Logf("Seen event with status %v", ev1.ResponseStatus)
 
-	auditContext := audit.AuditContextFrom(ctx)
 	ev := getAuditContextEvent(auditContext)
 	if diff := cmp.Diff(ev, ev1, cmp.FilterPath(func(p cmp.Path) bool {
 		return p.String() == "StageTimestamp"

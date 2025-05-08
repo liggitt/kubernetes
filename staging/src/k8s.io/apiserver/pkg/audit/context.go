@@ -21,6 +21,7 @@ import (
 	"maps"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	authnv1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +43,11 @@ const auditKey key = iota
 // AuditContext holds the information for constructing the audit events for the current request.
 type AuditContext struct {
 	// RequestAuditConfig is the audit configuration that applies to the request
+	// TODO: is this safe to leave public / unguarded?
 	RequestAuditConfig RequestAuditConfig
+	// Sink is the sink to use when processing event stages
+	// TODO: is this safe to leave public / unguarded?
+	Sink Sink
 
 	// lock guards event
 	lock sync.Mutex
@@ -72,6 +77,32 @@ func (ac *AuditContext) visitEvent(f func(event *auditinternal.Event)) {
 	ac.lock.Lock()
 	defer ac.lock.Unlock()
 	f(&ac.event)
+}
+
+// ProcessEventStage returns true on success, false if there was an error processing the stage.
+func (ac *AuditContext) ProcessEventStage(ctx context.Context, stage auditinternal.Stage) bool {
+	if ac == nil || ac.Sink == nil {
+		return true
+	}
+	for _, omitStage := range ac.RequestAuditConfig.OmitStages {
+		if stage == omitStage {
+			return true
+		}
+	}
+
+	processed := false
+	ac.visitEvent(func(event *auditinternal.Event) {
+		event.Stage = stage
+		if stage == auditinternal.StageRequestReceived {
+			event.StageTimestamp = event.RequestReceivedTimestamp
+		} else {
+			event.StageTimestamp = metav1.NewMicroTime(time.Now())
+		}
+
+		ObserveEvent(ctx)
+		processed = ac.Sink.ProcessEvents(event)
+	})
+	return processed
 }
 
 func (ac *AuditContext) LogImpersonatedUser(user user.Info) {
@@ -341,11 +372,4 @@ func GetAuditIDTruncated(ctx context.Context) string {
 	}
 
 	return string(auditID)
-}
-
-func DeepcopyInternalEvent(ac *AuditContext) *auditinternal.Event {
-	ac.lock.Lock()
-	defer ac.lock.Unlock()
-
-	return ac.event.DeepCopy()
 }
