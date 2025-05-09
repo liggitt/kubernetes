@@ -19,8 +19,10 @@ package admission
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
+	"unsafe"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	auditinternal "k8s.io/apiserver/pkg/apis/audit"
@@ -144,7 +146,13 @@ func TestWithAudit(t *testing.T) {
 		var handler Interface = fakeHandler{tc.admit, tc.admitAnnotations, tc.validate, tc.validateAnnotations, tc.handles}
 		ctx := audit.WithAuditContext(context.Background())
 		ac := audit.AuditContextFrom(ctx)
-		ac.SetEventLevel(auditinternal.LevelMetadata)
+
+		// Set the event level for the test case to work!
+		val := reflect.ValueOf(ac).Elem()
+		eventField := val.FieldByName("event")
+		eventPtr := unsafe.Pointer(eventField.UnsafeAddr())
+		(*auditinternal.Event)(eventPtr).Level = auditinternal.LevelRequestResponse
+
 		auditHandler := WithAudit(handler)
 		a := attributes()
 
@@ -186,8 +194,6 @@ func TestWithAuditConcurrency(t *testing.T) {
 	}
 	var handler Interface = fakeHandler{admitAnnotations: admitAnnotations, handles: true}
 	ctx := audit.WithAuditContext(context.Background())
-	ac := audit.AuditContextFrom(ctx)
-	ac.SetEventLevel(auditinternal.LevelMetadata)
 	auditHandler := WithAudit(handler)
 	a := attributes()
 

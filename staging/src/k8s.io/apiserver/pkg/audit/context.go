@@ -198,12 +198,6 @@ func (ac *AuditContext) GetEventLevel() auditinternal.Level {
 	return level
 }
 
-func (ac *AuditContext) SetEventLevel(level auditinternal.Level) {
-	ac.visitEvent(func(event *auditinternal.Event) {
-		event.Level = level
-	})
-}
-
 func (ac *AuditContext) SetEventStage(stage auditinternal.Stage) {
 	ac.visitEvent(func(event *auditinternal.Event) {
 		event.Stage = stage

@@ -22,9 +22,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"unsafe"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
@@ -34,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apiserver/pkg/admission"
-	auditapis "k8s.io/apiserver/pkg/apis/audit"
+	auditinternal "k8s.io/apiserver/pkg/apis/audit"
 	"k8s.io/apiserver/pkg/audit"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
@@ -74,7 +76,12 @@ func TestDeleteResourceAuditLogRequestObject(t *testing.T) {
 
 	ctx := audit.WithAuditContext(context.TODO())
 	ac := audit.AuditContextFrom(ctx)
-	ac.SetEventLevel(auditapis.LevelRequestResponse)
+
+	// Set the event level for the test case to work!
+	val := reflect.ValueOf(ac).Elem()
+	eventField := val.FieldByName("event")
+	eventPtr := unsafe.Pointer(eventField.UnsafeAddr())
+	(*auditinternal.Event)(eventPtr).Level = auditinternal.LevelRequestResponse
 
 	policy := metav1.DeletePropagationBackground
 	deleteOption := &metav1.DeleteOptions{
