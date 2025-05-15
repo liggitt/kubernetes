@@ -24,6 +24,7 @@ import (
 	"go/token"
 	gotypes "go/types"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -384,9 +385,30 @@ func (p *Parser) NewUniverse() (types.Universe, error) {
 
 // addCommentsToType takes any accumulated comment lines prior to obj and
 // attaches them to the type t.
-func (p *Parser) addCommentsToType(obj gotypes.Object, t *types.Type) {
-	t.CommentLines = p.docComment(obj.Pos())
-	t.SecondClosestCommentLines = p.priorDetachedComment(obj.Pos())
+func (p *Parser) addCommentsToType(obj gotypes.Object, t *types.Type) error {
+	if lines := p.docComment(obj.Pos()); len(lines) > 0 {
+		if len(t.CommentLines) > 0 && !reflect.DeepEqual(t.CommentLines, lines) {
+			return fmt.Errorf(
+				"cannot overwrite comments for type %v from:\n  %v\nto:\n  %v",
+				t.GoType,
+				strings.Join(t.CommentLines, "\n  "),
+				strings.Join(lines, "\n  "),
+			)
+		}
+		t.CommentLines = lines
+	}
+	if lines := p.priorDetachedComment(obj.Pos()); len(lines) > 0 {
+		if len(t.SecondClosestCommentLines) > 0 && !reflect.DeepEqual(t.SecondClosestCommentLines, lines) {
+			return fmt.Errorf(
+				"cannot overwrite secondClosestCommentLines for type %v from:\n  %v\nto:\n  %v",
+				t.GoType,
+				strings.Join(t.SecondClosestCommentLines, "\n  "),
+				strings.Join(lines, "\n  "),
+			)
+		}
+		t.SecondClosestCommentLines = lines
+	}
+	return nil
 }
 
 // packageDir tries to figure out the directory of the specified package.
@@ -488,21 +510,29 @@ func (p *Parser) addPkgToUniverse(pkg *packages.Package, u *types.Universe) erro
 		switch obj := s.Lookup(n).(type) {
 		case *gotypes.TypeName:
 			t := p.walkType(*u, nil, obj.Type())
-			p.addCommentsToType(obj, t)
+			if err := p.addCommentsToType(obj, t); err != nil {
+				return err
+			}
 		case *gotypes.Func:
 			// We only care about functions, not concrete/abstract methods.
 			if obj.Type() != nil && obj.Type().(*gotypes.Signature).Recv() == nil {
 				t := p.addFunction(*u, nil, obj)
-				p.addCommentsToType(obj, t)
+				if err := p.addCommentsToType(obj, t); err != nil {
+					return err
+				}
 			}
 		case *gotypes.Var:
 			if !obj.IsField() {
 				t := p.addVariable(*u, nil, obj)
-				p.addCommentsToType(obj, t)
+				if err := p.addCommentsToType(obj, t); err != nil {
+					return err
+				}
 			}
 		case *gotypes.Const:
 			t := p.addConstant(*u, nil, obj)
-			p.addCommentsToType(obj, t)
+			if err := p.addCommentsToType(obj, t); err != nil {
+				return err
+			}
 		default:
 			klog.Infof("addPkgToUniverse %q: unhandled object of type %T: %v", pkgPath, obj, obj)
 		}
@@ -557,7 +587,11 @@ func (p *Parser) priorCommentLines(pos token.Pos, lines int) *ast.CommentGroup {
 }
 
 func splitLines(str string) []string {
-	return strings.Split(strings.TrimRight(str, "\n"), "\n")
+	lines := strings.Split(strings.TrimRight(str, "\n"), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return nil
+	}
+	return lines
 }
 
 func goFuncNameToName(in string) types.Name {
