@@ -930,7 +930,7 @@ type JSONPatch struct {
 	Expression string `json:"expression,omitempty" protobuf:"bytes,1,opt,name=expression"`
 }
 
-// ReinvocationPolicyType specifies what type of policy the admission mutation uses.
+// ReinvocationPolicyType specifies what type of policy the admission hook uses.
 // +enum
 type ReinvocationPolicyType = v1.ReinvocationPolicyType
 

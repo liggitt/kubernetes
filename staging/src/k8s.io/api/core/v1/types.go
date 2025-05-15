@@ -5419,9 +5419,7 @@ const (
 	ServiceInternalTrafficPolicyLocal ServiceInternalTrafficPolicy = "Local"
 )
 
-// for backwards compat
-// +enum
-type ServiceInternalTrafficPolicyType = ServiceInternalTrafficPolicy
+type ServiceInternalTrafficPolicyType = ServiceInternalTrafficPolicy // for backwards compat
 
 // ServiceExternalTrafficPolicy describes how nodes distribute service traffic they
 // receive on one of the Service's "externally-facing" addresses (NodePorts, ExternalIPs,
@@ -5439,9 +5437,7 @@ const (
 	ServiceExternalTrafficPolicyLocal ServiceExternalTrafficPolicy = "Local"
 )
 
-// for backwards compat
-// +enum
-type ServiceExternalTrafficPolicyType = ServiceExternalTrafficPolicy
+type ServiceExternalTrafficPolicyType = ServiceExternalTrafficPolicy // for backwards compat
 
 const (
 	ServiceExternalTrafficPolicyTypeLocal   = ServiceExternalTrafficPolicyLocal
@@ -5574,9 +5570,7 @@ const (
 	IPFamilyPolicyRequireDualStack IPFamilyPolicy = "RequireDualStack"
 )
 
-// for backwards compat
-// +enum
-type IPFamilyPolicyType = IPFamilyPolicy
+type IPFamilyPolicyType = IPFamilyPolicy // for backwards compat
 
 // ServiceSpec describes the attributes that a user creates on a service.
 type ServiceSpec struct {

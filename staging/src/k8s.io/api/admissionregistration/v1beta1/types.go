@@ -26,6 +26,7 @@ import (
 type Rule = v1.Rule
 
 // ScopeType specifies a scope for a Rule.
+// +enum
 type ScopeType = v1.ScopeType
 
 const (
