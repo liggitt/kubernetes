@@ -868,10 +868,15 @@ type CELDeviceSelector struct {
 	// The expression's input is an object named "device", which carries
 	// the following properties:
 	//  - driver (string): the name of the driver which defines this device.
-	//  - attributes (map[string]object): the device's attributes, grouped by prefix
+	//  - attributes (map[string]map[string]attribute): the device's attributes, grouped by prefix
 	//    (e.g. device.attributes["dra.example.com"] evaluates to an object with all
-	//    of the attributes which were prefixed by "dra.example.com".
-	//  - capacity (map[string]object): the device's capacities, grouped by prefix.
+	//    of the attributes which were prefixed by "dra.example.com").
+	//  - capacity (map[string]Quantity): the device's capacities, grouped by prefix.
+	//
+	// Q: “grouped by prefix” is confusing…
+	//   how are “prefixes” determined?
+	//   does each attribute have exactly one prefix?
+	//   does an attribute without a prefix implicitly use the driver as the prefix?
 	//
 	// Example: Consider a device with driver="dra.example.com", which exposes
 	// two attributes named "model" and "ext.example.com/family" and which
@@ -891,15 +896,21 @@ type CELDeviceSelector struct {
 	// The value type of each attribute is defined by the device
 	// definition, and users who write these expressions must consult the
 	// documentation for their specific drivers. The value type of each
-	// capacity is Quantity.
+	// capacity is Quantity. <link to k8s docs for CEL quantity type>
 	//
 	// If an unknown prefix is used as a lookup in either device.attributes
-	// or device.capacity, an empty map will be returned. Any reference to
+	// or device.capacity, an empty map will be returned.
+	//
+	// Q: will this empty map pass or fail a `has()` check in CEL? will it trigger the orValue() case of a CEL optional?
+	//
+	// Any reference to
 	// an unknown field will cause an evaluation error and allocation to
 	// abort.
 	//
 	// A robust expression should check for the existence of attributes
 	// before referencing them.
+	//
+	// Q: Does this mean it’s safe to call `device.attributes[“anything”]` unguarded, but not safe to call `device.attributes[“anything”].anything` unguarded?
 	//
 	// For ease of use, the cel.bind() function is enabled, and can be used
 	// to simplify expressions that access multiple attributes with the
@@ -1361,6 +1372,13 @@ type DeviceClass struct {
 type DeviceClassSpec struct {
 	// Each selector must be satisfied by a device which is claimed via this class.
 	//
+	// Q: do all selectors have to match a device, or only one? what is the use case for multiple selectors?
+	// Q: can multiple device classes match a single device?
+	// Q: what happens to a device that is not matched by any device class?
+	// Q: is a particular device class used to *constrain* a particular device, or does anything ever go hunting for all the device classes a particular device *might* match?
+	// Q: when is selector matching enforced? what happens if a deviceclass changes its selectors after allocation? does that break or disrupt anything?
+	// Q: is the device passed into DeviceSelector one that already exists, or one that is *about* to be allocated and is being double-checked before allocation?
+	//
 	// +optional
 	// +listType=atomic
 	Selectors []DeviceSelector `json:"selectors,omitempty" protobuf:"bytes,1,opt,name=selectors"`
@@ -1368,6 +1386,8 @@ type DeviceClassSpec struct {
 	// Config defines configuration parameters that apply to each device that is claimed via this class.
 	// Some classses may potentially be satisfied by multiple drivers, so each instance of a vendor
 	// configuration applies to exactly one driver.
+	//
+	// Q: is config[*].opaque.driver required to be unique?
 	//
 	// They are passed to the driver, but are not considered while allocating the claim.
 	//

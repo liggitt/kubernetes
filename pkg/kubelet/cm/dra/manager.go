@@ -285,6 +285,15 @@ func (m *ManagerImpl) prepareResources(ctx context.Context, pod *v1.Pod) error {
 			return fmt.Errorf("failed to get gRPC client for driver %s: %w", driverName, err)
 		}
 		response, err := client.NodePrepareResources(ctx, &drapb.NodePrepareResourcesRequest{Claims: claims})
+
+		// if NodePrepareResource fails, where does that get surfaced?
+		// Does it get retried? At what interval / for how long?
+		// While retrying, if the pod or resourceclaim gets deleted, does the kubelet get stuck retrying preparing resources that are no longer actually requested?
+		// Does it distinguish between errors that require cleanup ("partial setup success") and ones that don't?
+		//   Only NotFound is specified in https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4381-dra-structured-parameters#nodeprepareresource-errors, are other errors possible?
+		// Is an error returned from NodePrepareResources assumed to leave things in a state that requires no cleanup (full success or full failure with internal cleanup)?
+		// After it stops retrying and fails, does anything tear down earlier successfully set up batches of resources for the pod?
+
 		if err != nil {
 			// General error unrelated to any particular claim.
 			return fmt.Errorf("NodePrepareResources failed: %w", err)
@@ -483,6 +492,14 @@ func (m *ManagerImpl) unprepareResources(ctx context.Context, podUID types.UID, 
 			return fmt.Errorf("get gRPC client for DRA driver %s: %w", driverName, err)
 		}
 		response, err := client.NodeUnprepareResources(ctx, &drapb.NodeUnprepareResourcesRequest{Claims: claims})
+
+		// if NodeUnprepareResources fails, where does that get surfaced?
+		// Does it get retried? At what interval / for how long?
+		// Does it distinguish between errors it should retry ("could not unprepare resource") and ones it should not ("resource is gone, stop asking to unprepare it")?
+		//   Only NotFound is specified in https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/4381-dra-structured-parameters#nodeunprepareresource-errors, are other errors possible?
+		//   How does the caller (the kubelet) “verify that the resource_id is correct and that the resource is accessible and has not been deleted”?
+		// Does that block kubelet deletion of the pod?
+
 		if err != nil {
 			// General error unrelated to any particular claim.
 			return fmt.Errorf("NodeUnprepareResources failed: %w", err)
