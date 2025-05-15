@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/generic"
+	generictesting "k8s.io/apiserver/pkg/admission/plugin/policy/generic/testing"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/matching"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/mutating"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/mutating/patch"
@@ -45,7 +46,7 @@ func setupTest(
 	compiler func(*mutating.Policy) mutating.PolicyEvaluator,
 ) *generic.PolicyTestContext[*mutating.Policy, *mutating.PolicyBinding, mutating.PolicyEvaluator] {
 
-	testContext, testCancel, err := generic.NewPolicyTestContext[*mutating.Policy, *mutating.PolicyBinding, mutating.PolicyEvaluator](
+	testContext, testCancel, err := generictesting.NewPolicyTestContext[*mutating.Policy, *mutating.PolicyBinding, mutating.PolicyEvaluator](
 		mutating.NewMutatingAdmissionPolicyAccessor,
 		mutating.NewMutatingAdmissionPolicyBindingAccessor,
 		compiler,

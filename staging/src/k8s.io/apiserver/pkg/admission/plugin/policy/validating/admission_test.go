@@ -40,6 +40,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/generic"
+	generictesting "k8s.io/apiserver/pkg/admission/plugin/policy/generic/testing"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/matching"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/validating"
 	auditinternal "k8s.io/apiserver/pkg/apis/audit"
@@ -359,7 +360,7 @@ func setupTestCommon(
 	matcher generic.PolicyMatcher,
 	shouldStartInformers bool,
 ) *generic.PolicyTestContext[*validating.Policy, *validating.PolicyBinding, validating.Validator] {
-	testContext, testContextCancel, err := generic.NewPolicyTestContext(
+	testContext, testContextCancel, err := generictesting.NewPolicyTestContext(
 		validating.NewValidatingAdmissionPolicyAccessor,
 		validating.NewValidatingAdmissionPolicyBindingAccessor,
 		func(p *validating.Policy) validating.Validator {

@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/generic"
+	generictesting "k8s.io/apiserver/pkg/admission/plugin/policy/generic/testing"
 	"k8s.io/apiserver/pkg/admission/plugin/policy/matching"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/client-go/kubernetes"
@@ -48,7 +49,7 @@ func makeTestDispatcher(authorizer.Authorizer, *matching.Matcher, kubernetes.Int
 }
 
 func TestPolicySourceHasSyncedEmpty(t *testing.T) {
-	testContext, testCancel, err := generic.NewPolicyTestContext(
+	testContext, testCancel, err := generictesting.NewPolicyTestContext(
 		func(fp *FakePolicy) generic.PolicyAccessor { return fp },
 		func(fb *FakeBinding) generic.BindingAccessor { return fb },
 		func(fp *FakePolicy) generic.Evaluator { return nil },
@@ -80,7 +81,7 @@ func TestPolicySourceHasSyncedInitialList(t *testing.T) {
 		},
 	}
 
-	testContext, testCancel, err := generic.NewPolicyTestContext(
+	testContext, testCancel, err := generictesting.NewPolicyTestContext(
 		func(fp *FakePolicy) generic.PolicyAccessor { return fp },
 		func(fb *FakeBinding) generic.BindingAccessor { return fb },
 		func(fp *FakePolicy) generic.Evaluator { return nil },
@@ -149,7 +150,7 @@ func TestPolicySourceBindsToPolicies(t *testing.T) {
 		},
 	}
 
-	testContext, testCancel, err := generic.NewPolicyTestContext(
+	testContext, testCancel, err := generictesting.NewPolicyTestContext(
 		func(fp *FakePolicy) generic.PolicyAccessor { return fp },
 		func(fb *FakeBinding) generic.BindingAccessor { return fb },
 		func(fp *FakePolicy) generic.Evaluator { return nil },

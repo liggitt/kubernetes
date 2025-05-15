@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package generic
+package testing
 
 import (
 	"context"
@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apiserver/pkg/admission/plugin/policy/generic"
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
@@ -48,10 +49,10 @@ import (
 )
 
 // PolicyTestContext is everything you need to unit test a policy plugin
-type PolicyTestContext[P runtime.Object, B runtime.Object, E Evaluator] struct {
+type PolicyTestContext[P runtime.Object, B runtime.Object, E generic.Evaluator] struct {
 	context.Context
-	Plugin *Plugin[PolicyHook[P, B, E]]
-	Source Source[PolicyHook[P, B, E]]
+	Plugin *generic.Plugin[generic.PolicyHook[P, B, E]]
+	Source generic.Source[generic.PolicyHook[P, B, E]]
 	Start  func() error
 
 	scheme     *runtime.Scheme
@@ -67,11 +68,11 @@ type PolicyTestContext[P runtime.Object, B runtime.Object, E Evaluator] struct {
 	unstructuredTracker     clienttesting.ObjectTracker
 }
 
-func NewPolicyTestContext[P, B runtime.Object, E Evaluator](
-	newPolicyAccessor func(P) PolicyAccessor,
-	newBindingAccessor func(B) BindingAccessor,
+func NewPolicyTestContext[P, B runtime.Object, E generic.Evaluator](
+	newPolicyAccessor func(P) generic.PolicyAccessor,
+	newBindingAccessor func(B) generic.BindingAccessor,
 	compileFunc func(P) E,
-	dispatcher dispatcherFactory[PolicyHook[P, B, E]],
+	dispatcher generic.DispatcherFactory[generic.PolicyHook[P, B, E]],
 	initialObjects []runtime.Object,
 	paramMappings []meta.RESTMapping,
 ) (*PolicyTestContext[P, B, E], func(), error) {
@@ -176,11 +177,11 @@ func NewPolicyTestContext[P, B runtime.Object, E Evaluator](
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc},
 	)
 
-	var source Source[PolicyHook[P, B, E]]
-	plugin := NewPlugin[PolicyHook[P, B, E]](
+	var source generic.Source[generic.PolicyHook[P, B, E]]
+	plugin := generic.NewPlugin[generic.PolicyHook[P, B, E]](
 		admission.NewHandler(admission.Connect, admission.Create, admission.Delete, admission.Update),
-		func(sif informers.SharedInformerFactory, i1 kubernetes.Interface, i2 dynamic.Interface, r meta.RESTMapper) Source[PolicyHook[P, B, E]] {
-			source = NewPolicySource[P, B, E](
+		func(sif informers.SharedInformerFactory, i1 kubernetes.Interface, i2 dynamic.Interface, r meta.RESTMapper) generic.Source[generic.PolicyHook[P, B, E]] {
+			source = generic.NewPolicySource[P, B, E](
 				policyInformer,
 				bindingInformer,
 				newPolicyAccessor,
