@@ -901,7 +901,11 @@ type CELDeviceSelector struct {
 	// If an unknown prefix is used as a lookup in either device.attributes
 	// or device.capacity, an empty map will be returned.
 	//
+	// link into https://github.com/kubernetes/kubernetes/issues/125826
 	// Q: will this empty map pass or fail a `has()` check in CEL? will it trigger the orValue() case of a CEL optional?
+	//   has(device.attributes["foo"]) ? ... : ...
+	//   device.?attributes["dra.example.com"].foo.bar.baz.orValue("")
+	//   device.?attributes["dra.example.com"].foo.bar.baz.hasValue() ? ... : ...
 	//
 	// Any reference to
 	// an unknown field will cause an evaluation error and allocation to
@@ -1373,8 +1377,12 @@ type DeviceClassSpec struct {
 	// Each selector must be satisfied by a device which is claimed via this class.
 	//
 	// Q: do all selectors have to match a device, or only one? what is the use case for multiple selectors?
+	//    A: have to match all (ANDed together) - TODO: document this
+	// Q: do we have examples of complex / creative device classes for multi-selector or multi-driver classes
 	// Q: can multiple device classes match a single device?
+	//    A: yes
 	// Q: what happens to a device that is not matched by any device class?
+	//    A: not usable?
 	// Q: is a particular device class used to *constrain* a particular device, or does anything ever go hunting for all the device classes a particular device *might* match?
 	// Q: when is selector matching enforced? what happens if a deviceclass changes its selectors after allocation? does that break or disrupt anything?
 	// Q: is the device passed into DeviceSelector one that already exists, or one that is *about* to be allocated and is being double-checked before allocation?
@@ -1384,7 +1392,7 @@ type DeviceClassSpec struct {
 	Selectors []DeviceSelector `json:"selectors,omitempty" protobuf:"bytes,1,opt,name=selectors"`
 
 	// Config defines configuration parameters that apply to each device that is claimed via this class.
-	// Some classses may potentially be satisfied by multiple drivers, so each instance of a vendor
+	// Some classes may potentially be satisfied by multiple drivers, so each instance of a vendor
 	// configuration applies to exactly one driver.
 	//
 	// Q: is config[*].opaque.driver required to be unique?
