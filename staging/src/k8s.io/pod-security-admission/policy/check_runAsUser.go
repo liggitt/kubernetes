@@ -55,8 +55,19 @@ func CheckRunAsUser() Check {
 				MinimumVersion: api.MajorMinorVersion(1, 23),
 				CheckPod:       runAsUser_1_23,
 			},
+			{
+				MinimumVersion: api.MajorMinorVersion(1, 34),
+				CheckPod:       runAsUser_1_34,
+			},
 		},
 	}
+}
+
+func runAsUser_1_34(podMetadata *metav1.ObjectMeta, podSpec *corev1.PodSpec) CheckResult {
+	// Since the UserNamespacesPodSecurityStandards feature has been dropped,
+	// there's no functional difference between 1.23 and 1.34, but this is kept around
+	// for backwards compatibility.
+	return runAsUser_1_23(podMetadata, podSpec)
 }
 
 func runAsUser_1_23(podMetadata *metav1.ObjectMeta, podSpec *corev1.PodSpec) CheckResult {
