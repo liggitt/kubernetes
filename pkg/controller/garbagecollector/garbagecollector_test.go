@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
-
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/lru"
 
@@ -2313,6 +2313,132 @@ func TestConflictingData(t *testing.T) {
 				}),
 			},
 		},
+		{
+			// https://github.com/kubernetes/kubernetes/issues/114603
+			name: "resourceVersion conflict between Get/Delete while processing object deletion",
+			steps: []step{
+				// setup
+				createObjectInClient("", "v1", "pods", "ns1", makeMetadataObj(pod1ns1)),          // good parent
+				createObjectInClient("", "v1", "pods", "ns1", makeMetadataObj(pod2ns1, pod1ns1)), // good child
+				processEvent(makeAddEvent(pod2ns1, pod1ns1)),
+				processEvent(makeAddEvent(pod1ns1)),
+				deleteObjectFromClient("", "v1", "pods", "ns1", pod1ns1.Name),
+				processEvent(makeDeleteEvent(pod1ns1)),
+				assertState(state{
+					absentOwnerCache: []objectReference{pod1ns1},
+					graphNodes: []*node{
+						makeNode(pod2ns1, withOwners(pod1ns1))},
+					pendingAttemptToDelete: []*node{
+						makeNode(pod1ns1),
+						makeNode(pod2ns1, withOwners(pod1ns1)),
+					},
+				}),
+
+				// Parent deletion is processed
+				processAttemptToDelete(1),
+				assertState(state{
+					clientActions: []string{
+						"get /v1, Resource=pods ns=ns1 name=podname1",
+					},
+					absentOwnerCache:    []objectReference{pod1ns1},
+					pendingGraphChanges: []*event{makeVirtualDeleteEvent(pod1ns1)},
+					graphNodes: []*node{
+						makeNode(pod2ns1, withOwners(pod1ns1))},
+					pendingAttemptToDelete: []*node{
+						makeNode(pod2ns1, withOwners(pod1ns1)),
+					},
+				}),
+
+				// Process the delete attempt where the object is updated between the
+				// Get and Delete calls, and the ownerReferences are changed.
+				// The first Delete attempt should result in RV conflict and lead to
+				// another Get. Upon the second Get, ownerReferences are seen to be
+				// changed and the GC exits.
+				prependReactor("get", "pods", func() clientgotesting.ReactionFunc {
+					// contrived increment of RV on each Get
+					resourceVersion := 42
+					initialGet := true
+					return func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+						getAction, ok := action.(clientgotesting.GetAction)
+						if !ok {
+							return false, nil, nil
+						}
+						if getAction.GetName() != pod2ns1.Name {
+							return false, nil, nil
+						}
+						obj := makeMetadataObj(pod2ns1, pod1ns1, role1v1)
+						if initialGet {
+							initialGet = false
+							obj = makeMetadataObj(pod2ns1, pod1ns1)
+						}
+						resourceVersion += 1
+						obj.SetResourceVersion(fmt.Sprintf("%d", resourceVersion))
+						return true, obj, nil
+					}
+				}()),
+				prependReactor("delete", "pods", func() clientgotesting.ReactionFunc {
+					return func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+						deleteAction, ok := action.(clientgotesting.DeleteAction)
+						if !ok {
+							return false, nil, nil
+						}
+						// note: fake client does not propagate DeleteOptions
+						return true, nil, errors.NewConflict(
+							deleteAction.GetResource().GroupResource(), deleteAction.GetName(), fmt.Errorf("test RV error"))
+					}
+				}()),
+				processAttemptToDelete(1),
+				assertState(state{
+					clientActions: []string{
+						"get /v1, Resource=pods ns=ns1 name=podname2",
+						"delete /v1, Resource=pods ns=ns1 name=podname2", // first delete RV precondition triggers a live Get
+						"get /v1, Resource=pods ns=ns1 name=podname2",    // the object has new ownerReferences, causing exit
+					},
+					absentOwnerCache:    []objectReference{pod1ns1},
+					pendingGraphChanges: []*event{makeVirtualDeleteEvent(pod1ns1)},
+					graphNodes: []*node{
+						makeNode(pod2ns1, withOwners(pod1ns1))},
+					pendingAttemptToDelete: []*node{
+						makeNode(pod2ns1, withOwners(pod1ns1))},
+				}),
+
+				// Process the delete attempt where the object is updated between the
+				// Get and Delete calls, and the ownerReferences are *unchanged*.
+				// The first Delete attempt should result in RV conflict and lead to
+				// another Get. Upon the second Get, ownerReferences are seen to be
+				// *unchanged* and the GC issues an unconditional Delete.
+				prependReactor("delete", "pods", func() clientgotesting.ReactionFunc {
+					initialDelete := true
+					return func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+						deleteAction, ok := action.(clientgotesting.DeleteAction)
+						if !ok {
+							return false, nil, nil
+						}
+						// note: fake client does not propagate DeleteOptions
+						if initialDelete {
+							initialDelete = false
+							return true, nil, errors.NewConflict(
+								deleteAction.GetResource().GroupResource(), deleteAction.GetName(), fmt.Errorf("test RV error"))
+						}
+						return true, nil, nil
+					}
+				}()),
+				processAttemptToDelete(1),
+				assertState(state{
+					clientActions: []string{
+						"get /v1, Resource=pods ns=ns1 name=podname2",
+						"get rbac.authorization.k8s.io/v1, Resource=roles ns=ns1 name=role1",
+						"delete /v1, Resource=pods ns=ns1 name=podname2", // first delete RV precondition triggers a live Get
+						"get /v1, Resource=pods ns=ns1 name=podname2",    // the object has same ownerReferences, causing unconditional Delete
+						"delete /v1, Resource=pods ns=ns1 name=podname2", // unconditional Delete
+					},
+					absentOwnerCache:    []objectReference{pod1ns1, role1v1},
+					pendingGraphChanges: []*event{makeVirtualDeleteEvent(pod1ns1)},
+					graphNodes: []*node{
+						makeNode(pod2ns1, withOwners(pod1ns1))},
+				}),
+			},
+		},
 	}
 
 	alwaysStarted := make(chan struct{})
@@ -2369,6 +2495,7 @@ func TestConflictingData(t *testing.T) {
 						uidToNode:     make(map[types.UID]*node),
 					},
 					attemptToDelete:  attemptToDelete,
+					attemptToOrphan:  attemptToOrphan,
 					absentOwnerCache: absentOwnerCache,
 				},
 			}
@@ -2519,6 +2646,16 @@ func processPendingGraphChanges(count int) step {
 					ctx.gc.dependencyGraphBuilder.processGraphChanges(ctx.logger)
 				}
 			}
+		},
+	}
+}
+
+func prependReactor(verb, resource string, reaction clientgotesting.ReactionFunc) step {
+	return step{
+		name: "prependReactor",
+		check: func(ctx stepContext) {
+			ctx.t.Helper()
+			ctx.metadataClient.PrependReactor(verb, resource, reaction)
 		},
 	}
 }
