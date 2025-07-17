@@ -21,6 +21,8 @@ import (
 	fmt "fmt"
 
 	grpc "google.golang.org/grpc"
+
+	conversion "k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	v1 "k8s.io/kubelet/pkg/apis/dra/v1"
@@ -33,6 +35,7 @@ var (
 
 // V1ServerWrapper implements the [NodeServer] interface by wrapping a [v1.DRAPluginServer].
 type V1ServerWrapper struct {
+	UnsafeDRAPluginServer
 	v1.DRAPluginServer
 }
 
@@ -72,6 +75,7 @@ func (w V1ServerWrapper) NodeUnprepareResources(ctx context.Context, req *NodeUn
 
 // V1Beta1ServerWrapper implements the [v1.DRAPluginServer] interface by wrapping a [NodeServer].
 type V1Beta1ServerWrapper struct {
+	v1.UnsafeDRAPluginServer
 	DRAPluginServer
 }
 
@@ -185,4 +189,68 @@ func (w V1Beta1ClientWrapper) NodeUnprepareResources(ctx context.Context, req *v
 		return nil, fmt.Errorf("internal error converting NodeUnprepareResourcesResponse from v1beta1 to v1: %w", err)
 	}
 	return &convertedResp, nil
+}
+
+func Convert_v1beta1_Claim_To_v1_Claim(in *Claim, out *v1.Claim, s conversion.Scope) error {
+	return autoConvert_v1beta1_Claim_To_v1_Claim(in, out, s)
+}
+
+func Convert_v1_Claim_To_v1beta1_Claim(in *v1.Claim, out *Claim, s conversion.Scope) error {
+	return autoConvert_v1_Claim_To_v1beta1_Claim(in, out, s)
+}
+
+func Convert_v1beta1_Device_To_v1_Device(in *Device, out *v1.Device, s conversion.Scope) error {
+	return autoConvert_v1beta1_Device_To_v1_Device(in, out, s)
+}
+
+func Convert_v1_Device_To_v1beta1_Device(in *v1.Device, out *Device, s conversion.Scope) error {
+	return autoConvert_v1_Device_To_v1beta1_Device(in, out, s)
+}
+
+func Convert_v1beta1_NodePrepareResourceResponse_To_v1_NodePrepareResourceResponse(in *NodePrepareResourceResponse, out *v1.NodePrepareResourceResponse, s conversion.Scope) error {
+	return autoConvert_v1beta1_NodePrepareResourceResponse_To_v1_NodePrepareResourceResponse(in, out, s)
+}
+
+func Convert_v1_NodePrepareResourceResponse_To_v1beta1_NodePrepareResourceResponse(in *v1.NodePrepareResourceResponse, out *NodePrepareResourceResponse, s conversion.Scope) error {
+	return autoConvert_v1_NodePrepareResourceResponse_To_v1beta1_NodePrepareResourceResponse(in, out, s)
+}
+
+func Convert_v1beta1_NodePrepareResourcesRequest_To_v1_NodePrepareResourcesRequest(in *NodePrepareResourcesRequest, out *v1.NodePrepareResourcesRequest, s conversion.Scope) error {
+	return autoConvert_v1beta1_NodePrepareResourcesRequest_To_v1_NodePrepareResourcesRequest(in, out, s)
+}
+
+func Convert_v1_NodePrepareResourcesRequest_To_v1beta1_NodePrepareResourcesRequest(in *v1.NodePrepareResourcesRequest, out *NodePrepareResourcesRequest, s conversion.Scope) error {
+	return autoConvert_v1_NodePrepareResourcesRequest_To_v1beta1_NodePrepareResourcesRequest(in, out, s)
+}
+
+func Convert_v1beta1_NodePrepareResourcesResponse_To_v1_NodePrepareResourcesResponse(in *NodePrepareResourcesResponse, out *v1.NodePrepareResourcesResponse, s conversion.Scope) error {
+	return autoConvert_v1beta1_NodePrepareResourcesResponse_To_v1_NodePrepareResourcesResponse(in, out, s)
+}
+
+func Convert_v1_NodePrepareResourcesResponse_To_v1beta1_NodePrepareResourcesResponse(in *v1.NodePrepareResourcesResponse, out *NodePrepareResourcesResponse, s conversion.Scope) error {
+	return autoConvert_v1_NodePrepareResourcesResponse_To_v1beta1_NodePrepareResourcesResponse(in, out, s)
+}
+
+func Convert_v1beta1_NodeUnprepareResourceResponse_To_v1_NodeUnprepareResourceResponse(in *NodeUnprepareResourceResponse, out *v1.NodeUnprepareResourceResponse, s conversion.Scope) error {
+	return autoConvert_v1beta1_NodeUnprepareResourceResponse_To_v1_NodeUnprepareResourceResponse(in, out, s)
+}
+
+func Convert_v1_NodeUnprepareResourceResponse_To_v1beta1_NodeUnprepareResourceResponse(in *v1.NodeUnprepareResourceResponse, out *NodeUnprepareResourceResponse, s conversion.Scope) error {
+	return autoConvert_v1_NodeUnprepareResourceResponse_To_v1beta1_NodeUnprepareResourceResponse(in, out, s)
+}
+
+func Convert_v1beta1_NodeUnprepareResourcesRequest_To_v1_NodeUnprepareResourcesRequest(in *NodeUnprepareResourcesRequest, out *v1.NodeUnprepareResourcesRequest, s conversion.Scope) error {
+	return autoConvert_v1beta1_NodeUnprepareResourcesRequest_To_v1_NodeUnprepareResourcesRequest(in, out, s)
+}
+
+func Convert_v1_NodeUnprepareResourcesRequest_To_v1beta1_NodeUnprepareResourcesRequest(in *v1.NodeUnprepareResourcesRequest, out *NodeUnprepareResourcesRequest, s conversion.Scope) error {
+	return autoConvert_v1_NodeUnprepareResourcesRequest_To_v1beta1_NodeUnprepareResourcesRequest(in, out, s)
+}
+
+func Convert_v1beta1_NodeUnprepareResourcesResponse_To_v1_NodeUnprepareResourcesResponse(in *NodeUnprepareResourcesResponse, out *v1.NodeUnprepareResourcesResponse, s conversion.Scope) error {
+	return autoConvert_v1beta1_NodeUnprepareResourcesResponse_To_v1_NodeUnprepareResourcesResponse(in, out, s)
+}
+
+func Convert_v1_NodeUnprepareResourcesResponse_To_v1beta1_NodeUnprepareResourcesResponse(in *v1.NodeUnprepareResourcesResponse, out *NodeUnprepareResourcesResponse, s conversion.Scope) error {
+	return autoConvert_v1_NodeUnprepareResourcesResponse_To_v1beta1_NodeUnprepareResourcesResponse(in, out, s)
 }
