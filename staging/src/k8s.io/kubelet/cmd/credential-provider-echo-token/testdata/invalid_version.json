@@ -1,0 +1,4 @@
+{
+  "apiVersion":"credentialprovider.kubelet.k8s.io/vX",
+  "kind":"CredentialProviderRequest"
+}
