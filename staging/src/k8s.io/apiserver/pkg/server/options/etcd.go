@@ -451,6 +451,7 @@ func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupR
 			ret.Decorator = generic.UndecoratedStorage
 		} else {
 			klog.V(3).InfoS("Using watch cache", "resource", resource)
+			ret.StorageConfig.TrackObjectSizeStats = true
 			ret.Decorator = genericregistry.StorageWithCacher()
 		}
 	}

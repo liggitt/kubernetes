@@ -102,6 +102,9 @@ type ConfigForResource struct {
 
 	// GroupResource is the relevant one
 	GroupResource schema.GroupResource
+
+	// TrackObjectSizeStats
+	TrackObjectSizeStats bool
 }
 
 // ForResource specializes to the given resource

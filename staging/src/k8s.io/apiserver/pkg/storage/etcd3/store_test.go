@@ -568,6 +568,7 @@ type setupOptions struct {
 	newListFunc    func() runtime.Object
 	prefix         string
 	resourcePrefix string
+	trackStats     bool
 	groupResource  schema.GroupResource
 	transformer    value.Transformer
 	leaseConfig    LeaseManagerConfig
@@ -610,6 +611,7 @@ func withDefaults(options *setupOptions) {
 	options.newListFunc = newPodList
 	options.prefix = ""
 	options.resourcePrefix = "/pods"
+	options.trackStats = true
 	options.groupResource = schema.GroupResource{Resource: "pods"}
 	options.transformer = newTestTransformer()
 	options.leaseConfig = newTestLeaseManagerConfig()
@@ -635,6 +637,7 @@ func testSetup(t testing.TB, opts ...setupOption) (context.Context, *store, *kub
 		setupOpts.newListFunc,
 		setupOpts.prefix,
 		setupOpts.resourcePrefix,
+		setupOpts.trackStats,
 		setupOpts.groupResource,
 		setupOpts.transformer,
 		setupOpts.leaseConfig,

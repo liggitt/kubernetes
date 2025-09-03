@@ -142,7 +142,7 @@ func (a *abortOnFirstError) Aggregate(key string, err error) bool {
 func (a *abortOnFirstError) Err() error { return a.err }
 
 // New returns an etcd3 implementation of storage.Interface.
-func New(c *kubernetes.Client, compactor Compactor, codec runtime.Codec, newFunc, newListFunc func() runtime.Object, prefix, resourcePrefix string, groupResource schema.GroupResource, transformer value.Transformer, leaseManagerConfig LeaseManagerConfig, decoder Decoder, versioner storage.Versioner) *store {
+func New(c *kubernetes.Client, compactor Compactor, codec runtime.Codec, newFunc, newListFunc func() runtime.Object, prefix, resourcePrefix string, trackStats bool, groupResource schema.GroupResource, transformer value.Transformer, leaseManagerConfig LeaseManagerConfig, decoder Decoder, versioner storage.Versioner) *store {
 	// for compatibility with etcd2 impl.
 	// no-op for default prefix of '/registry'.
 	// keeps compatibility with etcd2 impl for custom prefixes that don't start with '/'
@@ -187,7 +187,7 @@ func New(c *kubernetes.Client, compactor Compactor, codec runtime.Codec, newFunc
 		compactor:      compactor,
 	}
 	// Collecting stats requires properly set resourcePrefix to call getKeys.
-	if resourcePrefix != "" && resourcePrefix != "/events" && utilfeature.DefaultFeatureGate.Enabled(features.SizeBasedListCostEstimate) {
+	if resourcePrefix != "" && trackStats && utilfeature.DefaultFeatureGate.Enabled(features.SizeBasedListCostEstimate) {
 		stats := newStatsCache(pathPrefix, s.getKeys)
 		s.stats = stats
 		w.stats = stats
