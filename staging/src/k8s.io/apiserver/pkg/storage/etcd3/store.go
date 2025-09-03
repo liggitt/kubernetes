@@ -187,7 +187,7 @@ func New(c *kubernetes.Client, compactor Compactor, codec runtime.Codec, newFunc
 		compactor:      compactor,
 	}
 	// Collecting stats requires properly set resourcePrefix to call getKeys.
-	if resourcePrefix != "" && utilfeature.DefaultFeatureGate.Enabled(features.SizeBasedListCostEstimate) {
+	if resourcePrefix != "" && resourcePrefix != "/events" && utilfeature.DefaultFeatureGate.Enabled(features.SizeBasedListCostEstimate) {
 		stats := newStatsCache(pathPrefix, s.getKeys)
 		s.stats = stats
 		w.stats = stats
