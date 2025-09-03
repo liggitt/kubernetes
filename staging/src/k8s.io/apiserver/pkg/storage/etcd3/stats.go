@@ -101,6 +101,9 @@ func (sc *statsCache) GetKeys(ctx context.Context) ([]string, error) {
 	sc.getKeysLock.Unlock()
 
 	// Don't execute getKeys under lock.
+	if getKeys == nil {
+		return nil, objectSizeStatsUnsupported
+	}
 	return getKeys(ctx)
 }
 
