@@ -249,7 +249,7 @@ var (
 					Driver:  driver,
 					Pool:    nodeName,
 					Device:  "instance-1",
-					Request: "container-0-request-0",
+					Request: "container-0-request-0-i",
 				},
 				{
 					Driver:  driver,
@@ -276,7 +276,7 @@ var (
 					Driver:  driver,
 					Pool:    nodeName,
 					Device:  "instance-1",
-					Request: "container-0-request-0",
+					Request: "container-0-request-0-i",
 				},
 				{
 					Driver:  driver,
@@ -400,7 +400,7 @@ var (
 				UID:        types.UID(podUID),
 				Controller: ptr.To(true),
 			}).
-		RequestWithName("container-0-request-0", className).
+		RequestWithName("container-0-request-0-i", className).
 		RequestWithNameCount("container-0-request-1", className, 2).
 		Allocation(implicitExtendedResourceAllocationResult).
 		Obj()
@@ -417,7 +417,7 @@ var (
 				UID:        types.UID(podUID),
 				Controller: ptr.To(true),
 			}).
-		RequestWithName("container-0-request-0", className).
+		RequestWithName("container-0-request-0-i", className).
 		RequestWithNameCount("container-0-request-1", className, 2).
 		Allocation(implicitExtendedResourceAllocationResult).
 		Obj()
@@ -434,7 +434,7 @@ var (
 				UID:        types.UID(podUID),
 				Controller: ptr.To(true),
 			}).
-		RequestWithName("container-0-request-0", className).
+		RequestWithName("container-0-request-0-i", className).
 		RequestWithNameCount("container-1-request-0", className, 2).
 		Allocation(implicitExtendedResourceAllocationResultTwoContainers).
 		Obj()
@@ -451,7 +451,7 @@ var (
 				UID:        types.UID(podUID),
 				Controller: ptr.To(true),
 			}).
-		RequestWithName("container-0-request-0", className).
+		RequestWithName("container-0-request-0-i", className).
 		RequestWithNameCount("container-1-request-0", className, 2).
 		Allocation(implicitExtendedResourceAllocationResultTwoContainers).
 		Obj()
