@@ -101,6 +101,10 @@ func (f *RealFIFO) keyOf(obj interface{}) (string, error) {
 		obj = d.Newest().Object
 	}
 	if d, ok := obj.(Delta); ok {
+		if d.Type == Bookmark {
+			// bookmark deltas don't have a key
+			return "", nil
+		}
 		obj = d.Object
 	}
 	if d, ok := obj.(DeletedFinalStateUnknown); ok {
@@ -254,6 +258,12 @@ func (f *RealFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 	return Deltas{item}, err
 }
 
+func (f *RealFIFO) Bookmark(resourceVersion string) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return f.addToItems_locked(Bookmark, false, resourceVersion)
+}
+
 // Replace
 // 1. finds those items in f.items that are not in newItems and creates synthetic deletes for them
 // 2. finds items in knownObjects that are not in newItems and creates synthetic deletes for them
@@ -356,6 +366,11 @@ func (f *RealFIFO) Replace(newItems []interface{}, resourceVersion string) error
 	if !f.populated {
 		f.populated = true
 		f.initialPopulationCount = len(f.items)
+	}
+
+	retErr := f.addToItems_locked(Bookmark, false, resourceVersion)
+	if retErr != nil {
+		return fmt.Errorf("couldn't enqueue bookmark: %w", retErr)
 	}
 
 	return nil
