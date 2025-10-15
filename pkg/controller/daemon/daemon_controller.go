@@ -30,6 +30,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -132,6 +134,8 @@ type DaemonSetsController struct {
 	nodeUpdateQueue workqueue.TypedRateLimitingInterface[string]
 
 	failedPodsBackoff *flowcontrol.Backoff
+
+	consistencyStore *util.ConsistencyStore
 }
 
 // NewDaemonSetsController creates a new DaemonSetsController
@@ -146,14 +150,31 @@ func NewDaemonSetsController(
 ) (*DaemonSetsController, error) {
 	eventBroadcaster := record.NewBroadcaster(record.WithContext(ctx))
 	logger := klog.FromContext(ctx)
+	consistencyStore := util.NewConsistencyStore()
+	dsCallback := func(pod *v1.Pod, meta *metav1.OwnerReference) error {
+		return consistencyStore.WroteAt(
+			types.NamespacedName{
+				Namespace: pod.Namespace,
+				Name:      meta.Name,
+			},
+			meta.UID,
+			schema.GroupVersionKind{
+				Version: "v1",
+				Kind:    "Pod",
+			},
+			pod.ResourceVersion,
+		)
+	}
 	dsc := &DaemonSetsController{
 		kubeClient:       kubeClient,
 		eventBroadcaster: eventBroadcaster,
 		eventRecorder:    eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "daemonset-controller"}),
 		podControl: controller.RealPodControl{
-			KubeClient: kubeClient,
-			Recorder:   eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "daemonset-controller"}),
+			KubeClient:     kubeClient,
+			Recorder:       eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "daemonset-controller"}),
+			CreateCallback: dsCallback,
 		},
+
 		crControl: controller.RealControllerRevisionControl{
 			KubeClient: kubeClient,
 		},
@@ -171,13 +192,25 @@ func NewDaemonSetsController(
 				Name: "daemonset-node-updates",
 			},
 		),
+		consistencyStore: consistencyStore,
 	}
 
+	dsGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "DaemonSet"}
 	daemonSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			ds := obj.(*apps.DaemonSet)
+			dsc.consistencyStore.ReadAt(
+				dsGVK,
+				ds.ResourceVersion,
+			)
 			dsc.addDaemonset(logger, obj)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
+			ds := newObj.(*apps.DaemonSet)
+			dsc.consistencyStore.ReadAt(
+				dsGVK,
+				ds.ResourceVersion,
+			)
 			dsc.updateDaemonset(logger, oldObj, newObj)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -203,15 +236,24 @@ func NewDaemonSetsController(
 
 	// Watch for creation/deletion of pods. The reason we watch is that we don't want a daemon set to create/delete
 	// more pods until all the effects (expectations) of a daemon set's create/delete have been observed.
+	podGVK := schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}
+
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
+			pod := obj.(*v1.Pod)
+			dsc.consistencyStore.ReadAt(podGVK, pod.ResourceVersion)
 			dsc.addPod(logger, obj)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
+			pod := newObj.(*v1.Pod)
+			dsc.consistencyStore.ReadAt(podGVK, pod.ResourceVersion)
 			dsc.updatePod(logger, oldObj, newObj)
 		},
 		DeleteFunc: func(obj interface{}) {
 			dsc.deletePod(logger, obj)
+		},
+		BookmarkFunc: func(resourceVersion string) {
+			dsc.consistencyStore.ReadAt(podGVK, resourceVersion)
 		},
 	})
 	dsc.podLister = podInformer.Lister()
@@ -288,6 +330,13 @@ func (dsc *DaemonSetsController) deleteDaemonset(logger klog.Logger, obj interfa
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", ds, err))
 		return
 	}
+	dsc.consistencyStore.Clear(
+		types.NamespacedName{
+			Name:      ds.Name,
+			Namespace: ds.Namespace,
+		},
+		ds.UID,
+	)
 
 	// Delete expectations for the DaemonSet so if we create a new one with the same name it starts clean
 	dsc.expectations.DeleteExpectations(logger, key)
@@ -336,8 +385,29 @@ func (dsc *DaemonSetsController) processNextWorkItem(ctx context.Context) bool {
 		return false
 	}
 	defer dsc.queue.Done(dsKey)
+	namespace, name, err := cache.SplitMetaNamespaceKey(dsKey)
+	// Can't parse, return
+	if err != nil {
+		dsc.queue.Forget(dsKey)
+		return true
+	}
+	dsNamespacedName := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
 
-	err := dsc.syncHandler(ctx, dsKey)
+	// If we get an error, just reconcile normally. It will be less efficient
+	// but we don't risk reconciling forever. This will only happen if some
+	// resource version parsing is not working properly.
+	klog.InfoS("Checking if ready")
+	if isReady, err := dsc.consistencyStore.IsReady(dsNamespacedName); !isReady && err == nil {
+		klog.InfoS("Is not ready")
+		dsc.queue.AddRateLimited(dsKey)
+		return true
+	}
+	klog.InfoS("Is ready")
+
+	err = dsc.syncHandler(ctx, dsKey)
 	if err == nil {
 		dsc.queue.Forget(dsKey)
 		return true

@@ -132,9 +132,11 @@ func (f *RealFIFO) hasSynced_locked() bool {
 func (f *RealFIFO) addToItems_locked(deltaActionType DeltaType, skipTransform bool, obj interface{}) error {
 	// we must be able to read the keys in order to determine whether the knownObjcts and the items
 	// in this FIFO overlap
-	_, err := f.keyOf(obj)
-	if err != nil {
-		return KeyError{obj, err}
+	if deltaActionType != Bookmark {
+		_, err := f.keyOf(obj)
+		if err != nil {
+			return KeyError{obj, err}
+		}
 	}
 
 	// Every object comes through this code path once, so this is a good
