@@ -61,6 +61,7 @@ import (
 	portallocatorcontroller "k8s.io/kubernetes/pkg/registry/core/service/portallocator/controller"
 	servicestore "k8s.io/kubernetes/pkg/registry/core/service/storage"
 	serviceaccountstore "k8s.io/kubernetes/pkg/registry/core/serviceaccount/storage"
+	endpointslicestorage "k8s.io/kubernetes/pkg/registry/discovery/endpointslice/storage"
 	kubeschedulerconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	"k8s.io/kubernetes/pkg/util/async"
 	netutils "k8s.io/utils/net"
@@ -72,6 +73,8 @@ type Config struct {
 
 	Proxy    ProxyConfig
 	Services ServicesConfig
+
+	EndpointSliceRESTCache *endpointslicestorage.EndpointSliceRESTCache
 }
 
 type ProxyConfig struct {
@@ -202,12 +205,20 @@ func (p *legacyProvider) NewRESTStorage(apiResourceConfigSource serverstorage.AP
 		return genericapiserver.APIGroupInfo{}, err
 	}
 
+	var endpointSliceLister rest.Lister
+	if p.EndpointSliceRESTCache != nil {
+		endpointSliceLister, err = p.EndpointSliceRESTCache.GetOrCreate(restOptionsGetter)
+		if err != nil {
+			return genericapiserver.APIGroupInfo{}, err
+		}
+	}
+
 	serviceRESTStorage, serviceStatusStorage, serviceRESTProxy, err := servicestore.NewREST(
 		restOptionsGetter,
 		p.primaryServiceClusterIPAllocator.IPFamily(),
 		p.serviceClusterIPAllocators,
 		p.serviceNodePortAllocator,
-		endpointsStorage,
+		endpointSliceLister,
 		podStorage.Pod,
 		p.Proxy.Transport)
 	if err != nil {
