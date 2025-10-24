@@ -29,7 +29,11 @@ import (
 	"github.com/spf13/pflag"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/plugin/pkg/client/auth/exec"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/client-go/util/homedir"
 	"k8s.io/kubectl/pkg/config"
 )
@@ -51,7 +55,7 @@ var (
 // arguments based on user's kuberc configuration.
 type PreferencesHandler interface {
 	AddFlags(flags *pflag.FlagSet)
-	Apply(rootCmd *cobra.Command, args []string, errOut io.Writer) ([]string, error)
+	Apply(rootCmd *cobra.Command, kubeConfigFlags *genericclioptions.ConfigFlags, args []string, errOut io.Writer) ([]string, error)
 }
 
 // Preferences stores the kuberc file coming either from environment variable
@@ -85,7 +89,7 @@ func (p *Preferences) AddFlags(flags *pflag.FlagSet) {
 
 // Apply firstly applies the aliases in the preferences file and secondly overrides
 // the default values of flags.
-func (p *Preferences) Apply(rootCmd *cobra.Command, args []string, errOut io.Writer) ([]string, error) {
+func (p *Preferences) Apply(rootCmd *cobra.Command, kubeConfigFlags *genericclioptions.ConfigFlags, args []string, errOut io.Writer) ([]string, error) {
 	if len(args) <= 1 {
 		return args, nil
 	}
@@ -108,6 +112,8 @@ func (p *Preferences) Apply(rootCmd *cobra.Command, args []string, errOut io.Wri
 		return args, err
 	}
 
+	p.applyPluginPolicy(kubeConfigFlags, kuberc)
+
 	args, err = p.applyAliases(rootCmd, kuberc, args, errOut)
 	if err != nil {
 		return args, err
@@ -117,6 +123,27 @@ func (p *Preferences) Apply(rootCmd *cobra.Command, args []string, errOut io.Wri
 		return args, err
 	}
 	return args, nil
+}
+
+// `applyPluginPolicy` wraps the rest client getter with one that propagates
+// the allowlist, via the rest config, to the code handling credential exec
+// plugins.
+func (p *Preferences) applyPluginPolicy(kubeConfigFlags *genericclioptions.ConfigFlags, kuberc *config.Preference) {
+	wrapConfigFn := kubeConfigFlags.WrapConfigFn
+	kubeConfigFlags.WithWrapConfigFn(func(c *rest.Config) *rest.Config {
+		if wrapConfigFn != nil {
+			c = wrapConfigFn(c)
+		}
+
+		if c.ExecProvider != nil {
+			c.ExecProvider.PluginPolicy = clientcmdapi.PluginPolicy{
+				PolicyType: kuberc.CredentialPluginPolicy,
+				Allowlist:  kuberc.CredentialPluginAllowlist,
+			}
+		}
+
+		return c
+	})
 }
 
 // applyOverrides finds the command and sets the defaulted flag values in kuberc.
@@ -484,6 +511,13 @@ func validate(plugin *config.Preference) error {
 		if err := validateFlag(override.Options); err != nil {
 			return err
 		}
+	}
+
+	if err := exec.ValidatePluginPolicy(clientcmdapi.PluginPolicy{
+		PolicyType: plugin.CredentialPluginPolicy,
+		Allowlist:  plugin.CredentialPluginAllowlist,
+	}); err != nil {
+		return err
 	}
 
 	return nil
