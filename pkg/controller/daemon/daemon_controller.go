@@ -138,6 +138,9 @@ type DaemonSetsController struct {
 	consistencyStore *util.ConsistencyStore
 }
 
+var daemonsetGroupResource = schema.GroupResource{Group: "apps", Resource: "daemonsets"}
+var podsGroupResource = schema.GroupResource{Group: "", Resource: "pods"}
+
 // NewDaemonSetsController creates a new DaemonSetsController
 func NewDaemonSetsController(
 	ctx context.Context,
@@ -151,28 +154,17 @@ func NewDaemonSetsController(
 	eventBroadcaster := record.NewBroadcaster(record.WithContext(ctx))
 	logger := klog.FromContext(ctx)
 	consistencyStore := util.NewConsistencyStore()
-	dsCallback := func(pod *v1.Pod, meta *metav1.OwnerReference) error {
-		return consistencyStore.WroteAt(
-			types.NamespacedName{
-				Namespace: pod.Namespace,
-				Name:      meta.Name,
-			},
-			meta.UID,
-			schema.GroupVersionKind{
-				Version: "v1",
-				Kind:    "Pod",
-			},
-			pod.ResourceVersion,
-		)
+	dsCallback := func(pod *v1.Pod, meta *metav1.OwnerReference) {
+		consistencyStore.WroteAt(types.NamespacedName{Namespace: pod.Namespace, Name: meta.Name}, meta.UID, podsGroupResource, pod.ResourceVersion)
 	}
 	dsc := &DaemonSetsController{
 		kubeClient:       kubeClient,
 		eventBroadcaster: eventBroadcaster,
 		eventRecorder:    eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "daemonset-controller"}),
 		podControl: controller.RealPodControl{
-			KubeClient:     kubeClient,
-			Recorder:       eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "daemonset-controller"}),
-			CreateCallback: dsCallback,
+			KubeClient: kubeClient,
+			Recorder:   eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "daemonset-controller"}),
+			OnWrite:    dsCallback,
 		},
 
 		crControl: controller.RealControllerRevisionControl{
@@ -195,26 +187,25 @@ func NewDaemonSetsController(
 		consistencyStore: consistencyStore,
 	}
 
-	dsGVK := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "DaemonSet"}
 	daemonSetInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			ds := obj.(*apps.DaemonSet)
-			dsc.consistencyStore.ReadAt(
-				dsGVK,
-				ds.ResourceVersion,
-			)
+			dsc.consistencyStore.ReadAt(daemonsetGroupResource, ds.ResourceVersion)
 			dsc.addDaemonset(logger, obj)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			ds := newObj.(*apps.DaemonSet)
-			dsc.consistencyStore.ReadAt(
-				dsGVK,
-				ds.ResourceVersion,
-			)
+			dsc.consistencyStore.ReadAt(daemonsetGroupResource, ds.ResourceVersion)
 			dsc.updateDaemonset(logger, oldObj, newObj)
 		},
 		DeleteFunc: func(obj interface{}) {
+			if ds, ok := obj.(*apps.DaemonSet); ok {
+				dsc.consistencyStore.ReadAt(daemonsetGroupResource, ds.ResourceVersion)
+			}
 			dsc.deleteDaemonset(logger, obj)
+		},
+		BookmarkFunc: func(resourceVersion string) {
+			dsc.consistencyStore.ReadAt(daemonsetGroupResource, resourceVersion)
 		},
 	})
 	dsc.dsLister = daemonSetInformer.Lister()
@@ -234,26 +225,25 @@ func NewDaemonSetsController(
 	dsc.historyLister = historyInformer.Lister()
 	dsc.historyStoreSynced = historyInformer.Informer().HasSynced
 
-	// Watch for creation/deletion of pods. The reason we watch is that we don't want a daemon set to create/delete
-	// more pods until all the effects (expectations) of a daemon set's create/delete have been observed.
-	podGVK := schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}
-
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pod := obj.(*v1.Pod)
-			dsc.consistencyStore.ReadAt(podGVK, pod.ResourceVersion)
+			dsc.consistencyStore.ReadAt(podsGroupResource, pod.ResourceVersion)
 			dsc.addPod(logger, obj)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			pod := newObj.(*v1.Pod)
-			dsc.consistencyStore.ReadAt(podGVK, pod.ResourceVersion)
+			dsc.consistencyStore.ReadAt(podsGroupResource, pod.ResourceVersion)
 			dsc.updatePod(logger, oldObj, newObj)
 		},
 		DeleteFunc: func(obj interface{}) {
+			if pod, ok := obj.(*v1.Pod); ok {
+				dsc.consistencyStore.ReadAt(podsGroupResource, pod.ResourceVersion)
+			}
 			dsc.deletePod(logger, obj)
 		},
 		BookmarkFunc: func(resourceVersion string) {
-			dsc.consistencyStore.ReadAt(podGVK, resourceVersion)
+			dsc.consistencyStore.ReadAt(podsGroupResource, resourceVersion)
 		},
 	})
 	dsc.podLister = podInformer.Lister()
@@ -399,14 +389,10 @@ func (dsc *DaemonSetsController) processNextWorkItem(ctx context.Context) bool {
 	// If we get an error, just reconcile normally. It will be less efficient
 	// but we don't risk reconciling forever. This will only happen if some
 	// resource version parsing is not working properly.
-	klog.InfoS("Checking if ready")
-	if isReady, err := dsc.consistencyStore.IsReady(dsNamespacedName); !isReady && err == nil {
+	if isReady := dsc.consistencyStore.IsReady(dsNamespacedName); !isReady {
 		klog.InfoS("Is not ready")
-		dsc.queue.AddRateLimited(dsKey)
 		return true
 	}
-	klog.InfoS("Is ready")
-
 	err = dsc.syncHandler(ctx, dsKey)
 	if err == nil {
 		dsc.queue.Forget(dsKey)
@@ -1155,7 +1141,7 @@ func storeDaemonSetStatus(
 	updatedNumberScheduled,
 	numberAvailable,
 	numberUnavailable int,
-	updateObservedGen bool) error {
+	updateObservedGen bool) (*apps.DaemonSet, error) {
 	if int(ds.Status.DesiredNumberScheduled) == desiredNumberScheduled &&
 		int(ds.Status.CurrentNumberScheduled) == currentNumberScheduled &&
 		int(ds.Status.NumberMisscheduled) == numberMisscheduled &&
@@ -1164,7 +1150,7 @@ func storeDaemonSetStatus(
 		int(ds.Status.NumberAvailable) == numberAvailable &&
 		int(ds.Status.NumberUnavailable) == numberUnavailable &&
 		ds.Status.ObservedGeneration >= ds.Generation {
-		return nil
+		return nil, nil
 	}
 
 	toUpdate := ds.DeepCopy()
@@ -1182,8 +1168,9 @@ func storeDaemonSetStatus(
 		toUpdate.Status.NumberAvailable = int32(numberAvailable)
 		toUpdate.Status.NumberUnavailable = int32(numberUnavailable)
 
-		if _, updateErr = dsClient.UpdateStatus(ctx, toUpdate, metav1.UpdateOptions{}); updateErr == nil {
-			return nil
+		var result *apps.DaemonSet
+		if result, updateErr = dsClient.UpdateStatus(ctx, toUpdate, metav1.UpdateOptions{}); updateErr == nil {
+			return result, nil
 		}
 
 		// Stop retrying if we exceed statusUpdateRetries - the DaemonSet will be requeued with a rate limit.
@@ -1194,10 +1181,10 @@ func storeDaemonSetStatus(
 		if toUpdate, getErr = dsClient.Get(ctx, ds.Name, metav1.GetOptions{}); getErr != nil {
 			// If the GET fails we can't trust status.Replicas anymore. This error
 			// is bound to be more interesting than the update failure.
-			return getErr
+			return nil, getErr
 		}
 	}
-	return updateErr
+	return nil, updateErr
 }
 
 func (dsc *DaemonSetsController) updateDaemonSetStatus(ctx context.Context, ds *apps.DaemonSet, nodeList []*v1.Node, hash string, updateObservedGen bool) error {
@@ -1248,9 +1235,17 @@ func (dsc *DaemonSetsController) updateDaemonSetStatus(ctx context.Context, ds *
 	}
 	numberUnavailable := desiredNumberScheduled - numberAvailable
 
-	err = storeDaemonSetStatus(ctx, dsc.kubeClient.AppsV1().DaemonSets(ds.Namespace), ds, desiredNumberScheduled, currentNumberScheduled, numberMisscheduled, numberReady, updatedNumberScheduled, numberAvailable, numberUnavailable, updateObservedGen)
+	updatedDaemonSet, err := storeDaemonSetStatus(ctx, dsc.kubeClient.AppsV1().DaemonSets(ds.Namespace), ds, desiredNumberScheduled, currentNumberScheduled, numberMisscheduled, numberReady, updatedNumberScheduled, numberAvailable, numberUnavailable, updateObservedGen)
 	if err != nil {
 		return fmt.Errorf("error storing status for daemon set %#v: %w", ds, err)
+	}
+	if updatedDaemonSet != nil {
+		dsc.consistencyStore.WroteAt(
+			types.NamespacedName{Name: ds.Name, Namespace: ds.Namespace},
+			updatedDaemonSet.UID,
+			daemonsetGroupResource,
+			updatedDaemonSet.ResourceVersion,
+		)
 	}
 
 	// Resync the DaemonSet after MinReadySeconds as a last line of defense to guard against clock-skew.

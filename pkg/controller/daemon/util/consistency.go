@@ -1,150 +1,185 @@
 package util
 
 import (
-	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/resourceversion"
+	"k8s.io/klog/v2"
 )
 
-type stalenessInfo struct {
-	podRV string
-	dsRV  string
-}
-
-type ownedInfo struct {
-	uid    types.UID
-	rvInfo stalenessInfo
-}
-
 type ConsistencyStore struct {
-	// ownerToRVInfo maps the current resource version of the object if seen
-	// previously
-	ownerToRVInfo map[types.NamespacedName]ownedInfo
-	readStore     stalenessInfo
-	mux           sync.RWMutex
+	reads *resourceVersions
+
+	// writesLock guards reads/additions/deletions to the writes map.
+	// individual records are responsible for managing their own thread safety.
+	writesLock sync.RWMutex
+	// writes is a map of owner -> ownerRecord
+	writes map[types.NamespacedName]*ownerRecord
 }
 
 func NewConsistencyStore() *ConsistencyStore {
 	return &ConsistencyStore{
-		ownerToRVInfo: make(map[types.NamespacedName]ownedInfo),
-		mux:           sync.RWMutex{},
+		writes: map[types.NamespacedName]*ownerRecord{},
+		reads:  newResourceVersions(),
 	}
 }
 
-func (c *ConsistencyStore) WroteAt(owner types.NamespacedName, ownerUID types.UID, resource schema.GroupVersionKind, rv string) error {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	cur := c.ownerToRVInfo[owner]
-	curRV, err := stalenessRV(cur.rvInfo, resource)
-	if err != nil {
-		return err
+// getWrittenRecord returns the record for the given owner, or nil if no record exists.
+func (c *ConsistencyStore) getWrittenRecord(owner types.NamespacedName) *ownerRecord {
+	c.writesLock.RLock()
+	defer c.writesLock.RUnlock()
+	return c.writes[owner]
+}
+
+// ensureWrittenRecord returns a ownerRecord for the given owner and ownerUID.
+// If there is no current record, one is created.
+// If there is a current record with a different ownerUID, it is replaced with an empty record for the specified ownerUID.
+func (c *ConsistencyStore) ensureWrittenRecord(owner types.NamespacedName, ownerUID types.UID) *ownerRecord {
+	// fast path, already exists
+	if record := c.getWrittenRecord(owner); record != nil && record.ownerUID == ownerUID {
+		return record
 	}
-	if curRV != "" {
-		cmp, err := resourceversion.CompareResourceVersion(rv, curRV)
+
+	// slow path, init
+	c.writesLock.Lock()
+	defer c.writesLock.Unlock()
+	// check again after write lock
+	if record := c.writes[owner]; record != nil && record.ownerUID == ownerUID {
+		return record
+	}
+	// initialize to the given uid
+	record := newOwnerRecord(ownerUID)
+	c.writes[owner] = record
+	return record
+}
+
+func (c *ConsistencyStore) WroteAt(owner types.NamespacedName, ownerUID types.UID, resource schema.GroupResource, rv string) {
+	c.ensureWrittenRecord(owner, ownerUID).WroteAt(resource, rv)
+}
+
+// ReadAt records a read for the given resource at the given resource version
+func (c *ConsistencyStore) ReadAt(resource schema.GroupResource, rv string) {
+	c.reads.getOrCreate(resource, rv).RaiseTo(rv)
+}
+
+// Clear deletes the record for owner if it exists and matches the specified ownerUID (or the specified ownerUID is empty)
+func (c *ConsistencyStore) Clear(owner types.NamespacedName, ownerUID types.UID) {
+	// all deleted daemonsets are expected to have a record, not worth checking the fast path for missing records
+	c.writesLock.Lock()
+	defer c.writesLock.Unlock()
+	if record := c.writes[owner]; record != nil && (len(ownerUID) == 0 || record.ownerUID == ownerUID) {
+		delete(c.writes, owner)
+	}
+}
+
+func (c *ConsistencyStore) IsReady(owner types.NamespacedName) bool {
+	record := c.getWrittenRecord(owner)
+	return record == nil || record.IsReady(c)
+}
+
+type ownerRecord struct {
+	// ownerUID must not be mutated after creation
+	ownerUID types.UID
+	versions *resourceVersions
+}
+
+func newOwnerRecord(ownerUID types.UID) *ownerRecord {
+	return &ownerRecord{ownerUID: ownerUID, versions: newResourceVersions()}
+}
+
+func (w *ownerRecord) WroteAt(resource schema.GroupResource, rv string) {
+	w.versions.getOrCreate(resource, rv).RaiseTo(rv)
+}
+func (w *ownerRecord) IsReady(c *ConsistencyStore) bool {
+	w.versions.versionsLock.RLock()
+	defer w.versions.versionsLock.RUnlock()
+	for gk, owner := range w.versions.versions {
+		read := c.reads.get(gk)
+		if read == nil {
+			klog.InfoS("not ready, no read version recorded", "type", gk, "owner", owner, "read", nil)
+			return false
+		}
+		i, err := read.CompareTo(owner)
 		if err != nil {
-			return err
+			klog.ErrorS(err, "not ready, error comparing resource versions", "type", gk, "owner", owner, "read", read)
+			// comparison errors indicate there's a data problem with resource versions, continue so we don't block syncing
+			continue
 		}
-		if cmp <= 0 {
-			return nil
+		if i < 0 {
+			// read version is not as new as owner version, not ready
+			klog.InfoS("not ready, read version is not as new as owner version", "type", gk, "owner", owner, "read", read)
+			return false
 		}
 	}
-	err = updateRV(&cur.rvInfo, resource, rv)
-	if err != nil {
-		return err
-	}
-	cur.uid = ownerUID
-	c.ownerToRVInfo[owner] = cur
-	return nil
+	return true
 }
 
-func (c *ConsistencyStore) ReadAt(resource schema.GroupVersionKind, rv string) error {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	curRV, err := stalenessRV(c.readStore, resource)
-	if err != nil {
-		return err
-	}
-	if curRV != "" {
-		cmp, err := resourceversion.CompareResourceVersion(rv, curRV)
-		if err != nil {
-			return err
-		}
-		if cmp <= 0 {
-			return nil
-		}
-	}
-	return updateRV(&c.readStore, resource, rv)
+type resourceVersions struct {
+	// versionsLock guards reads/adds/deletions from the versions map.
+	// individual records are responsible for managing their own thread safety.
+	versionsLock sync.RWMutex
+	versions     map[schema.GroupResource]*highWaterResourceVersion
 }
 
-func (c *ConsistencyStore) Clear(owner types.NamespacedName, ownerUID types.UID) error {
-	c.mux.Lock()
-	defer c.mux.Unlock()
-	cur, ok := c.ownerToRVInfo[owner]
+func newResourceVersions() *resourceVersions {
+	return &resourceVersions{
+		versions: map[schema.GroupResource]*highWaterResourceVersion{},
+	}
+}
+
+func (r *resourceVersions) get(resource schema.GroupResource) *highWaterResourceVersion {
+	r.versionsLock.RLock()
+	defer r.versionsLock.RUnlock()
+	return r.versions[resource]
+}
+
+func (r *resourceVersions) getOrCreate(resource schema.GroupResource, rv string) *highWaterResourceVersion {
+	// fast path, already exists
+	r.versionsLock.RLock()
+	record, ok := r.versions[resource]
+	r.versionsLock.RUnlock()
 	if !ok {
-		return nil
+		// slow path, init
+		r.versionsLock.Lock()
+		defer r.versionsLock.Unlock()
+		record, ok = r.versions[resource]
+		if !ok {
+			record = newHighWaterResourceVersion(rv)
+			r.versions[resource] = record
+		}
 	}
-	if cur.uid == ownerUID {
-		delete(c.ownerToRVInfo, owner)
-	}
-	return nil
+	return record
 }
 
-func (c *ConsistencyStore) IsReady(owner types.NamespacedName) (bool, error) {
-	c.mux.RLock()
-	defer c.mux.RUnlock()
-	wroteObjs, ok := c.ownerToRVInfo[owner]
-	if !ok {
-		return true, nil
-	}
-	// Check pod RVs
-	if wroteObjs.rvInfo.podRV != "" {
-		cmp, err := resourceversion.CompareResourceVersion(c.readStore.podRV, wroteObjs.rvInfo.podRV)
-		if err != nil {
-			return false, err
-		}
-		if cmp < 0 {
-			return false, nil
-		}
-	}
-
-	// Check daemonset RVs
-	if wroteObjs.rvInfo.dsRV != "" {
-		cmp, err := resourceversion.CompareResourceVersion(c.readStore.dsRV, wroteObjs.rvInfo.dsRV)
-		if err != nil {
-			return false, err
-		}
-		if cmp < 0 {
-			return false, nil
-		}
-	}
-
-	return true, nil
+type highWaterResourceVersion struct {
+	version atomic.Pointer[string]
 }
 
-func stalenessRV(cur stalenessInfo, resource schema.GroupVersionKind) (string, error) {
-	curRv := ""
-	switch resource.Kind {
-	case "Pod":
-		curRv = cur.podRV
-	case "Daemonset":
-		curRv = cur.dsRV
-	default:
-		return "", fmt.Errorf("unsupported type")
-	}
-	return curRv, nil
+func newHighWaterResourceVersion(rv string) *highWaterResourceVersion {
+	record := &highWaterResourceVersion{}
+	record.version.Store(&rv)
+	return record
 }
 
-func updateRV(cur *stalenessInfo, resource schema.GroupVersionKind, rv string) error {
-	switch resource.Kind {
-	case "Pod":
-		cur.podRV = rv
-	case "Daemonset":
-		cur.dsRV = rv
-	default:
-		return fmt.Errorf("unsupported type")
+func (h *highWaterResourceVersion) String() string {
+	return *h.version.Load()
+}
+
+func (h *highWaterResourceVersion) RaiseTo(v string) {
+	for {
+		old := h.version.Load()
+		i, err := resourceversion.CompareResourceVersion(*old, v)
+		if err == nil && i >= 0 {
+			return
+		}
+		if h.version.CompareAndSwap(old, &v) {
+			return
+		}
 	}
-	return nil
+}
+func (h *highWaterResourceVersion) CompareTo(v *highWaterResourceVersion) (int, error) {
+	return resourceversion.CompareResourceVersion(*h.version.Load(), *v.version.Load())
 }

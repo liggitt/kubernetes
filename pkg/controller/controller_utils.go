@@ -480,9 +480,9 @@ type PodControlInterface interface {
 
 // RealPodControl is the default implementation of PodControlInterface.
 type RealPodControl struct {
-	KubeClient     clientset.Interface
-	Recorder       record.EventRecorder
-	CreateCallback func(*v1.Pod, *metav1.OwnerReference) error
+	KubeClient clientset.Interface
+	Recorder   record.EventRecorder
+	OnWrite    func(*v1.Pod, *metav1.OwnerReference)
 }
 
 var _ PodControlInterface = &RealPodControl{}
@@ -556,7 +556,11 @@ func (r RealPodControl) CreatePodsWithGenerateName(ctx context.Context, namespac
 }
 
 func (r RealPodControl) PatchPod(ctx context.Context, namespace, name string, data []byte) error {
-	_, err := r.KubeClient.CoreV1().Pods(namespace).Patch(ctx, name, types.StrategicMergePatchType, data, metav1.PatchOptions{})
+	resultingPod, err := r.KubeClient.CoreV1().Pods(namespace).Patch(ctx, name, types.StrategicMergePatchType, data, metav1.PatchOptions{})
+	if err != nil && r.OnWrite != nil {
+		ownerRef := metav1.GetControllerOfNoCopy(resultingPod)
+		r.OnWrite(resultingPod, ownerRef)
+	}
 	return err
 }
 
@@ -598,12 +602,8 @@ func (r RealPodControl) createPods(ctx context.Context, namespace string, pod *v
 		return err
 	}
 	logger := klog.FromContext(ctx)
-	if r.CreateCallback != nil {
-		err := r.CreateCallback(newPod, controllerRef)
-		if err != nil {
-			logger.Error(err, "Callback function encountered an error")
-			return err
-		}
+	if r.OnWrite != nil {
+		r.OnWrite(newPod, controllerRef)
 	}
 	accessor, err := meta.Accessor(object)
 	if err != nil {
