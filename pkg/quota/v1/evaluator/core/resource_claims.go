@@ -166,7 +166,7 @@ func (p *claimEvaluator) setResourceQuantity(resourceMap map[corev1.ResourceName
 		var zero resource.Quantity
 		if implicitQuota.Cmp(quantity) > 0 {
 			implicitQuota.Sub(quantity)
-			// updates quota after substracting the usage in this request
+			// updates quota after subtracting the usage in this request
 			reqs[implicitExtendedResourceClaim] = implicitQuota
 			implicitQuantity = zero
 		} else {
@@ -194,7 +194,7 @@ func (p *claimEvaluator) setResourceQuantity(resourceMap map[corev1.ResourceName
 			var zero resource.Quantity
 			if explicitQuota.Cmp(quantity) > 0 {
 				explicitQuota.Sub(quantity)
-				// updates quota after substracting the usage in this request
+				// updates quota after subtracting the usage in this request
 				reqs[extendedResourceClaim] = explicitQuota
 				explicitQuantity = zero
 			} else {
