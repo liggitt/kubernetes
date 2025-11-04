@@ -6954,17 +6954,18 @@ func ValidateNode(node *core.Node) field.ErrorList {
 	fldPath := field.NewPath("metadata")
 	allErrs := ValidateObjectMeta(&node.ObjectMeta, false, ValidateNodeName, fldPath)
 	allErrs = append(allErrs, ValidateNodeSpecificAnnotations(node.ObjectMeta.Annotations, fldPath.Child("annotations"))...)
-	if len(node.Spec.Taints) > 0 {
-		allErrs = append(allErrs, validateNodeTaints(node.Spec.Taints, fldPath.Child("taints"))...)
-	}
 
 	// Only validate spec.
 	// All status fields are optional and can be updated later.
 	// That said, if specified, we need to ensure they are valid.
 	allErrs = append(allErrs, ValidateNodeResources(node)...)
-	allErrs = append(allErrs, validateNodeSwapStatus(node.Status.NodeInfo.Swap, fldPath.Child("nodeSwapStatus"))...)
 	statusField := field.NewPath("status")
+	allErrs = append(allErrs, validateNodeSwapStatus(node.Status.NodeInfo.Swap, statusField.Child("nodeInfo", "swap"))...)
 	allErrs = append(allErrs, validateNodeDeclaredFeatures(node.Status.DeclaredFeatures, statusField.Child("declaredFeatures"))...)
+
+	if len(node.Spec.Taints) > 0 {
+		allErrs = append(allErrs, validateNodeTaints(node.Spec.Taints, field.NewPath("spec", "taints"))...)
+	}
 
 	// validate PodCIDRS only if we need to
 	if len(node.Spec.PodCIDRs) > 0 {
@@ -7030,6 +7031,10 @@ func ValidateNodeUpdate(node, oldNode *core.Node) field.ErrorList {
 		addresses[address] = true
 	}
 
+	if node.Status.Config != nil {
+		allErrs = append(allErrs, validateNodeConfigStatus(node.Status.Config, field.NewPath("status", "config"))...)
+	}
+
 	// Allow the controller manager to assign a CIDR to a node if it doesn't have one.
 	if len(oldNode.Spec.PodCIDRs) > 0 {
 		// compare the entire slice
@@ -7052,13 +7057,10 @@ func ValidateNodeUpdate(node, oldNode *core.Node) field.ErrorList {
 	if node.Spec.ConfigSource != nil {
 		allErrs = append(allErrs, validateNodeConfigSourceSpec(node.Spec.ConfigSource, field.NewPath("spec", "configSource"))...)
 	}
-	if node.Status.Config != nil {
-		allErrs = append(allErrs, validateNodeConfigStatus(node.Status.Config, field.NewPath("status", "config"))...)
-	}
 
 	// update taints
 	if len(node.Spec.Taints) > 0 {
-		allErrs = append(allErrs, validateNodeTaints(node.Spec.Taints, fldPath.Child("taints"))...)
+		allErrs = append(allErrs, validateNodeTaints(node.Spec.Taints, field.NewPath("spec", "taints"))...)
 	}
 
 	if node.Spec.DoNotUseExternalID != oldNode.Spec.DoNotUseExternalID {
