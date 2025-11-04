@@ -6854,6 +6854,37 @@ func ValidatePodTemplateSpec(spec *core.PodTemplateSpec, fldPath *field.Path, op
 	return allErrs
 }
 
+// ValidateNodeCreate ensures required fields are set on node creation
+func ValidateNodeCreate(node *core.Node) field.ErrorList {
+	allErrs := field.ErrorList{}
+	allErrs = append(allErrs, validateNodeMetadata(node)...)
+	allErrs = append(allErrs, validateNodeSpec(node)...)
+	allErrs = append(allErrs, validateNodeStatus(node)...) // node create allows setting status
+	return allErrs
+}
+
+// ValidateNodeSpecUpdate validates changes to the node as part of a spec update
+// It does not validate changes to status, and assumes the status is immutable.
+func ValidateNodeSpecUpdate(node, oldNode *core.Node) field.ErrorList {
+	allErrs := field.ErrorList{}
+	allErrs = append(allErrs, validateNodeMetadata(node)...)
+	allErrs = append(allErrs, validateNodeSpec(node)...)
+	allErrs = append(allErrs, validateNodeMetadataUpdate(node, oldNode)...)
+	allErrs = append(allErrs, validateNodeSpecUpdate(node, oldNode)...)
+	return allErrs
+}
+
+// ValidateNodeStatusUpdate validates changes to the node as part of a status update.
+// It does not validate changes to spec, and assumes the spec is immutable.
+func ValidateNodeStatusUpdate(node, oldNode *core.Node) field.ErrorList {
+	allErrs := field.ErrorList{}
+	allErrs = append(allErrs, validateNodeMetadata(node)...) // node status update allows setting metadata
+	allErrs = append(allErrs, validateNodeStatus(node)...)
+	allErrs = append(allErrs, validateNodeMetadataUpdate(node, oldNode)...) // node status update allows setting metadata
+	allErrs = append(allErrs, validateNodeStatusUpdate(node, oldNode)...)
+	return allErrs
+}
+
 // ValidateTaintsInNodeAnnotations tests that the serialized taints in Node.Annotations has valid data
 func ValidateTaintsInNodeAnnotations(annotations map[string]string, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
@@ -6949,20 +6980,24 @@ func validateNodeDeclaredFeatures(nodeFeatures []string, fldPath *field.Path) fi
 	return allErrs
 }
 
-// ValidateNode tests if required fields in the node are set.
-func ValidateNode(node *core.Node) field.ErrorList {
+func validateNodeMetadata(node *core.Node) field.ErrorList {
 	fldPath := field.NewPath("metadata")
 	allErrs := ValidateObjectMeta(&node.ObjectMeta, false, ValidateNodeName, fldPath)
 	allErrs = append(allErrs, ValidateNodeSpecificAnnotations(node.ObjectMeta.Annotations, fldPath.Child("annotations"))...)
+	return allErrs
+}
 
-	// Only validate spec.
-	// All status fields are optional and can be updated later.
-	// That said, if specified, we need to ensure they are valid.
+func validateNodeStatus(node *core.Node) field.ErrorList {
+	var allErrs field.ErrorList
 	allErrs = append(allErrs, ValidateNodeResources(node)...)
 	statusField := field.NewPath("status")
 	allErrs = append(allErrs, validateNodeSwapStatus(node.Status.NodeInfo.Swap, statusField.Child("nodeInfo", "swap"))...)
 	allErrs = append(allErrs, validateNodeDeclaredFeatures(node.Status.DeclaredFeatures, statusField.Child("declaredFeatures"))...)
+	return allErrs
+}
 
+func validateNodeSpec(node *core.Node) field.ErrorList {
+	var allErrs field.ErrorList
 	if len(node.Spec.Taints) > 0 {
 		allErrs = append(allErrs, validateNodeTaints(node.Spec.Taints, field.NewPath("spec", "taints"))...)
 	}
@@ -7009,17 +7044,15 @@ func ValidateNodeResources(node *core.Node) field.ErrorList {
 	return allErrs
 }
 
-// ValidateNodeUpdate tests to make sure a node update can be applied.  Modifies oldNode.
-func ValidateNodeUpdate(node, oldNode *core.Node) field.ErrorList {
+func validateNodeMetadataUpdate(node, oldNode *core.Node) field.ErrorList {
 	fldPath := field.NewPath("metadata")
 	allErrs := ValidateObjectMetaUpdate(&node.ObjectMeta, &oldNode.ObjectMeta, fldPath)
 	allErrs = append(allErrs, ValidateNodeSpecificAnnotations(node.ObjectMeta.Annotations, fldPath.Child("annotations"))...)
+	return allErrs
+}
 
-	// TODO: Enable the code once we have better core object.status update model. Currently,
-	// anyone can update node status.
-	// if !apiequality.Semantic.DeepEqual(node.Status, core.NodeStatus{}) {
-	// 	allErrs = append(allErrs, field.Invalid("status", node.Status, "must be empty"))
-	// }
+func validateNodeStatusUpdate(node, oldNode *core.Node) field.ErrorList {
+	var allErrs field.ErrorList
 	allErrs = append(allErrs, ValidateNodeResources(node)...)
 
 	// Validate no duplicate addresses in node status.
@@ -7034,7 +7067,11 @@ func ValidateNodeUpdate(node, oldNode *core.Node) field.ErrorList {
 	if node.Status.Config != nil {
 		allErrs = append(allErrs, validateNodeConfigStatus(node.Status.Config, field.NewPath("status", "config"))...)
 	}
+	return allErrs
+}
 
+func validateNodeSpecUpdate(node, oldNode *core.Node) field.ErrorList {
+	var allErrs field.ErrorList
 	// Allow the controller manager to assign a CIDR to a node if it doesn't have one.
 	if len(oldNode.Spec.PodCIDRs) > 0 {
 		// compare the entire slice

@@ -18177,7 +18177,7 @@ func TestValidateReplicationController(t *testing.T) {
 	}
 }
 
-func TestValidateNode(t *testing.T) {
+func TestValidateNodeCreate(t *testing.T) {
 	validSelector := map[string]string{"a": "b"}
 	invalidSelector := map[string]string{"NoUppercaseOrSpecialCharsLike=Equals": "b"}
 	successCases := []core.Node{{
@@ -18298,7 +18298,7 @@ func TestValidateNode(t *testing.T) {
 	for _, successCase := range successCases {
 		t.Run("", func(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StrictIPCIDRValidation, true)
-			if errs := ValidateNode(&successCase); len(errs) != 0 {
+			if errs := ValidateNodeCreate(&successCase); len(errs) != 0 {
 				t.Errorf("expected success: %v", errs)
 			}
 		})
@@ -18326,7 +18326,7 @@ func TestValidateNode(t *testing.T) {
 	for name, legacyCase := range legacyValidationCases {
 		t.Run(name, func(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StrictIPCIDRValidation, false)
-			if errs := ValidateNode(&legacyCase); len(errs) != 0 {
+			if errs := ValidateNodeCreate(&legacyCase); len(errs) != 0 {
 				t.Errorf("expected success: %v", errs)
 			}
 		})
@@ -18553,7 +18553,7 @@ func TestValidateNode(t *testing.T) {
 		t.Run(k, func(t *testing.T) {
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.StrictIPCIDRValidation, true)
 
-			errs := ValidateNode(&v)
+			errs := ValidateNodeCreate(&v)
 			if len(errs) == 0 {
 				t.Errorf("expected failure")
 			}
@@ -18587,7 +18587,7 @@ func TestValidateNodeUpdate(t *testing.T) {
 		node    core.Node
 		valid   bool
 	}{
-		{core.Node{}, core.Node{}, true},
+		{core.Node{ObjectMeta: metav1.ObjectMeta{Name: "foo"}}, core.Node{ObjectMeta: metav1.ObjectMeta{Name: "foo"}}, true},
 		{core.Node{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "foo"}},
@@ -19005,13 +19005,34 @@ func TestValidateNodeUpdate(t *testing.T) {
 	for i, test := range tests {
 		test.oldNode.ObjectMeta.ResourceVersion = "1"
 		test.node.ObjectMeta.ResourceVersion = "1"
-		errs := ValidateNodeUpdate(&test.node, &test.oldNode)
-		if test.valid && len(errs) > 0 {
-			t.Errorf("%d: Unexpected error: %v", i, errs)
-			t.Logf("%#v vs %#v", test.oldNode.ObjectMeta, test.node.ObjectMeta)
+
+		noop := reflect.DeepEqual(test.node, test.oldNode)
+		metadataChanged := !reflect.DeepEqual(test.node.ObjectMeta, test.oldNode.ObjectMeta)
+		specChanged := !reflect.DeepEqual(test.node.Spec, test.oldNode.Spec)
+		statusChanged := !reflect.DeepEqual(test.node.Status, test.oldNode.Status)
+		testStatus := metadataChanged || statusChanged || noop
+		testSpec := metadataChanged || specChanged || noop || !testStatus
+
+		if testSpec {
+			errs := ValidateNodeSpecUpdate(&test.node, &test.oldNode)
+			if test.valid && len(errs) > 0 {
+				t.Errorf("%d: Unexpected error: %v", i, errs)
+				t.Logf("%#v vs %#v", test.oldNode.ObjectMeta, test.node.ObjectMeta)
+			}
+			if !test.valid && len(errs) == 0 {
+				t.Errorf("%d: Unexpected non-error from %s", i, cmp.Diff(test.oldNode, test.node))
+			}
 		}
-		if !test.valid && len(errs) == 0 {
-			t.Errorf("%d: Unexpected non-error", i)
+
+		if testStatus {
+			errs := ValidateNodeStatusUpdate(&test.node, &test.oldNode)
+			if test.valid && len(errs) > 0 {
+				t.Errorf("%d: Unexpected error: %v", i, errs)
+				t.Logf("%#v vs %#v", test.oldNode.ObjectMeta, test.node.ObjectMeta)
+			}
+			if !test.valid && len(errs) == 0 {
+				t.Errorf("%d: Unexpected non-error from %s", i, cmp.Diff(test.oldNode, test.node))
+			}
 		}
 	}
 }
@@ -25160,7 +25181,7 @@ func TestValidateNodeCIDRs(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		errs := ValidateNode(&testCase.node)
+		errs := ValidateNodeCreate(&testCase.node)
 		if len(errs) == 0 && testCase.expectError {
 			t.Errorf("expected failure for %s, but there were none", testCase.node.Name)
 			return
@@ -28403,7 +28424,7 @@ func TestValidateNodeSwapStatus(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			errs := ValidateNode(&tc.node)
+			errs := ValidateNodeCreate(&tc.node)
 
 			if len(errs) == 0 && tc.expectError {
 				t.Errorf("expected failure for %s, but there were none", tc.name)
@@ -29490,7 +29511,7 @@ func TestValidateNodeDeclaredFeatures(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			errs := ValidateNode(makeNode(tc.declaredFeatures))
+			errs := ValidateNodeCreate(makeNode(tc.declaredFeatures))
 			if tc.expectErr {
 				if len(errs) == 0 {
 					t.Errorf("Expected error but got none")

@@ -131,7 +131,7 @@ func nodeConfigSourceInUse(node *api.Node) bool {
 // Validate validates a new node.
 func (nodeStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	node := obj.(*api.Node)
-	return validation.ValidateNode(node)
+	return validation.ValidateNodeCreate(node)
 }
 
 // WarningsOnCreate returns warnings for the creation of the given object.
@@ -145,8 +145,7 @@ func (nodeStrategy) Canonicalize(obj runtime.Object) {
 
 // ValidateUpdate is the default update validation for an end user.
 func (nodeStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	errorList := validation.ValidateNode(obj.(*api.Node))
-	return append(errorList, validation.ValidateNodeUpdate(obj.(*api.Node), old.(*api.Node))...)
+	return validation.ValidateNodeSpecUpdate(obj.(*api.Node), old.(*api.Node))
 }
 
 // WarningsOnUpdate returns warnings for the given update.
@@ -198,7 +197,7 @@ func nodeStatusConfigInUse(node *api.Node) bool {
 }
 
 func (nodeStatusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	return validation.ValidateNodeUpdate(obj.(*api.Node), old.(*api.Node))
+	return validation.ValidateNodeStatusUpdate(obj.(*api.Node), old.(*api.Node))
 }
 
 // WarningsOnUpdate returns warnings for the given update.
