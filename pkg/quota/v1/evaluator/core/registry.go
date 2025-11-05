@@ -58,6 +58,8 @@ func NewEvaluators(f quota.ListerForResourceFunc, i informers.SharedInformerFact
 				deviceClassMapping = extendedresourcecache.NewExtendedResourceCache(logger)
 				if _, err := i.Resource().V1().DeviceClasses().Informer().AddEventHandler(deviceClassMapping); err != nil {
 					logger.Error(err, "failed to add device class informer event handler")
+				} else {
+					logger.Error(err, "nil informer factory for device classes, resource claim evalutor may not work correctly")
 				}
 			}
 		}
