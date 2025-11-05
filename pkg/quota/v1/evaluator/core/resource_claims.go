@@ -164,14 +164,9 @@ func (p *claimEvaluator) addExtendedResourceQuota(resourceMap map[corev1.Resourc
 		if isExtendedResourceClaim {
 			var zero resource.Quantity
 			if implicitQuota.Cmp(quantity) > 0 {
-				implicitQuota.Sub(quantity)
-				// updates quota after subtracting the usage in this request
-				reqs[implicitExtendedResourceClaim] = implicitQuota
 				implicitQuantity = zero
 			} else {
 				implicitQuantity.Sub(implicitQuota)
-				// updates quota to zero, as all implicitQuota has been used.
-				reqs[implicitExtendedResourceClaim] = zero
 			}
 		}
 		if implicitQuantity.CmpInt64(0) > 0 {
@@ -179,25 +174,18 @@ func (p *claimEvaluator) addExtendedResourceQuota(resourceMap map[corev1.Resourc
 		}
 
 		var explicitQuota resource.Quantity
+		explicitQuantity := quantity
 		extendedResourceClaim, ok := p.extendedResourceQuota(deviceClassName)
 		if ok {
 			// explicitQuota is what has been accounted for via pod evaluator
 			// device request usage up to explicitQuota does not need to be accounted for anymore.
 			explicitQuota = reqs[extendedResourceClaim]
-		}
-		explicitQuantity := quantity
-		if ok {
 			if isExtendedResourceClaim {
 				var zero resource.Quantity
 				if explicitQuota.Cmp(quantity) > 0 {
-					explicitQuota.Sub(quantity)
-					// updates quota after subtracting the usage in this request
-					reqs[extendedResourceClaim] = explicitQuota
 					explicitQuantity = zero
 				} else {
 					explicitQuantity.Sub(explicitQuota)
-					// updates quota to zero, as all explicitQuota has been used.
-					reqs[extendedResourceClaim] = zero
 				}
 			}
 			if explicitQuantity.CmpInt64(0) > 0 {
@@ -287,7 +275,6 @@ func (p *claimEvaluator) Usage(item runtime.Object) (corev1.ResourceList, error)
 			continue
 		case request.Exactly != nil:
 			deviceClassClaim := V1ResourceByDeviceClass(request.Exactly.DeviceClassName)
-
 			var numDevices int64
 			switch request.Exactly.AllocationMode {
 			case resourceapi.DeviceAllocationModeExactCount:
@@ -303,7 +290,6 @@ func (p *claimEvaluator) Usage(item runtime.Object) (corev1.ResourceList, error)
 			quantity := result[deviceClassClaim]
 			quantity.Add(*(resource.NewQuantity(numDevices, resource.DecimalSI)))
 			result[deviceClassClaim] = quantity
-
 		default:
 			// Some unknown, future request type. Cannot do quota for it.
 		}
