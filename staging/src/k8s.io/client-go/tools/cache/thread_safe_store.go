@@ -254,6 +254,7 @@ type threadSafeMap struct {
 func (c *threadSafeMap) Transaction(txns ...ThreadSafeStoreTransaction) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	defer func() { fmt.Println(257, c.rv, sets.StringKeySet(c.items).List()) }()
 	trace := utiltrace.New("ThreadSafeMap Transaction Process",
 		utiltrace.Field{Key: "Size", Value: len(txns)},
 		utiltrace.Field{Key: "Reason", Value: "Slow batch process due to too many items"})
@@ -290,6 +291,7 @@ func (c *threadSafeMap) Update(key string, obj interface{}) {
 	rv, rvErr := c.rvFromObject(obj)
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	defer func() { fmt.Println(294, c.rv, sets.StringKeySet(c.items).List()) }()
 	if rvErr == nil {
 		c.raiseRV(rv)
 	}
@@ -314,6 +316,7 @@ func (c *threadSafeMap) DeleteWithObject(key string, obj interface{}) {
 	}
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	defer func() { fmt.Println(319, c.rv, sets.StringKeySet(c.items).List()) }()
 	if obj != nil && rvErr == nil {
 		c.raiseRV(rv)
 	}
@@ -360,6 +363,7 @@ func (c *threadSafeMap) Replace(items map[string]interface{}, resourceVersion st
 	_, rvErr := resourceversion.CompareResourceVersion(resourceVersion, resourceVersion)
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	defer func() { fmt.Println(366, c.rv, sets.StringKeySet(c.items).List()) }()
 	c.items = items
 	if rvErr == nil {
 		c.rv = resourceVersion
@@ -428,6 +432,7 @@ func (c *threadSafeMap) GetObservedResourceVersion() string {
 func (c *threadSafeMap) ObserveResourceVersion(rv string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	defer func() { fmt.Println(435, c.rv, sets.StringKeySet(c.items).List()) }()
 	if c.rv == "" {
 		_, err := resourceversion.CompareResourceVersion(rv, rv)
 		if err == nil {

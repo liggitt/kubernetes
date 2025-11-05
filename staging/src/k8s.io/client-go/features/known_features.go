@@ -96,7 +96,7 @@ var defaultVersionedKubernetesFeatureGates = map[Feature]VersionedSpecs{
 		{Version: version.MustParse("1.33"), Default: true, PreRelease: Beta},
 	},
 	InOrderInformersBatchProcess: {
-		{Version: version.MustParse("1.35"), Default: true, PreRelease: Beta},
+		{Version: version.MustParse("1.35"), Default: false, PreRelease: Beta},
 	},
 	InformerResourceVersion: {
 		{Version: version.MustParse("1.30"), Default: false, PreRelease: Alpha},

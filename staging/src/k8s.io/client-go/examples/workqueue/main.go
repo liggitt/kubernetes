@@ -26,7 +26,6 @@ import (
 	"k8s.io/klog/v2"
 
 	v1 "k8s.io/api/core/v1"
-	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -59,7 +58,7 @@ func (c *Controller) processNextItem() bool {
 		return false
 	}
 	// Tell the queue that we are done with processing this key. This unblocks the key for other workers
-	// This allows safe parallel processing because two pods with the same key are never processed in
+	// This allows safe parallel processing because two configmaps with the same key are never processed in
 	// parallel.
 	defer c.queue.Done(key)
 
@@ -71,7 +70,7 @@ func (c *Controller) processNextItem() bool {
 }
 
 // syncToStdout is the business logic of the controller. In this controller it simply prints
-// information about the pod to stdout. In case an error happened, it has to simply return the error.
+// information about the configmap to stdout. In case an error happened, it has to simply return the error.
 // The retry logic should not be part of the business logic.
 func (c *Controller) syncToStdout(key string) error {
 	obj, exists, err := c.indexer.GetByKey(key)
@@ -81,12 +80,12 @@ func (c *Controller) syncToStdout(key string) error {
 	}
 
 	if !exists {
-		// Below we will warm up our cache with a Pod, so that we will see a delete for one pod
-		fmt.Printf("Pod %s does not exist anymore\n", key)
+		// Below we will warm up our cache with a Pod, so that we will see a delete for one configmap
+		fmt.Printf("ConfigMap %s does not exist anymore\n", key)
 	} else {
 		// Note that you also have to check the uid if you have a local controlled resource, which
-		// is dependent on the actual instance, to detect that a Pod was recreated with the same name
-		fmt.Printf("Sync/Add/Update for Pod %s\n", obj.(*v1.Pod).GetName())
+		// is dependent on the actual instance, to detect that a ConfigMap was recreated with the same name
+		fmt.Printf("Sync/Add/Update for ConfigMap %s\n", obj.(*v1.ConfigMap).GetName())
 	}
 	return nil
 }
@@ -103,7 +102,7 @@ func (c *Controller) handleErr(err error, key string) {
 
 	// This controller retries 5 times if something goes wrong. After that, it stops trying.
 	if c.queue.NumRequeues(key) < 5 {
-		klog.Infof("Error syncing pod %v: %v", key, err)
+		klog.Infof("Error syncing configmap %v: %v", key, err)
 
 		// Re-enqueue the key rate limited. Based on the rate limiter on the
 		// queue and the re-enqueue history, the key will be processed later again.
@@ -114,7 +113,7 @@ func (c *Controller) handleErr(err error, key string) {
 	c.queue.Forget(key)
 	// Report to an external entity that, even after several retries, we could not successfully process this key
 	runtime.HandleError(err)
-	klog.Infof("Dropping pod %q out of the queue: %v", key, err)
+	klog.Infof("Dropping configmap %q out of the queue: %v", key, err)
 }
 
 // Run begins watching and syncing.
@@ -123,7 +122,7 @@ func (c *Controller) Run(ctx context.Context, workers int) {
 
 	// Let the workers stop when we are done
 	defer c.queue.ShutDown()
-	klog.Info("Starting Pod controller")
+	klog.Info("Starting ConfigMap controller")
 
 	go c.informer.RunWithContext(ctx)
 
@@ -138,7 +137,7 @@ func (c *Controller) Run(ctx context.Context, workers int) {
 	}
 
 	<-ctx.Done()
-	klog.Info("Stopping Pod controller")
+	klog.Info("Stopping ConfigMap controller")
 }
 
 func (c *Controller) runWorker(ctx context.Context) {
@@ -168,17 +167,17 @@ func main() {
 
 	ctx := context.Background()
 
-	// create the pod watcher
-	podListWatcher := cache.NewListWatchFromClient(clientset.CoreV1().RESTClient(), "pods", v1.NamespaceDefault, fields.Everything())
+	// create the configmap watcher
+	configmapListWatcher := cache.NewListWatchFromClient(clientset.CoreV1().RESTClient(), "configmaps", v1.NamespaceDefault, fields.Everything())
 
 	// create the workqueue
 	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[string]())
 
 	// Bind the workqueue to a cache with the help of an informer. This way we make sure that
-	// whenever the cache is updated, the pod key is added to the workqueue.
+	// whenever the cache is updated, the configmap key is added to the workqueue.
 	// Note that when we finally process the item from the workqueue, we might see a newer version
-	// of the Pod than the version which was responsible for triggering the update.
-	indexer, informer := cache.NewIndexerInformer(podListWatcher, &v1.Pod{}, 0, cache.ResourceEventHandlerFuncs{
+	// of the ConfigMap than the version which was responsible for triggering the update.
+	indexer, informer := cache.NewIndexerInformer(configmapListWatcher, &v1.ConfigMap{}, 0, cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
 			if err == nil {
@@ -200,19 +199,18 @@ func main() {
 			}
 		},
 	}, cache.Indexers{})
+	go func() {
+		last := ""
+		for {
+			next := indexer.GetObservedResourceVersion()
+			if next != last {
+				fmt.Println("saw", next, indexer.ListKeys())
+				last = next
+			}
+		}
+	}()
 
 	controller := NewController(queue, indexer, informer)
-
-	// We can now warm up the cache for initial synchronization.
-	// Let's suppose that we knew about a pod "mypod" on our last run, therefore add it to the cache.
-	// If this pod is not there anymore, the controller will be notified about the removal after the
-	// cache has synchronized.
-	indexer.Add(&v1.Pod{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "mypod",
-			Namespace: v1.NamespaceDefault,
-		},
-	})
 
 	// Now let's start the controller
 	cancelCtx, cancel := context.WithCancelCause(ctx)
