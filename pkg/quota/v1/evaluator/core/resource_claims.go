@@ -149,65 +149,64 @@ func (p *claimEvaluator) extendedResourceQuota(dcName string) (corev1.ResourceNa
 	return "", false
 }
 
-func (p *claimEvaluator) setResourceQuantity(resourceMap map[corev1.ResourceName]resource.Quantity, quantity resource.Quantity, deviceClassName string, isExtendedResourceClaim bool, reqs corev1.ResourceList) {
-	deviceClassClaim := V1ResourceByDeviceClass(deviceClassName)
-	q := resourceMap[deviceClassClaim]
-	q.Add(quantity)
-	resourceMap[deviceClassClaim] = q
-	if !utilfeature.DefaultFeatureGate.Enabled(features.DRAExtendedResource) {
-		return
-	}
-	implicitExtendedResourceClaim := deviceClassToQuotaRequestResource(deviceClassName)
-	// implicitQuota is what has been accounted for via pod evaluator
-	// device request usage up to implicitQuota does not need to be accounted for anymore.
-	implicitQuota := reqs[implicitExtendedResourceClaim]
-	implicitQuantity := quantity
-	if isExtendedResourceClaim {
-		var zero resource.Quantity
-		if implicitQuota.Cmp(quantity) > 0 {
-			implicitQuota.Sub(quantity)
-			// updates quota after subtracting the usage in this request
-			reqs[implicitExtendedResourceClaim] = implicitQuota
-			implicitQuantity = zero
-		} else {
-			implicitQuantity.Sub(implicitQuota)
-			// updates quota to zero, as all implicitQuota has been used.
-			reqs[implicitExtendedResourceClaim] = zero
+func (p *claimEvaluator) addExtendedResourceQuota(resourceMap map[corev1.ResourceName]resource.Quantity, isExtendedResourceClaim bool, reqs corev1.ResourceList) {
+	extendedResourceMap := make(map[corev1.ResourceName]resource.Quantity)
+	for resourceName, quantity := range resourceMap {
+		if !strings.HasSuffix(resourceName.String(), corev1.ResourceClaimsPerClass) {
+			continue
 		}
-	}
-	if implicitQuantity.CmpInt64(0) > 0 {
-		iq := resourceMap[implicitExtendedResourceClaim]
-		iq.Add(implicitQuantity)
-		resourceMap[implicitExtendedResourceClaim] = iq
-	}
-
-	var explicitQuota resource.Quantity
-	extendedResourceClaim, ok := p.extendedResourceQuota(deviceClassName)
-	if ok {
-		// explicitQuota is what has been accounted for via pod evaluator
-		// device request usage up to explicitQuota does not need to be accounted for anymore.
-		explicitQuota = reqs[extendedResourceClaim]
-	}
-	explicitQuantity := quantity
-	if ok {
+		deviceClassName := strings.TrimSuffix(string(resourceName), corev1.ResourceClaimsPerClass)
+		implicitExtendedResourceClaim := deviceClassToQuotaRequestResource(deviceClassName)
+		// implicitQuota is what has been accounted for via pod evaluator
+		// device request usage up to implicitQuota does not need to be accounted for anymore.
+		implicitQuota := reqs[implicitExtendedResourceClaim]
+		implicitQuantity := quantity
 		if isExtendedResourceClaim {
 			var zero resource.Quantity
-			if explicitQuota.Cmp(quantity) > 0 {
-				explicitQuota.Sub(quantity)
+			if implicitQuota.Cmp(quantity) > 0 {
+				implicitQuota.Sub(quantity)
 				// updates quota after subtracting the usage in this request
-				reqs[extendedResourceClaim] = explicitQuota
-				explicitQuantity = zero
+				reqs[implicitExtendedResourceClaim] = implicitQuota
+				implicitQuantity = zero
 			} else {
-				explicitQuantity.Sub(explicitQuota)
-				// updates quota to zero, as all explicitQuota has been used.
-				reqs[extendedResourceClaim] = zero
+				implicitQuantity.Sub(implicitQuota)
+				// updates quota to zero, as all implicitQuota has been used.
+				reqs[implicitExtendedResourceClaim] = zero
 			}
 		}
-		if explicitQuantity.CmpInt64(0) > 0 {
-			eq := resourceMap[extendedResourceClaim]
-			eq.Add(explicitQuantity)
-			resourceMap[extendedResourceClaim] = eq
+		if implicitQuantity.CmpInt64(0) > 0 {
+			extendedResourceMap[implicitExtendedResourceClaim] = implicitQuantity
 		}
+
+		var explicitQuota resource.Quantity
+		extendedResourceClaim, ok := p.extendedResourceQuota(deviceClassName)
+		if ok {
+			// explicitQuota is what has been accounted for via pod evaluator
+			// device request usage up to explicitQuota does not need to be accounted for anymore.
+			explicitQuota = reqs[extendedResourceClaim]
+		}
+		explicitQuantity := quantity
+		if ok {
+			if isExtendedResourceClaim {
+				var zero resource.Quantity
+				if explicitQuota.Cmp(quantity) > 0 {
+					explicitQuota.Sub(quantity)
+					// updates quota after subtracting the usage in this request
+					reqs[extendedResourceClaim] = explicitQuota
+					explicitQuantity = zero
+				} else {
+					explicitQuantity.Sub(explicitQuota)
+					// updates quota to zero, as all explicitQuota has been used.
+					reqs[extendedResourceClaim] = zero
+				}
+			}
+			if explicitQuantity.CmpInt64(0) > 0 {
+				extendedResourceMap[extendedResourceClaim] = explicitQuantity
+			}
+		}
+	}
+	for resourceName, quantity := range extendedResourceMap {
+		resourceMap[resourceName] = quantity
 	}
 }
 
@@ -251,11 +250,6 @@ func (p *claimEvaluator) Usage(item runtime.Object) (corev1.ResourceList, error)
 		return result, err
 	}
 
-	isExtendedResourceClaim := false
-	var reqs corev1.ResourceList
-	if claim.Annotations[resourceapi.ExtendedResourceClaimAnnotation] == "true" {
-		reqs, isExtendedResourceClaim = p.verifyOwner(claim)
-	}
 	// charge for claim
 	result[ClaimObjectCountName] = *(resource.NewQuantity(1, resource.DecimalSI))
 	for _, request := range claim.Spec.Devices.Requests {
@@ -279,10 +273,10 @@ func (p *claimEvaluator) Usage(item runtime.Object) (corev1.ResourceList, error)
 					// don't count towards the quota and users shouldn't
 					// expect that when downgrading.
 				}
-				q := resource.NewQuantity(numDevices, resource.DecimalSI)
 
+				q := resource.NewQuantity(numDevices, resource.DecimalSI)
 				if q.Cmp(maxQuantityByDeviceClassClaim[deviceClassClaim]) > 0 {
-					p.setResourceQuantity(maxQuantityByDeviceClassClaim, *q, subrequest.DeviceClassName, isExtendedResourceClaim, reqs)
+					maxQuantityByDeviceClassClaim[deviceClassClaim] = *q
 				}
 			}
 			for deviceClassClaim, q := range maxQuantityByDeviceClassClaim {
@@ -292,6 +286,8 @@ func (p *claimEvaluator) Usage(item runtime.Object) (corev1.ResourceList, error)
 			}
 			continue
 		case request.Exactly != nil:
+			deviceClassClaim := V1ResourceByDeviceClass(request.Exactly.DeviceClassName)
+
 			var numDevices int64
 			switch request.Exactly.AllocationMode {
 			case resourceapi.DeviceAllocationModeExactCount:
@@ -304,13 +300,24 @@ func (p *claimEvaluator) Usage(item runtime.Object) (corev1.ResourceList, error)
 				// don't count towards the quota and users shouldn't
 				// expect that when downgrading.
 			}
-			q := resource.NewQuantity(numDevices, resource.DecimalSI)
-			p.setResourceQuantity(result, *q, request.Exactly.DeviceClassName, isExtendedResourceClaim, reqs)
+			quantity := result[deviceClassClaim]
+			quantity.Add(*(resource.NewQuantity(numDevices, resource.DecimalSI)))
+			result[deviceClassClaim] = quantity
+
 		default:
 			// Some unknown, future request type. Cannot do quota for it.
 		}
 	}
+	if !utilfeature.DefaultFeatureGate.Enabled(features.DRAExtendedResource) {
+		return result, nil
+	}
 
+	isExtendedResourceClaim := false
+	var reqs corev1.ResourceList
+	if claim.Annotations[resourceapi.ExtendedResourceClaimAnnotation] == "true" {
+		reqs, isExtendedResourceClaim = p.verifyOwner(claim)
+	}
+	p.addExtendedResourceQuota(result, isExtendedResourceClaim, reqs)
 	return result, nil
 }
 
