@@ -891,10 +891,7 @@ func TestPluginPolicy(t *testing.T) {
 		switch test.policyType {
 		case "", api.PluginPolicyAllowAll:
 			if test.allowlist != nil { // invalid
-				if test.policyType == api.PluginPolicyAllowAll {
-					return true, "allowlist is non-nil"
-				}
-				return true, "unspecified plugin policy"
+				return true, "allowlist is non-nil"
 			}
 
 			if test.pluginExists {
@@ -923,9 +920,13 @@ func TestPluginPolicy(t *testing.T) {
 			case test.pluginExists && !test.entryExists:
 				return true, "is not permitted by the credential plugin allowlist"
 			case !test.pluginExists && test.entryExists:
-				return true, "could not resolve path for plugin"
+				// error message varies depending on whether the paths are relative or absolute
+				// what is important is that an error arises here
+				return true, ""
 			case !test.pluginExists && !test.entryExists:
-				return true, "could not resolve path for plugin"
+				// error message varies depending on whether the paths are relative or absolute
+				// what is important is that an error arises here
+				return true, ""
 			}
 
 			panic("unreachable")
@@ -968,7 +969,13 @@ func TestPluginPolicy(t *testing.T) {
 			c := test.config
 			a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, c, &clientauthentication.Cluster{})
 			if err != nil {
-				t.Errorf("new authenticator %v", err)
+				if !test.wantErr {
+					t.Fatalf("unexpected validation error: %v", err)
+				} else if !strings.Contains(err.Error(), test.wantErrSubstr) {
+					t.Fatalf("expected error with substring '%v' got '%v'", test.wantErrSubstr, err.Error())
+				}
+
+				return
 			}
 
 			stderr := &bytes.Buffer{}
@@ -977,9 +984,9 @@ func TestPluginPolicy(t *testing.T) {
 
 			if err := a.refreshCredsLocked(); err != nil {
 				if !test.wantErr {
-					t.Errorf("unexpected allows plugin error: %v", err)
+					t.Fatalf("unexpected allows plugin error: %v", err)
 				} else if !strings.Contains(err.Error(), test.wantErrSubstr) {
-					t.Errorf("expected error with substring '%v' got '%v'", test.wantErrSubstr, err.Error())
+					t.Fatalf("expected error with substring '%v' got '%v'", test.wantErrSubstr, err.Error())
 				}
 				return
 			}

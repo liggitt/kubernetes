@@ -246,7 +246,7 @@ func TestPolicyCallsMetric(t *testing.T) {
 						Name: "foobar",
 					},
 					{
-						Name: "./testdata/test-plugin.sh",
+						Name: "testdata/test-plugin.sh",
 					},
 				},
 			},

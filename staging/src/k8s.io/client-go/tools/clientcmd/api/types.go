@@ -286,6 +286,7 @@ type ExecConfig struct {
 
 	// PluginPolicy is the policy governing whether or not the configured
 	// `Command` may run.
+	// +k8s:conversion-gen=false
 	PluginPolicy PluginPolicy `json:"-"`
 }
 
@@ -302,7 +303,7 @@ type AllowlistEntry struct {
 	// will be called on both, and the resulting strings must be equal. If
 	// either call to `exec.LookPath` results in an error, the `Name` check
 	// will be considered a failure.
-	Name string `json:"name,omitempty"`
+	Name string `json:"-"`
 }
 
 // PluginPolicy describes the policy type and allowlist (if any) for client-go

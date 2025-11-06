@@ -27,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -40,6 +41,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/dump"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
 	"k8s.io/client-go/pkg/apis/clientauthentication/install"
 	clientauthenticationv1 "k8s.io/client-go/pkg/apis/clientauthentication/v1"
@@ -178,26 +180,26 @@ func newAuthenticator(c *cache, isTerminalFunc func(int) bool, config *api.ExecC
 		connTracker,
 	)
 
-	var policyOnce sync.Once
-	var errPolicy error
+	if err := ValidatePluginPolicy(config.PluginPolicy); err != nil {
+		return nil, fmt.Errorf("invalid plugin policy: %w", err)
+	}
+
+	allowlistLookup := sets.New[string]()
+	for _, entry := range config.PluginPolicy.Allowlist {
+		allowlistLookup.Insert(entry.Name)
+	}
 
 	a := &Authenticator{
-		cmd:                config.Command,
+		// Clean is called to normalize the path to facilitate comparison with
+		// the allowlist, when present
+		cmd:                filepath.Clean(config.Command),
 		args:               config.Args,
 		group:              gv,
 		cluster:            cluster,
 		provideClusterInfo: config.ProvideClusterInfo,
 
+		allowlistLookup:  allowlistLookup,
 		execPluginPolicy: config.PluginPolicy,
-		validatePolicyFunc: func() error {
-			policyOnce.Do(func() {
-				if isEmptyPolicy(config.PluginPolicy) {
-					return // unset policy means all plugins are allowed
-				}
-				errPolicy = ValidatePluginPolicy(config.PluginPolicy)
-			})
-			return errPolicy
-		},
 
 		installHint: config.InstallHint,
 		sometimes: &sometimes{
@@ -265,8 +267,8 @@ type Authenticator struct {
 	cluster            *clientauthentication.Cluster
 	provideClusterInfo bool
 
-	execPluginPolicy   api.PluginPolicy
-	validatePolicyFunc func() error
+	allowlistLookup  sets.Set[string]
+	execPluginPolicy api.PluginPolicy
 
 	// Used to avoid log spew by rate limiting install hint printing. We didn't do
 	// this by interval based rate limiting alone since that way may have prevented
@@ -434,10 +436,6 @@ func (a *Authenticator) refreshCredsLocked() error {
 		return fmt.Errorf("exec plugin cannot support interactive mode: %w", err)
 	}
 
-	if err := a.validatePolicyFunc(); err != nil {
-		return fmt.Errorf("exec plugin has invalid policy: %w", err)
-	}
-
 	cred := &clientauthentication.ExecCredential{
 		Spec: clientauthentication.ExecCredentialSpec{
 			Interactive: interactive,
@@ -463,7 +461,7 @@ func (a *Authenticator) refreshCredsLocked() error {
 		cmd.Stdin = a.stdin
 	}
 
-	err = a.allowsPlugin()
+	err = a.updateCommandAndCheckAllowlistLocked(cmd)
 	incrementPolicyMetric(err)
 	if err != nil {
 		return err
@@ -574,77 +572,103 @@ func (a *Authenticator) wrapCmdRunErrorLocked(err error) error {
 	}
 }
 
-// `allowsPlugin` determines whether or not the specified executable may run
+// `updateCommandAndCheckAllowlistLocked` determines whether or not the specified executable may run
 // according to the credential plugin policy. If the plugin is allowed, `nil`
 // is returned. If the plugin is not allowed, an error must be returned
 // explaining why.
-func (a *Authenticator) allowsPlugin() error {
-	if isEmptyPolicy(a.execPluginPolicy) {
-		return nil // unset policy means all plugins are allowed
-	}
-
+func (a *Authenticator) updateCommandAndCheckAllowlistLocked(cmd *exec.Cmd) error {
 	switch a.execPluginPolicy.PolicyType {
-	case api.PluginPolicyAllowAll:
+	case "", api.PluginPolicyAllowAll:
 		return nil
 	case api.PluginPolicyDenyAll:
 		return fmt.Errorf("plugin %q not allowed: policy set to %q", a.cmd, api.PluginPolicyDenyAll)
 	case api.PluginPolicyAllowlist:
-		return a.checkAllowlist()
+		return a.checkAllowlistLocked(cmd)
 	default:
 		return fmt.Errorf("unknown plugin policy %q", a.execPluginPolicy.PolicyType)
 	}
 }
 
-func (a *Authenticator) checkAllowlist() error {
-	pluginAbsPath, err := exec.LookPath(a.cmd)
-	if err != nil {
-		return fmt.Errorf("could not resolve path for plugin %q: %w", a.cmd, err)
+// `checkAllowlistLocked` checks the specified plugin against the allowlist,
+// and may update the Authenticator's allowlistLookup set.
+func (a *Authenticator) checkAllowlistLocked(cmd *exec.Cmd) error {
+	if cmd.Err != nil {
+		// we know this will fail execution, so bail early
+		return fmt.Errorf("plugin command has error after initialization: %w", cmd.Err)
 	}
 
+	// cmd.Path will by this point be either an absolute path or a relative
+	// path with at least one path separator. a.cmd may be a basename. If there
+	// is an exact match in the allowlist, return success.
+	if a.allowlistLookup.Has(a.cmd) || a.allowlistLookup.Has(cmd.Path) {
+		return nil
+	}
+
+	// if cmd.Path is already absolute, don't bother calling LookPath which
+	// involves an unnecessary syscall
+	if !filepath.IsAbs(cmd.Path) {
+		var err error
+		cmd.Path, err = exec.LookPath(cmd.Path)
+		if err != nil {
+			return fmt.Errorf("error resolving plugin absolute path: %w", err)
+		}
+
+		// cmd.Path has changed, and the changed value may be in the allowlist
+		if a.allowlistLookup.Has(cmd.Path) {
+			return nil
+		}
+	}
+
+	// There is no verbatim match
 	errs := make([]error, 0, len(a.execPluginPolicy.Allowlist))
 	for _, entry := range a.execPluginPolicy.Allowlist {
-		err := itemGreenlights(&entry, pluginAbsPath)
+		err := a.checkAllowlistEntryAndUpdateLookupLocked(&entry, cmd.Path)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		return nil // an item in the allowlist matched, return nil to indicate success
+
+		return nil
 	}
 
-	return fmt.Errorf("%q is not permitted by the credential plugin allowlist\n%w", pluginAbsPath, utilerrors.NewAggregate(errs))
+	return fmt.Errorf("%q is not permitted by the credential plugin allowlist\n%w", cmd.Path, utilerrors.NewAggregate(errs))
 }
 
-var emptyAllowlistEntry api.AllowlistEntry
-
-// alEntry MUST be non-nil
-func itemGreenlights(alEntry *api.AllowlistEntry, pluginAbsPath string) error {
-	// if no fields are specified, this is a user error. To avoid fail-open
-	// behavior, an empty entry must not allow anything.
-	if *alEntry == emptyAllowlistEntry {
-		return fmt.Errorf("allowlist entry is empty")
-	}
-
+// checkAllowlistEntryAndUpdateLookupLocked may lazily update the Authenticator's
+// allowlistLookup set with the absolute paths of allowlist entries.
+func (a *Authenticator) checkAllowlistEntryAndUpdateLookupLocked(alEntry *api.AllowlistEntry, pluginAbsPath string) error {
 	if entryName := alEntry.Name; len(entryName) > 0 {
+		if filepath.IsAbs(entryName) {
+			return fmt.Errorf("entry %q should have already matched", entryName)
+		}
+
+		// exec.LookPath is expensive in some cases, so rule out obvious
+		// mismatches first
+		if filepath.Base(entryName) != filepath.Base(pluginAbsPath) {
+			return fmt.Errorf("allowlist entry %q is not a match for %q", entryName, pluginAbsPath)
+		}
+
 		entryAbsPath, err := exec.LookPath(entryName)
-		if err != nil || pluginAbsPath != entryAbsPath {
-			return fmt.Errorf("allowlist entry %q is not a match for %q: %w", entryName, pluginAbsPath, err)
+		if err != nil {
+			return fmt.Errorf("allowlist entry %q is not a match for %q: %w", entryAbsPath, pluginAbsPath, err)
+		}
+
+		// saves iterating through the allowlist when there are repeated calls
+		// to refreshCredsLocked()
+		a.allowlistLookup.Insert(entryAbsPath)
+
+		if pluginAbsPath != entryAbsPath {
+			return fmt.Errorf("allowlist entry %q is not a match for %q", entryAbsPath, pluginAbsPath)
 		}
 	}
 
 	return nil
 }
 
-func isEmptyPolicy(policy api.PluginPolicy) bool {
-	return len(policy.PolicyType) == 0 && policy.Allowlist == nil
-}
-
 func ValidatePluginPolicy(policy api.PluginPolicy) error {
-	if len(policy.PolicyType) == 0 {
-		return fmt.Errorf("unspecified plugin policy")
-	}
-
 	switch policy.PolicyType {
-	case api.PluginPolicyAllowAll, api.PluginPolicyDenyAll:
+	// "" is equivalent to "AllowAll"
+	case "", api.PluginPolicyAllowAll, api.PluginPolicyDenyAll:
 		if policy.Allowlist != nil {
 			return fmt.Errorf("misconfigured credential plugin allowlist: plugin policy is %q but allowlist is non-nil", policy.PolicyType)
 		}
@@ -655,6 +679,8 @@ func ValidatePluginPolicy(policy api.PluginPolicy) error {
 		return fmt.Errorf("unknown plugin policy: %q", policy.PolicyType)
 	}
 }
+
+var emptyAllowlistEntry api.AllowlistEntry
 
 func validateAllowlist(list []api.AllowlistEntry) error {
 	// This will be the case if the user has misspelled the field name for the
@@ -671,6 +697,10 @@ func validateAllowlist(list []api.AllowlistEntry) error {
 	for i, item := range list {
 		if item == emptyAllowlistEntry {
 			return fmt.Errorf("misconfigured credential plugin allowlist: empty allowlist entry #%d", i+1)
+		}
+
+		if cleaned := filepath.Clean(item.Name); cleaned != item.Name {
+			return fmt.Errorf("non-normalized file path: %q vs %q", item.Name, cleaned)
 		}
 	}
 

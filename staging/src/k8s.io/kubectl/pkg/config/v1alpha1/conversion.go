@@ -18,15 +18,14 @@ package v1alpha1
 
 import (
 	conversion "k8s.io/apimachinery/pkg/conversion"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	config "k8s.io/kubectl/pkg/config"
 )
 
+// v1alpha1 Preference does not have `CredentialPluginPolicy` or `CredentialPluginAllowlist` fields. They can be left blank, so the autoConvert functions will suffice.
 func Convert_config_Preference_To_v1alpha1_Preference(in *config.Preference, out *Preference, s conversion.Scope) error {
 	return autoConvert_config_Preference_To_v1alpha1_Preference(in, out, s)
 }
 
 func Convert_v1alpha1_Preference_To_config_Preference(in *Preference, out *config.Preference, s conversion.Scope) error {
-	out.CredentialPluginPolicy = clientcmdapi.PluginPolicyAllowAll
 	return autoConvert_v1alpha1_Preference_To_config_Preference(in, out, s)
 }

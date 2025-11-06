@@ -433,7 +433,7 @@ func execPluginClientTests(t *testing.T, unauthorizedCert, unauthorizedKey []byt
 			clientConfigFunc: func(c *rest.Config) {
 				c.ExecProvider.Command = "./testdata/exec-plugin-not-executable.sh"
 			},
-			wantGetCertificateErrorPrefix: "exec: fork/exec ./testdata/exec-plugin-not-executable.sh: permission denied",
+			wantGetCertificateErrorPrefix: "exec: fork/exec testdata/exec-plugin-not-executable.sh: permission denied",
 			wantClientErrorPrefix:         `Get "https`,
 			wantMetrics: &wantMetrics{
 				calls:       []execPluginCall{{exitCode: 1, callStatus: "plugin_not_found_error"}},

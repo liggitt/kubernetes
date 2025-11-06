@@ -415,9 +415,6 @@ func TestValidateAuthInfoExec(t *testing.T) {
 				{Name: "foo", Value: "bar"},
 			},
 			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
-			PluginPolicy: clientcmdapi.PluginPolicy{
-				PolicyType: clientcmdapi.PluginPolicyDenyAll,
-			},
 		},
 	}
 	test := configValidationTest{
@@ -499,9 +496,6 @@ func TestValidateAuthInfoExecNoEnv(t *testing.T) {
 				{Name: "foo", Value: ""},
 			},
 			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
-			PluginPolicy: clientcmdapi.PluginPolicy{
-				PolicyType: clientcmdapi.PluginPolicyDenyAll,
-			},
 		},
 	}
 	test := configValidationTest{

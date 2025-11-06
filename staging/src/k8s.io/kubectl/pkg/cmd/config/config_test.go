@@ -301,9 +301,6 @@ func TestExecPlugin(t *testing.T) {
 		APIVersion:         "client.authentication.k8s.io/v1",
 		ProvideClusterInfo: false,
 		InteractiveMode:    "Never",
-		PluginPolicy: clientcmdapi.PluginPolicy{
-			PolicyType: clientcmdapi.PluginPolicyAllowAll,
-		},
 	}
 	expectedConfig.AuthInfos["cred-exec-user"] = authInfo
 
@@ -346,9 +343,6 @@ func TestExecPluginWithProveClusterInfo(t *testing.T) {
 		APIVersion:         "client.authentication.k8s.io/v1",
 		ProvideClusterInfo: true,
 		InteractiveMode:    "Always",
-		PluginPolicy: clientcmdapi.PluginPolicy{
-			PolicyType: clientcmdapi.PluginPolicyAllowAll,
-		},
 	}
 	expectedConfig.AuthInfos["cred-exec-user"] = authInfo
 

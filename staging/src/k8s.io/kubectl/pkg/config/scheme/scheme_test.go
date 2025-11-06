@@ -22,18 +22,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/apitesting/fuzzer"
 	"k8s.io/apimachinery/pkg/api/apitesting/roundtrip"
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/kubectl/pkg/config"
 	kubectlfuzzer "k8s.io/kubectl/pkg/config/fuzzer"
 	"sigs.k8s.io/randfill"
 )
 
 func TestRoundTripTypes(t *testing.T) {
+	// Because v1alpha1 does not have fields of these types, the fuzzing will
+	// be incorrect, so we need to manually intervene here
 	customFuzzerFuncs := func(codecs runtimeserializer.CodecFactory) []interface{} {
 		return []interface{}{
-			func(s *clientcmdapi.PolicyType, c randfill.Continue) {
-				*s = clientcmdapi.PluginPolicyAllowAll
+			func(s *config.CredentialPluginPolicy, c randfill.Continue) {
+				*s = ""
 			},
-			func(s *[]clientcmdapi.AllowlistEntry, c randfill.Continue) {
+			func(s *[]config.AllowlistEntry, c randfill.Continue) {
 				*s = nil
 			},
 		}

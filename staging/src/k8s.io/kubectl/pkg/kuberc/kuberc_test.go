@@ -107,7 +107,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -156,7 +155,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -211,7 +209,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -270,7 +267,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -324,7 +320,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -378,7 +373,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -432,7 +426,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -486,7 +479,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -536,7 +528,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -587,7 +578,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -639,7 +629,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -690,7 +679,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -746,7 +734,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -810,7 +797,6 @@ func TestApplyOverride(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -861,7 +847,6 @@ func TestApplyOverride(t *testing.T) {
 							Command: "command1",
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedErr: fmt.Errorf("alias testalias can not be overridden"),
@@ -964,7 +949,6 @@ func TestApplyOverrideBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1009,7 +993,6 @@ func TestApplyOverrideBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1055,7 +1038,6 @@ func TestApplyOverrideBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1111,7 +1093,6 @@ func TestApplyOverrideBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1215,7 +1196,6 @@ func TestApplyAliasBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1270,7 +1250,6 @@ func TestApplyAliasBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1326,7 +1305,6 @@ func TestApplyAliasBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1392,7 +1370,6 @@ func TestApplyAliasBool(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[bool]{
@@ -1536,7 +1513,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -1590,7 +1566,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -1645,7 +1620,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -1704,7 +1678,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -1766,7 +1739,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -1832,7 +1804,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -1904,7 +1875,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedErr: fmt.Errorf("duplicate alias name getcmd"),
@@ -1962,7 +1932,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedErr: fmt.Errorf("flag name --firstflag should be in long form without dashes"),
@@ -2006,7 +1975,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedErr: fmt.Errorf("invalid alias name, can only include alphabetical characters"),
@@ -2050,7 +2018,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedErr: fmt.Errorf("invalid alias name, can only include alphabetical characters"),
@@ -2095,7 +2062,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2151,7 +2117,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2208,7 +2173,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2268,7 +2232,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2326,7 +2289,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2381,7 +2343,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2436,7 +2397,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2503,7 +2463,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2570,7 +2529,6 @@ func TestApplyAlias(t *testing.T) {
 							},
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2627,7 +2585,6 @@ func TestApplyAlias(t *testing.T) {
 							Command: "command1",
 						},
 					},
-					CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 				}, nil
 			},
 			expectedFlags: []fakeFlag[string]{
@@ -2834,17 +2791,14 @@ defaults:
 						},
 					},
 				},
-				CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 			},
 		},
 		"explicit flag with strict decoding error returns preference with warning": {
 			kubercFlagFile: `apiVersion: kubectl.config.k8s.io/v1beta1
 kind: Preference
 unknownField: value`,
-			expectedWarning: "strict decoding error: unknown field",
-			expectedPreferences: &config.Preference{
-				CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
-			},
+			expectedWarning:     "strict decoding error: unknown field",
+			expectedPreferences: &config.Preference{},
 		},
 		"explicit flag with invalid file returns error": {
 			kubercFlagFile: `invalid: yaml: content: [unclosed bracket`,
@@ -2881,17 +2835,14 @@ defaults:
 						},
 					},
 				},
-				CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 			},
 		},
 		"KUBERC env with strict decoding error returns preference with warning": {
 			kubercEnvFile: `apiVersion: kubectl.config.k8s.io/v1beta1
 kind: Preference
 unknownField: value`,
-			expectedWarning: "strict decoding error: unknown field",
-			expectedPreferences: &config.Preference{
-				CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
-			},
+			expectedWarning:     "strict decoding error: unknown field",
+			expectedPreferences: &config.Preference{},
 		},
 		"KUBERC env with invalid file returns error": {
 			kubercEnvFile: `invalid: yaml: content: [unclosed bracket`,
@@ -2919,7 +2870,6 @@ defaults:
 						},
 					},
 				},
-				CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
 			},
 		},
 		"no explicit kuberc, invalid default file returns nil with warning": {
@@ -2930,10 +2880,8 @@ defaults:
 			defaultKubercFile: `apiVersion: kubectl.config.k8s.io/v1beta1
 kind: Preference
 unknownField: value`,
-			expectedWarning: "strict decoding error: unknown field",
-			expectedPreferences: &config.Preference{
-				CredentialPluginPolicy: clientcmdapi.PluginPolicyAllowAll,
-			},
+			expectedWarning:     "strict decoding error: unknown field",
+			expectedPreferences: &config.Preference{},
 		},
 	}
 
@@ -3028,8 +2976,8 @@ users:
 	t.Run("plumbing", func(t *testing.T) {
 		pref.getPreferencesFunc = func(_ string, _ io.Writer) (*config.Preference, error) {
 			return &config.Preference{
-				CredentialPluginPolicy: "Allowlist",
-				CredentialPluginAllowlist: []clientcmdapi.AllowlistEntry{
+				CredentialPluginPolicy: config.CredentialPluginPolicy("Allowlist"),
+				CredentialPluginAllowlist: []config.AllowlistEntry{
 					{Name: "bar"},
 					{Name: "baz"},
 				},
@@ -3080,7 +3028,7 @@ kind: Preference
 apiVersion: kubectl.config.k8s.io/v1beta1
 credentialPluginPolicy: "foo"
 credentialPluginAllowlist:
-  - name: "bar"
+- name: "bar"
 `,
 		},
 		{
@@ -3109,8 +3057,8 @@ credentialPluginAllowlist: []
 kind: Preference
 apiVersion: kubectl.config.k8s.io/v1beta1
 credentialPluginAllowlist:
-  - name: "bar"
-  - name: "baz"
+- name: "bar"
+- name: "baz"
 `,
 		},
 		{
@@ -3121,8 +3069,8 @@ kind: Preference
 apiVersion: kubectl.config.k8s.io/v1beta1
 credentialPluginPolicy: "AllowAll"
 credentialPluginAllowlist: []clientcmdapi.AllowlistEntry{
-  - name: "bar"
-  - name: "baz"
+- name: "bar"
+- name: "baz"
 `,
 		},
 		{
@@ -3133,8 +3081,8 @@ kind: Preference
 apiVersion: kubectl.config.k8s.io/v1beta1
 credentialPluginPolicy: "DenyAll"
 credentialPluginAllowlist:
-  - name: "bar"
-  - name: "baz"
+- name: "bar"
+- name: "baz"
 `,
 		},
 		{
@@ -3155,8 +3103,8 @@ kind: Preference
 apiVersion: kubectl.config.k8s.io/v1beta1
 credentialPluginPolicy: "Allowlist"
 credentialPluginAllowlist:
-  - name: "foo"
-  - name: ""
+- name: "foo"
+- name: ""
 `,
 		},
 		{
@@ -3166,7 +3114,7 @@ credentialPluginAllowlist:
 kind: Preference
 credentialPluginPolicy: "Allowlist"
 credentialPluginAllowlist:
-  - name: "foo"
+- name: "foo"
 `,
 		},
 		{

@@ -51,6 +51,9 @@ var (
 	shortHandRegex = regexp.MustCompile("^-[a-zA-Z]+$")
 )
 
+// compile-time check that these two types are aligned
+var _ = clientcmdapi.AllowlistEntry(config.AllowlistEntry{})
+
 // PreferencesHandler is responsible for setting default flags
 // arguments based on user's kuberc configuration.
 type PreferencesHandler interface {
@@ -64,6 +67,7 @@ type Preferences struct {
 	getPreferencesFunc func(kuberc string, errOut io.Writer) (*config.Preference, error)
 
 	aliases map[string]struct{}
+	policy  clientcmdapi.PluginPolicy
 }
 
 // NewPreferences returns initialized Prefrences object.
@@ -107,7 +111,9 @@ func (p *Preferences) Apply(rootCmd *cobra.Command, kubeConfigFlags *genericclio
 		return args, nil
 	}
 
-	err = validate(kuberc)
+	p.convertPluginPolicy(kuberc)
+
+	err = p.validate(kuberc)
 	if err != nil {
 		return args, err
 	}
@@ -125,6 +131,20 @@ func (p *Preferences) Apply(rootCmd *cobra.Command, kubeConfigFlags *genericclio
 	return args, nil
 }
 
+func (p *Preferences) convertPluginPolicy(kuberc *config.Preference) {
+	var allowlist []clientcmdapi.AllowlistEntry
+	if kuberc.CredentialPluginAllowlist != nil {
+		allowlist = make([]clientcmdapi.AllowlistEntry, len(kuberc.CredentialPluginAllowlist))
+		for i := range kuberc.CredentialPluginAllowlist {
+			allowlist[i] = clientcmdapi.AllowlistEntry(kuberc.CredentialPluginAllowlist[i])
+		}
+	}
+	p.policy = clientcmdapi.PluginPolicy{
+		PolicyType: clientcmdapi.PolicyType(kuberc.CredentialPluginPolicy),
+		Allowlist:  allowlist,
+	}
+}
+
 // `applyPluginPolicy` wraps the rest client getter with one that propagates
 // the allowlist, via the rest config, to the code handling credential exec
 // plugins.
@@ -136,10 +156,7 @@ func (p *Preferences) applyPluginPolicy(kubeConfigFlags *genericclioptions.Confi
 		}
 
 		if c.ExecProvider != nil {
-			c.ExecProvider.PluginPolicy = clientcmdapi.PluginPolicy{
-				PolicyType: kuberc.CredentialPluginPolicy,
-				Allowlist:  kuberc.CredentialPluginAllowlist,
-			}
+			c.ExecProvider.PluginPolicy = p.policy
 		}
 
 		return c
@@ -482,7 +499,7 @@ func searchInArgs(flagName string, shorthand string, allShorthands map[string]st
 	return false
 }
 
-func validate(plugin *config.Preference) error {
+func (p *Preferences) validate(plugin *config.Preference) error {
 	validateFlag := func(flags []config.CommandOptionDefault) error {
 		for _, flag := range flags {
 			if strings.HasPrefix(flag.Name, "-") {
@@ -513,10 +530,7 @@ func validate(plugin *config.Preference) error {
 		}
 	}
 
-	if err := exec.ValidatePluginPolicy(clientcmdapi.PluginPolicy{
-		PolicyType: plugin.CredentialPluginPolicy,
-		Allowlist:  plugin.CredentialPluginAllowlist,
-	}); err != nil {
+	if err := exec.ValidatePluginPolicy(p.policy); err != nil {
 		return err
 	}
 

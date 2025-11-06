@@ -1451,6 +1451,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		pkgconfigv1alpha1.CommandOptionDefault{}.OpenAPIModelName():                                                     schema_kubectl_pkg_config_v1alpha1_CommandOptionDefault(ref),
 		pkgconfigv1alpha1.Preference{}.OpenAPIModelName():                                                               schema_kubectl_pkg_config_v1alpha1_Preference(ref),
 		pkgconfigv1beta1.AliasOverride{}.OpenAPIModelName():                                                             schema_kubectl_pkg_config_v1beta1_AliasOverride(ref),
+		pkgconfigv1beta1.AllowlistEntry{}.OpenAPIModelName():                                                            schema_kubectl_pkg_config_v1beta1_AllowlistEntry(ref),
 		pkgconfigv1beta1.CommandDefaults{}.OpenAPIModelName():                                                           schema_kubectl_pkg_config_v1beta1_CommandDefaults(ref),
 		pkgconfigv1beta1.CommandOptionDefault{}.OpenAPIModelName():                                                      schema_kubectl_pkg_config_v1beta1_CommandOptionDefault(ref),
 		pkgconfigv1beta1.Preference{}.OpenAPIModelName():                                                                schema_kubectl_pkg_config_v1beta1_Preference(ref),
@@ -70426,6 +70427,28 @@ func schema_kubectl_pkg_config_v1beta1_AliasOverride(ref common.ReferenceCallbac
 	}
 }
 
+func schema_kubectl_pkg_config_v1beta1_AllowlistEntry(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "AllowlistEntry is an entry in the allowlist. For each allowlist item, at least one field must be nonempty. A struct with all empty fields is considered a misconfiguration error. Each field is a criterion for execution. If multiple fields are specified, then the criteria of all specified fields must be met. That is, the result of an individual entry is the logical AND of all checks corresponding to the specified fields within the entry.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name matching is performed by first resolving the absolute path of both the plugin and the name in the allowlist entry using `exec.LookPath`. It will be called on both, and the resulting strings must be equal. If either call to `exec.LookPath` results in an error, the `Name` check will be considered a failure.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
 func schema_kubectl_pkg_config_v1beta1_CommandDefaults(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -70578,7 +70601,7 @@ func schema_kubectl_pkg_config_v1beta1_Preference(ref common.ReferenceCallback) 
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("k8s.io/client-go/tools/clientcmd/api.AllowlistEntry"),
+										Ref:     ref(pkgconfigv1beta1.AllowlistEntry{}.OpenAPIModelName()),
 									},
 								},
 							},
@@ -70589,7 +70612,7 @@ func schema_kubectl_pkg_config_v1beta1_Preference(ref common.ReferenceCallback) 
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/client-go/tools/clientcmd/api.AllowlistEntry", pkgconfigv1beta1.AliasOverride{}.OpenAPIModelName(), pkgconfigv1beta1.CommandDefaults{}.OpenAPIModelName()},
+			pkgconfigv1beta1.AliasOverride{}.OpenAPIModelName(), pkgconfigv1beta1.AllowlistEntry{}.OpenAPIModelName(), pkgconfigv1beta1.CommandDefaults{}.OpenAPIModelName()},
 	}
 }
 
