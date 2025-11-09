@@ -39,7 +39,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/dump"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
@@ -186,7 +185,9 @@ func newAuthenticator(c *cache, isTerminalFunc func(int) bool, config *api.ExecC
 
 	allowlistLookup := sets.New[string]()
 	for _, entry := range config.PluginPolicy.Allowlist {
-		allowlistLookup.Insert(entry.Name)
+		if entry.Name != "" {
+			allowlistLookup.Insert(entry.Name)
+		}
 	}
 
 	a := &Authenticator{
@@ -592,77 +593,68 @@ func (a *Authenticator) updateCommandAndCheckAllowlistLocked(cmd *exec.Cmd) erro
 // `checkAllowlistLocked` checks the specified plugin against the allowlist,
 // and may update the Authenticator's allowlistLookup set.
 func (a *Authenticator) checkAllowlistLocked(cmd *exec.Cmd) error {
-	if cmd.Err != nil {
-		// we know this will fail execution, so bail early
-		return fmt.Errorf("plugin command has error after initialization: %w", cmd.Err)
-	}
-
-	// cmd.Path will by this point be either an absolute path or a relative
-	// path with at least one path separator. a.cmd may be a basename. If there
-	// is an exact match in the allowlist, return success.
+	// a.cmd is the original command as specified in the configuration, then filepath.Clean().
+	// cmd.Path is the possibly-resolved command.
+	// If either are an exact match in the allowlist, return success.
 	if a.allowlistLookup.Has(a.cmd) || a.allowlistLookup.Has(cmd.Path) {
 		return nil
 	}
 
-	// if cmd.Path is already absolute, don't bother calling LookPath which
-	// involves an unnecessary syscall
-	if !filepath.IsAbs(cmd.Path) {
-		var err error
-		cmd.Path, err = exec.LookPath(cmd.Path)
-		if err != nil {
-			return fmt.Errorf("error resolving plugin absolute path: %w", err)
-		}
-
-		// cmd.Path has changed, and the changed value may be in the allowlist
-		if a.allowlistLookup.Has(cmd.Path) {
-			return nil
+	var cmdResolvedPath string
+	var cmdResolvedErr error
+	if cmd.Path != a.cmd {
+		// cmd.Path changed, use the already-resolved LookPath results
+		cmdResolvedPath = cmd.Path
+		cmdResolvedErr = cmd.Err
+	} else {
+		// cmd.Path is unchanged, do LookPath ourselves
+		cmdResolvedPath, cmdResolvedErr = exec.LookPath(cmd.Path)
+		// update cmd.Path to cmdResolvedPath so we only run the resolved path
+		if cmdResolvedPath != "" {
+			cmd.Path = cmdResolvedPath
 		}
 	}
 
-	// There is no verbatim match
-	errs := make([]error, 0, len(a.execPluginPolicy.Allowlist))
-	for _, entry := range a.execPluginPolicy.Allowlist {
-		err := a.checkAllowlistEntryAndUpdateLookupLocked(&entry, cmd.Path)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
+	if cmdResolvedErr != nil {
+		return fmt.Errorf("plugin path %q cannot be resolved for credential plugin allowlist check: %w", cmd.Path, cmdResolvedErr)
+	}
 
+	// cmdResolvedPath may have changed, and the changed value may be in the allowlist
+	if a.allowlistLookup.Has(cmdResolvedPath) {
 		return nil
 	}
 
-	return fmt.Errorf("%q is not permitted by the credential plugin allowlist\n%w", cmd.Path, utilerrors.NewAggregate(errs))
-}
+	// There is no verbatim match
+	a.resolveAllowListEntriesLocked(cmd.Path)
 
-// checkAllowlistEntryAndUpdateLookupLocked may lazily update the Authenticator's
-// allowlistLookup set with the absolute paths of allowlist entries.
-func (a *Authenticator) checkAllowlistEntryAndUpdateLookupLocked(alEntry *api.AllowlistEntry, pluginAbsPath string) error {
-	if entryName := alEntry.Name; len(entryName) > 0 {
-		if filepath.IsAbs(entryName) {
-			return fmt.Errorf("entry %q should have already matched", entryName)
-		}
-
-		// exec.LookPath is expensive in some cases, so rule out obvious
-		// mismatches first
-		if filepath.Base(entryName) != filepath.Base(pluginAbsPath) {
-			return fmt.Errorf("allowlist entry %q is not a match for %q", entryName, pluginAbsPath)
-		}
-
-		entryAbsPath, err := exec.LookPath(entryName)
-		if err != nil {
-			return fmt.Errorf("allowlist entry %q is not a match for %q: %w", entryAbsPath, pluginAbsPath, err)
-		}
-
-		// saves iterating through the allowlist when there are repeated calls
-		// to refreshCredsLocked()
-		a.allowlistLookup.Insert(entryAbsPath)
-
-		if pluginAbsPath != entryAbsPath {
-			return fmt.Errorf("allowlist entry %q is not a match for %q", entryAbsPath, pluginAbsPath)
-		}
+	// allowlistLookup may have changed, recheck
+	if a.allowlistLookup.Has(cmdResolvedPath) {
+		return nil
 	}
 
-	return nil
+	return fmt.Errorf("plugin path %q is not permitted by the credential plugin allowlist", cmd.Path)
+}
+
+// resolveAllowListEntriesLocked tries to resolve allowlist entries with LookPath,
+// and adds successfully resolved entries to allowlistLookup.
+// The optional commandHint can be used to limit which entries are resolved to ones which match the hint basename.
+func (a *Authenticator) resolveAllowListEntriesLocked(commandHint string) {
+	hintName := filepath.Base(commandHint)
+	for _, entry := range a.execPluginPolicy.Allowlist {
+		entryBasename := filepath.Base(entry.Name)
+		if hintName != "" && hintName != entryBasename {
+			// we got a hint, and this allowlist entry does not match it
+			continue
+		}
+		entryResolvedPath, err := exec.LookPath(entry.Name)
+		if err != nil {
+			klog.V(5).ErrorS(err, "resolving credential plugin allowlist", "name", entry.Name)
+			continue
+		}
+		if entryResolvedPath != "" {
+			a.allowlistLookup.Insert(entryResolvedPath)
+		}
+	}
 }
 
 func ValidatePluginPolicy(policy api.PluginPolicy) error {
@@ -701,6 +693,8 @@ func validateAllowlist(list []api.AllowlistEntry) error {
 
 		if cleaned := filepath.Clean(item.Name); cleaned != item.Name {
 			return fmt.Errorf("non-normalized file path: %q vs %q", item.Name, cleaned)
+		} else if item.Name == "" {
+			return fmt.Errorf("empty file path: %q", item.Name)
 		}
 	}
 
