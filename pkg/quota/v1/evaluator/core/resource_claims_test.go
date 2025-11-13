@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/admission"
 	quota "k8s.io/apiserver/pkg/quota/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -374,9 +375,15 @@ func TestResourceClaimEvaluatorUsage(t *testing.T) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 	deviceclassmapping := extendedresourcecache.NewExtendedResourceCache(logger)
 	if _, err := informerFactory.Resource().V1().DeviceClasses().Informer().AddEventHandler(deviceclassmapping); err != nil {
-		logger.Error(err, "failed to add device class informer event handler")
+		t.Fatal(err)
 	}
-	evaluatorWithDeviceMapping := NewResourceClaimEvaluator(nil, deviceclassmapping, informerFactory.Core().V1().Pods().Lister())
+
+	var otherOwnedClaims []*resourceapi.ResourceClaim
+	claimGetter := func(namespace string, podUID types.UID) []*resourceapi.ResourceClaim {
+		return otherOwnedClaims
+	}
+
+	evaluatorWithDeviceMapping := NewResourceClaimEvaluator(nil, deviceclassmapping, informerFactory.Core().V1().Pods().Lister(), claimGetter)
 
 	informerFactory.Start(tCtx.Done())
 	t.Cleanup(func() {
@@ -390,10 +397,11 @@ func TestResourceClaimEvaluatorUsage(t *testing.T) {
 	// wait for informer sync
 	time.Sleep(1 * time.Second)
 
-	evaluator := NewResourceClaimEvaluator(nil, nil, nil)
+	evaluator := NewResourceClaimEvaluator(nil, nil, nil, claimGetter)
 	testCases := map[string]struct {
 		evaluator quota.Evaluator
 		claim     *api.ResourceClaim
+		claims    []*resourceapi.ResourceClaim
 		usage     corev1.ResourceList
 		errMsg    string
 	}{
@@ -578,6 +586,7 @@ func TestResourceClaimEvaluatorUsage(t *testing.T) {
 	}
 	for testName, testCase := range testCases {
 		t.Run(testName, func(t *testing.T) {
+			otherOwnedClaims = testCase.claims
 			featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.DRAExtendedResource, true)
 			if testCase.evaluator == nil {
 				testCase.evaluator = evaluator
@@ -620,7 +629,7 @@ func TestResourceClaimEvaluatorMatchingResources(t *testing.T) {
 	if _, err := informerFactory.Resource().V1().DeviceClasses().Informer().AddEventHandler(deviceclassmapping); err != nil {
 		logger.Error(err, "failed to add device class informer event handler")
 	}
-	evaluator := NewResourceClaimEvaluator(nil, deviceclassmapping, informerFactory.Core().V1().Pods().Lister())
+	evaluator := NewResourceClaimEvaluator(nil, deviceclassmapping, informerFactory.Core().V1().Pods().Lister(), nil)
 
 	informerFactory.Start(tCtx.Done())
 	t.Cleanup(func() {
@@ -677,7 +686,7 @@ func TestResourceClaimEvaluatorMatchingResources(t *testing.T) {
 }
 
 func TestResourceClaimEvaluatorHandles(t *testing.T) {
-	evaluator := NewResourceClaimEvaluator(nil, nil, nil)
+	evaluator := NewResourceClaimEvaluator(nil, nil, nil, nil)
 	testCases := []struct {
 		name  string
 		attrs admission.Attributes
