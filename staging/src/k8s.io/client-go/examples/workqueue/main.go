@@ -160,7 +160,7 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	// creates the clientset
+	// Creates the clientset!
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		klog.Fatal(err)
