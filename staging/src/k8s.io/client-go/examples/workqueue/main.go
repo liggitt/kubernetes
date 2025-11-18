@@ -168,7 +168,7 @@ func main() {
 
 	ctx := context.Background()
 
-	// create the pod watcher
+	// Create the pod watcher!
 	podListWatcher := cache.NewListWatchFromClient(clientset.CoreV1().RESTClient(), "pods", v1.NamespaceDefault, fields.Everything())
 
 	// create the workqueue
