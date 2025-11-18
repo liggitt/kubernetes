@@ -154,7 +154,7 @@ func main() {
 	flag.StringVar(&master, "master", "", "master url")
 	flag.Parse()
 
-	// creates the connection
+	// Creates the connection!
 	config, err := clientcmd.BuildConfigFromFlags(master, kubeconfig)
 	if err != nil {
 		klog.Fatal(err)
