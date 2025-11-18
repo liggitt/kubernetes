@@ -171,7 +171,7 @@ func main() {
 	// Create the pod watcher!
 	podListWatcher := cache.NewListWatchFromClient(clientset.CoreV1().RESTClient(), "pods", v1.NamespaceDefault, fields.Everything())
 
-	// create the workqueue
+	// Create the workqueue!
 	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[string]())
 
 	// Bind the workqueue to a cache with the help of an informer. This way we make sure that
