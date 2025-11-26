@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"strings"
 	"time"
@@ -43,7 +42,7 @@ import (
 
 const (
 	// spiffeSignerName is the name of the signer for SPIFFE certificates.
-	spiffeSignerName = "row-major.net/spiffe"
+	spiffeSignerName = "e2e.example.com/spiffe"
 )
 
 var _ = SIGDescribe("Projected PodCertificate",
@@ -53,31 +52,21 @@ var _ = SIGDescribe("Projected PodCertificate",
 	func() {
 		f := framework.NewDefaultFramework("projected-podcertificate")
 		f.NamespacePodSecurityLevel = admissionapi.LevelBaseline
-		var (
-			signerCtx    context.Context
-			cancelSigner context.CancelFunc
-			signer       *hermeticpodcertificatesigner.Controller
-			caKeys       []crypto.PrivateKey
-			caCerts      [][]byte
-		)
 
-		ginkgo.BeforeEach(func(ctx context.Context) {
+		ginkgo.BeforeAll(func(ctx context.Context) {
 			ginkgo.By("Starting in-process pod certificate signer...")
-			signerCtx, cancelSigner = context.WithCancel(context.Background())
+			signerCtx, cancelSigner := context.WithCancel(context.Background())
 			ginkgo.DeferCleanup(func(ctx context.Context) {
 				ginkgo.By("Stopping in-process pod certificate signer...")
-				if cancelSigner != nil {
-					cancelSigner()
-				}
+				cancelSigner()
 			})
 
-			var err error
-			caKeys, caCerts, err = hermeticpodcertificatesigner.GenerateCAHierarchy(1) // Generate CA once
+			caKeys, caCerts, err := hermeticpodcertificatesigner.GenerateCAHierarchy(1) // Generate CA once
 			if err != nil {
 				framework.Failf("failed to generate CA for signer: %v", err)
 			}
 
-			signer = hermeticpodcertificatesigner.New(clock.RealClock{}, spiffeSignerName, caKeys, caCerts, f.ClientSet)
+			signer := hermeticpodcertificatesigner.New(clock.RealClock{}, spiffeSignerName, caKeys, caCerts, f.ClientSet)
 			go signer.Run(signerCtx)
 		})
 
