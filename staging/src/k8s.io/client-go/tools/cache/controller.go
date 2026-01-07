@@ -596,7 +596,7 @@ func processDeltas(
 			if !ok {
 				return fmt.Errorf("ReplacedList did not contain ReplacedListInfo: %T", obj)
 			}
-			if err := processReplacedListInfo(handler, info, clientState, keyFunc); err != nil {
+			if err := processReplacedListInfo(handler, info, clientState, isInInitialList, keyFunc); err != nil {
 				return err
 			}
 		case Sync, Replaced, Added, Updated:
@@ -658,9 +658,7 @@ func processDeltasInBatch(
 	for _, d := range deltas {
 		obj := d.Object
 		switch d.Type {
-		case ReplacedList:
-			return fmt.Errorf("ReplacedList is not supported in batch processing")
-		case Sync, Added, Updated, Replaced:
+		case Sync, Replaced, Added, Updated:
 			// it will only return one old object for each because items are unique
 			if old, exists, err := clientState.Get(obj); err == nil && exists {
 				txn := Transaction{
@@ -690,6 +688,8 @@ func processDeltasInBatch(
 			callbacks = append(callbacks, func() {
 				handler.OnDelete(obj)
 			})
+		default:
+			return fmt.Errorf("Delta type %s is not supported in batch processing", d.Type)
 		}
 	}
 
@@ -710,30 +710,22 @@ func processDeltasInBatch(
 	return nil
 }
 
-func processReplacedListInfo(handler ResourceEventHandler, info ReplacedListInfo, clientState Store, keyFunc KeyFunc) error {
-	var deletions []interface{}
+func processReplacedListInfo(handler ResourceEventHandler, info ReplacedListInfo, clientState Store, isInInitialList bool, keyFunc KeyFunc) error {
+	var deletions []DeletedFinalStateUnknown
 	type replacement struct {
 		oldObj interface{}
 		newObj interface{}
 	}
-	var replacements []replacement
+	replacements := make([]replacement, 0, len(info.Objects))
 
 	err := reconcileReplacement(nil, clientState, info.Objects, keyFunc,
-		func(obj interface{}) error {
+		func(obj DeletedFinalStateUnknown) error {
 			deletions = append(deletions, obj)
 			return nil
 		},
 		func(obj interface{}) error {
-			key, err := keyFunc(obj)
-			if err != nil {
-				return err
-			}
-			oldObj, exists, err := clientState.GetByKey(key)
-			if err != nil {
-				return err
-			}
-			if exists {
-				replacements = append(replacements, replacement{oldObj: oldObj, newObj: obj})
+			if old, exists, err := clientState.Get(obj); err == nil && exists {
+				replacements = append(replacements, replacement{newObj: obj, oldObj: old})
 			} else {
 				replacements = append(replacements, replacement{newObj: obj})
 			}
@@ -754,7 +746,7 @@ func processReplacedListInfo(handler ResourceEventHandler, info ReplacedListInfo
 		if r.oldObj != nil {
 			handler.OnUpdate(r.oldObj, r.newObj)
 		} else {
-			handler.OnAdd(r.newObj, true)
+			handler.OnAdd(r.newObj, isInInitialList)
 		}
 	}
 	return nil

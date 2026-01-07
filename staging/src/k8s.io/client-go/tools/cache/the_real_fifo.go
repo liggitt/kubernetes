@@ -318,6 +318,15 @@ func (f *RealFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 	return Deltas{item}, err
 }
 
+// batchable stores the delta types that can be batched
+var batchable = map[DeltaType]bool{
+	Sync:     true,
+	Replaced: true,
+	Added:    true,
+	Updated:  true,
+	Deleted:  true,
+}
+
 func (f *RealFIFO) PopBatch(processBatch ProcessBatchFunc, process PopProcessFunc) error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -336,16 +345,23 @@ func (f *RealFIFO) PopBatch(processBatch ProcessBatchFunc, process PopProcessFun
 	isInInitialList := !f.hasSynced_locked()
 	unique := sets.NewString()
 	deltas := make([]Delta, 0, min(len(f.items), f.batchSize))
+	moveDeltaToProcessList := func(i int) {
+		deltas = append(deltas, f.items[i])
+		// The underlying array still exists and references this object, so the object will not be garbage collected unless we zero the reference.
+		f.items[i] = Delta{}
+	}
 	// only bundle unique items into a batch, always batch atomic replaces separately.
 	for i := 0; i < f.batchSize && i < len(f.items); i++ {
 		if f.initialPopulationCount > 0 && i >= f.initialPopulationCount {
 			break
 		}
 		item := f.items[i]
-		if item.Type == ReplacedList {
+		if !batchable[item.Type] {
 			if len(deltas) == 0 {
-				deltas = append(deltas, item)
+				// if an unbatchable delta is first in the list, process just that one by itself
+				moveDeltaToProcessList(i)
 			}
+			// close the batch when an unbatchable delta is encountered
 			break
 		}
 		id, err := f.keyOf(item)
@@ -355,18 +371,15 @@ func (f *RealFIFO) PopBatch(processBatch ProcessBatchFunc, process PopProcessFun
 			// still pop the broken item out of queue to be compatible with the non-batch behavior it should be safe
 			// when 1st element is broken, however for Nth broken element, there's possible risk that broken item
 			// still can be processed and broke the uniqueness of the batch unexpectedly.
-			deltas = append(deltas, item)
-			// The underlying array still exists and references this object, so the object will not be garbage collected unless we zero the reference.
-			f.items[i] = Delta{}
+			moveDeltaToProcessList(i)
 			break
 		}
 		if unique.Has(id) {
+			// close the batch if a duplicate item is encountered
 			break
 		}
 		unique.Insert(id)
-		deltas = append(deltas, item)
-		// The underlying array still exists and references this object, so the object will not be garbage collected unless we zero the reference.
-		f.items[i] = Delta{}
+		moveDeltaToProcessList(i)
 	}
 	if f.initialPopulationCount > 0 {
 		f.initialPopulationCount -= len(deltas)
@@ -403,28 +416,27 @@ func (f *RealFIFO) Replace(newItems []interface{}, resourceVersion string) error
 	defer f.lock.Unlock()
 
 	if f.emitAtomicEvents {
-		f.items = f.items[:0]
+		if err := f.addReplaceToItemsLocked(newItems, resourceVersion); err != nil {
+			return err
+		}
 		if !f.populated {
 			f.populated = true
-			f.initialPopulationCount = 1
+			f.initialPopulationCount = len(f.items)
 		}
-		return f.addReplaceToItemsLocked(newItems, resourceVersion)
+		return nil
 	}
 
 	err := reconcileReplacement(f.items, f.knownObjects, newItems, f.keyOf,
-		func(obj interface{}) error {
-			return f.addToItems_locked(Deleted, true, DeletedFinalStateUnknown{
-				Key: obj.(DeletedFinalStateUnknown).Key,
-				Obj: obj.(DeletedFinalStateUnknown).Obj,
-			})
+		func(obj DeletedFinalStateUnknown) error {
+			return f.addToItems_locked(Deleted, true, obj)
 		},
 		func(obj interface{}) error {
 			return f.addToItems_locked(Replaced, false, obj)
-		})
+		},
+	)
 	if err != nil {
 		return err
 	}
-
 	if !f.populated {
 		f.populated = true
 		f.initialPopulationCount = len(f.items)
@@ -441,7 +453,7 @@ func reconcileReplacement(
 	knownObjects KeyListerGetter,
 	newItems []interface{},
 	keyOf func(obj interface{}) (string, error),
-	onDelete func(obj interface{}) error,
+	onDelete func(obj DeletedFinalStateUnknown) error,
 	onReplace func(obj interface{}) error,
 ) error {
 	// determine the keys of everything we're adding.  We cannot add the items until after the synthetic deletes have been

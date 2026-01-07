@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
 	clientfeatures "k8s.io/client-go/features"
 	clientfeaturestesting "k8s.io/client-go/features/testing"
 )
@@ -1327,12 +1328,13 @@ func TestRealFIFO_ReplaceAtomic(t *testing.T) {
 			},
 		},
 		{
-			name: "Added object won't exist in deltas on Atomic Replace",
+			name: "Added object exists in deltas on Atomic Replace",
 			operations: func(f *RealFIFO) {
 				f.addTest(t, obj)
 				f.replaceTest(t, []interface{}{}, "123")
 			},
 			expectedDeltas: Deltas{
+				{Type: Added, Object: obj},
 				{Type: ReplacedList, Object: ReplacedListInfo{
 					ResourceVersion: "123",
 					Objects:         []interface{}{},
@@ -1340,14 +1342,23 @@ func TestRealFIFO_ReplaceAtomic(t *testing.T) {
 			},
 		},
 		{
-			name: "Multiple replaces run in order and only adds the final replace",
+			name: "Multiple replaces run in order",
 			operations: func(f *RealFIFO) {
 				f.addTest(t, obj)
-				f.replaceTest(t, []interface{}{obj}, "0")
-				f.replaceTest(t, []interface{}{obj}, "2")
+				f.replaceTest(t, []interface{}{obj}, "10")
+				f.replaceTest(t, []interface{}{obj}, "20")
 				f.replaceTest(t, []interface{}{}, "56")
 			},
 			expectedDeltas: Deltas{
+				{Type: Added, Object: obj},
+				{Type: ReplacedList, Object: ReplacedListInfo{
+					ResourceVersion: "10",
+					Objects:         []interface{}{obj},
+				}},
+				{Type: ReplacedList, Object: ReplacedListInfo{
+					ResourceVersion: "20",
+					Objects:         []interface{}{obj},
+				}},
 				{Type: ReplacedList, Object: ReplacedListInfo{
 					ResourceVersion: "56",
 					Objects:         []interface{}{},
@@ -1403,6 +1414,11 @@ func TestRealFIFO_ReplaceAtomicPop(t *testing.T) {
 			got <- obj
 		}
 	}()
+
+	added := <-got
+	if e, a, v := "foo", added.name, added.val.(int); e != a || v != 10 {
+		t.Errorf("Didn't get expected name (%v vs %v) or value (%v vs %v)", e, a, v, 10)
+	}
 
 	curr := <-got
 	if e, a, v := isAtomic, curr.name, curr.val.([]testFifoObject)[0]; e != a && v.val == 15 {
