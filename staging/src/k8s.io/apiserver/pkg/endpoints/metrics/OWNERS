@@ -3,4 +3,4 @@
 reviewers:
   - wojtek-t
 approvers:
-  - logicalhan
+  - sig-instrumentation-approvers

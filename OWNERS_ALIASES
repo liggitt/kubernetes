@@ -331,7 +331,6 @@ aliases:
   # - mwielgus
   # - raywainman
   sig-instrumentation-approvers:
-    - logicalhan
     - dashpole
     - RainbowMango
     - serathius
@@ -342,7 +341,6 @@ aliases:
     - dashpole
     - s-urbaniak
     - coffeepac
-    - logicalhan
     - RainbowMango
     - serathius
     - dgrisonnet
@@ -537,7 +535,6 @@ aliases:
     - soltysh
     - liggitt
   dep-reviewers:
-    - logicalhan
   feature-approvers:
     - adrianmoisey # Autoscaling
     - ardaguclu # CLI
@@ -565,7 +562,6 @@ aliases:
     - justinsb # Cluster Lifecycle
     - kow3ns # Apps
     - liggitt # Auth
-    - logicalhan # Instrumentation
     - luxas # Cluster Lifecycle
     - macsko # Scheduling
     - marosset # Windows
