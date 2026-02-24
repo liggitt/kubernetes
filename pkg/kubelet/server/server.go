@@ -40,6 +40,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/emicklei/go-restful/otelrestful"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
+
 	"k8s.io/klog/v2"
 	"k8s.io/utils/clock"
 	netutils "k8s.io/utils/net"
@@ -56,6 +57,7 @@ import (
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/apiserver/pkg/server/flagz"
 	"k8s.io/apiserver/pkg/server/healthz"
 	"k8s.io/apiserver/pkg/server/httplog"
@@ -130,9 +132,13 @@ type Server struct {
 
 // TLSOptions holds the TLS options.
 type TLSOptions struct {
-	Config   *tls.Config
+	MinVersion   uint16
+	CipherSuites []uint16
+
 	CertFile string
 	KeyFile  string
+
+	ClientCAFile string
 }
 
 // containerInterface defines the restful.Container functions used on the root container
@@ -172,7 +178,7 @@ func ListenAndServeKubeletServer(
 	checkers []healthz.HealthChecker,
 	flagz flagz.Reader,
 	kubeCfg *kubeletconfiginternal.KubeletConfiguration,
-	tlsOptions *TLSOptions,
+	tlsConfig *tls.Config,
 	auth AuthInterface,
 	tp oteltrace.TracerProvider) {
 
@@ -192,13 +198,8 @@ func ListenAndServeKubeletServer(
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	if tlsOptions != nil {
-		s.TLSConfig = tlsOptions.Config
-		if err := s.ListenAndServeTLS(tlsOptions.CertFile, tlsOptions.KeyFile); err != nil {
-			logger.Error(err, "Failed to listen and serve")
-			os.Exit(1)
-		}
-	} else if err := s.ListenAndServe(); err != nil {
+	s.TLSConfig = tlsConfig
+	if err := s.ListenAndServeTLS("", ""); err != nil {
 		logger.Error(err, "Failed to listen and serve")
 		os.Exit(1)
 	}
@@ -264,6 +265,7 @@ type AuthInterface interface {
 	authenticator.Request
 	NodeRequestAttributesGetter
 	authorizer.Authorizer
+	dynamiccertificates.CAContentProvider
 }
 
 // HostInterface contains all the kubelet methods required by the server.
