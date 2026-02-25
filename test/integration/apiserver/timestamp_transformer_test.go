@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	v1 "k8s.io/api/core/v1"
 	k8sfuzz "k8s.io/apimachinery/pkg/api/apitesting/fuzzer"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -92,9 +93,9 @@ func doBench(b *testing.B, useUnstructured bool, shortCircuit bool) {
 			APIVersion: "apps/v1",
 			Time:       &now,
 			FieldsType: "FieldsV1",
-			FieldsV1: &metav1.FieldsV1{
-				Raw: []byte(`{"f:metadata":{"f:labels":{"f:sidecar_version":{}}},"f:spec":{"f:template":{"f:spec":{"f:containers":{"k:{\"name\":\"sidecar\"}":{".":{},"f:image":{},"f:name":{}}}}}}}`),
-			},
+			FieldsV1: metav1.NewFieldsV1(
+				`{"f:metadata":{"f:labels":{"f:sidecar_version":{}}},"f:spec":{"f:template":{"f:spec":{"f:containers":{"k:{\"name\":\"sidecar\"}":{".":{},"f:image":{},"f:name":{}}}}}}}`,
+			),
 		}
 
 		largeMeta, err := meta.Accessor(actualLarge)

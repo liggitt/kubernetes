@@ -17,11 +17,13 @@ limitations under the License.
 package internal_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
+
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -32,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/managedfields/internal"
 	internaltesting "k8s.io/apimachinery/pkg/util/managedfields/internal/testing"
 	"k8s.io/apimachinery/pkg/util/managedfields/managedfieldstest"
-	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 )
 
 type fakeManager struct{}
@@ -129,7 +130,7 @@ func TestCapUpdateManagers(t *testing.T) {
 		if err != nil {
 			panic(fmt.Sprintf("error building ManagedFieldsEntry for test: %v", err))
 		}
-		return &metav1.FieldsV1{Raw: b}
+		return metav1.NewFieldsV1(string(b))
 	}
 
 	entry := func(name string, version string, order int, fields *metav1.FieldsV1) metav1.ManagedFieldsEntry {
@@ -272,7 +273,7 @@ func expectManagesField(t *testing.T, f managedfieldstest.TestFieldManager, m st
 	for _, e := range f.ManagedFields() {
 		if e.Manager == m {
 			var s fieldpath.Set
-			err := s.FromJSON(bytes.NewReader(e.FieldsV1.Raw))
+			err := s.FromJSON(strings.NewReader(e.FieldsV1.GetRaw()))
 			if err != nil {
 				t.Fatalf("error parsing managedFields for %v: %v: %#v", m, err, f.ManagedFields())
 			}
