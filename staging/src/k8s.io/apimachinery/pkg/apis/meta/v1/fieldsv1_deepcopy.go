@@ -16,16 +16,6 @@ limitations under the License.
 
 package v1
 
-func (in *FieldsV1) DeepCopyInto(out *FieldsV1) {
-	*out = *in
-	if in.Raw != nil {
-		in, out := &in.Raw, &out.Raw
-		*out = make([]byte, len(*in))
-		copy(*out, *in)
-	}
-	return
-}
-
 func (in *FieldsV1) DeepCopy() *FieldsV1 {
 	if in == nil {
 		return nil

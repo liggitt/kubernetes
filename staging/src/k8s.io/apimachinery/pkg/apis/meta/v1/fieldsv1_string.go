@@ -1,4 +1,4 @@
-//go:build !(fieldsv1_string || fieldsv1_stringhandle)
+//go:build fieldsv1_string
 
 /*
 Copyright The Kubernetes Authors.
@@ -19,8 +19,8 @@ limitations under the License.
 package v1
 
 import (
-	"bytes"
-	"io"
+	io "io"
+	"strings"
 )
 
 // FieldsV1 stores a set of fields in a data structure like a Trie, in JSON format.
@@ -37,16 +37,15 @@ import (
 // +protobuf.options.(gogoproto.goproto_stringer)=false
 type FieldsV1 struct {
 	// Raw is the underlying serialization of this object.
-	// Deprecated: Direct access to this field is deprecated. Use GetRaw, SetRaw, GetRawReader, NewFieldsV1 instead.
-	Raw []byte `json:"-" protobuf:"bytes,1,opt,name=Raw"`
+	raw string `json:"-" protobuf:"bytes,1,opt,name=Raw"`
 }
 
 func (f FieldsV1) String() string {
-	return string(f.Raw)
+	return f.GetRaw()
 }
 
 func (f FieldsV1) Equal(f2 FieldsV1) bool {
-	return bytes.Equal(f.Raw, f2.Raw)
+	return f.GetRaw() == f2.GetRaw()
 }
 
 type FieldsV1Reader interface {
@@ -55,27 +54,21 @@ type FieldsV1Reader interface {
 }
 
 func (f *FieldsV1) GetRawReader() FieldsV1Reader {
-	return bytes.NewReader(f.Raw)
+	return strings.NewReader(f.GetRaw())
 }
 
 func (f *FieldsV1) GetRaw() string {
-	return string(f.Raw)
+	return f.raw
 }
 
 func (f *FieldsV1) SetRaw(raw string) {
-	f.Raw = []byte(raw)
+	f.raw = raw
 }
 
 func (in *FieldsV1) DeepCopyInto(out *FieldsV1) {
 	*out = *in
-	if in.Raw != nil {
-		in, out := &in.Raw, &out.Raw
-		*out = make([]byte, len(*in))
-		copy(*out, *in)
-	}
-	return
 }
 
 func NewFieldsV1(raw string) *FieldsV1 {
-	return &FieldsV1{Raw: []byte(raw)}
+	return &FieldsV1{raw: raw}
 }

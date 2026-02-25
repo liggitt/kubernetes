@@ -43,10 +43,18 @@ func (m *FieldsV1) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
-	if m.Raw != nil {
-		i -= len(m.Raw)
-		copy(dAtA[i:], m.Raw)
-		i = encodeVarintGenerated(dAtA, i, uint64(len(m.Raw)))
+	if rawReader := m.GetRawReader(); rawReader.Size() > 0 {
+		rawSize := rawReader.Size()
+		i -= int(rawSize)
+		written, err := rawReader.Read(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		if written != int(rawSize) {
+			return 0, io.ErrShortBuffer
+		}
+
+		i = encodeVarintGenerated(dAtA, i, uint64(rawSize))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -59,8 +67,8 @@ func (m *FieldsV1) Size() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Raw != nil {
-		l = len(m.Raw)
+	if rawReader := m.GetRawReader(); rawReader.Size() > 0 {
+		l = int(rawReader.Size())
 		n += 1 + l + sovGenerated(uint64(l))
 	}
 	return n
@@ -124,10 +132,7 @@ func (m *FieldsV1) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Raw = append(m.Raw[:0], dAtA[iNdEx:postIndex]...)
-			if m.Raw == nil {
-				m.Raw = []byte{}
-			}
+			m.SetRaw(string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
