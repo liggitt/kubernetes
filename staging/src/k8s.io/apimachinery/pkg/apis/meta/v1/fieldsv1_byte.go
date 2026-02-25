@@ -16,6 +16,8 @@ limitations under the License.
 
 package v1
 
+import "bytes"
+
 // FieldsV1 stores a set of fields in a data structure like a Trie, in JSON format.
 //
 // Each key is either a '.' representing the field itself, and will always map to an empty set,
@@ -35,4 +37,8 @@ type FieldsV1 struct {
 
 func (f FieldsV1) String() string {
 	return string(f.Raw)
+}
+
+func (f FieldsV1) Equal(f2 FieldsV1) bool {
+	return bytes.Equal(f.Raw, f2.Raw)
 }
