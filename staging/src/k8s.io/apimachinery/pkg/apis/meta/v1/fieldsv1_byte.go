@@ -38,15 +38,15 @@ import (
 type FieldsV1 struct {
 	// Raw is the underlying serialization of this object.
 	// Deprecated: Direct access to this field is deprecated. Use GetRaw, SetRaw, GetRawReader, NewFieldsV1 instead.
-	Raw []byte `json:"-" protobuf:"bytes,1,opt,name=Raw"`
+	raw []byte `json:"-" protobuf:"bytes,1,opt,name=Raw"`
 }
 
 func (f FieldsV1) String() string {
-	return string(f.Raw)
+	return string(f.raw)
 }
 
 func (f FieldsV1) Equal(f2 FieldsV1) bool {
-	return bytes.Equal(f.Raw, f2.Raw)
+	return bytes.Equal(f.raw, f2.raw)
 }
 
 type FieldsV1Reader interface {
@@ -55,21 +55,21 @@ type FieldsV1Reader interface {
 }
 
 func (f *FieldsV1) GetRawReader() FieldsV1Reader {
-	return bytes.NewReader(f.Raw)
+	return bytes.NewReader(f.raw)
 }
 
 func (f *FieldsV1) GetRaw() string {
-	return string(f.Raw)
+	return string(f.raw)
 }
 
 func (f *FieldsV1) SetRaw(raw string) {
-	f.Raw = []byte(raw)
+	f.raw = []byte(raw)
 }
 
 func (in *FieldsV1) DeepCopyInto(out *FieldsV1) {
 	*out = *in
-	if in.Raw != nil {
-		in, out := &in.Raw, &out.Raw
+	if in.raw != nil {
+		in, out := &in.raw, &out.raw
 		*out = make([]byte, len(*in))
 		copy(*out, *in)
 	}
@@ -77,5 +77,5 @@ func (in *FieldsV1) DeepCopyInto(out *FieldsV1) {
 }
 
 func NewFieldsV1(raw string) *FieldsV1 {
-	return &FieldsV1{Raw: []byte(raw)}
+	return &FieldsV1{raw: []byte(raw)}
 }
