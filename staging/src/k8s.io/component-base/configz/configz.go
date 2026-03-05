@@ -45,6 +45,8 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 const DefaultConfigzPath = "/configz"
@@ -57,7 +59,7 @@ var (
 // Config is a handle to a ComponentConfig object. Don't create these directly;
 // use New() instead.
 type Config struct {
-	val interface{}
+	val runtime.Object
 }
 
 // InstallHandler adds an HTTP handler on the given mux for the "/configz"
@@ -92,10 +94,24 @@ func Delete(name string) {
 }
 
 // Set sets the ComponentConfig for this Config.
-func (v *Config) Set(val interface{}) {
+func (v *Config) Set(val runtime.Object) error {
 	configsGuard.Lock()
 	defer configsGuard.Unlock()
+	if val == nil {
+		return fmt.Errorf("val may not be nil")
+	}
+	gvk := val.GetObjectKind().GroupVersionKind()
+	if len(gvk.Kind) == 0 {
+		return fmt.Errorf("val must specify a kind")
+	}
+	if gvk.GroupVersion().Empty() {
+		return fmt.Errorf("val must specify a group/version")
+	}
+	if gvk.Version == runtime.APIVersionInternal {
+		return fmt.Errorf("val must specify an external version")
+	}
 	v.val = val
+	return nil
 }
 
 // MarshalJSON marshals the ComponentConfig as JSON data.

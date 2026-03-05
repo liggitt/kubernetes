@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func TestConfigz(t *testing.T) {
@@ -29,7 +31,9 @@ func TestConfigz(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	v.Set("blah")
+	if err := v.Set(&unstructured.Unstructured{Object: map[string]any{"apiVersion": "example.com/v1", "kind": "Blah"}}); err != nil {
+		t.Fatal(err)
+	}
 
 	s := httptest.NewServer(http.HandlerFunc(handle))
 	defer s.Close()
@@ -43,11 +47,13 @@ func TestConfigz(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if string(body) != `{"testing":"blah"}` {
+	if string(body) != `{"testing":{"apiVersion":"example.com/v1","kind":"Blah"}}` {
 		t.Fatalf("unexpected output: %s", body)
 	}
 
-	v.Set("bing")
+	if err := v.Set(&unstructured.Unstructured{Object: map[string]any{"apiVersion": "example.com/v1", "kind": "Bing"}}); err != nil {
+		t.Fatal(err)
+	}
 	resp, err = http.Get(s.URL + "/configz")
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -57,7 +63,7 @@ func TestConfigz(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
-	if string(body) != `{"testing":"bing"}` {
+	if string(body) != `{"testing":{"apiVersion":"example.com/v1","kind":"Bing"}}` {
 		t.Fatalf("unexpected output: %s", body)
 	}
 
@@ -80,16 +86,12 @@ func TestConfigz(t *testing.T) {
 }
 
 func TestConfigzWithAPIVersionAndKind(t *testing.T) {
-	type TestConfig struct {
-		APIVersion string `json:"apiVersion,omitempty"`
-		Kind       string `json:"kind,omitempty"`
-		Value      string `json:"value"`
-	}
-
-	cfg := TestConfig{
-		APIVersion: "test.k8s.io/v1",
-		Kind:       "TestConfig",
-		Value:      "test-value",
+	cfg := &unstructured.Unstructured{
+		Object: map[string]any{
+			"apiVersion": "test.k8s.io/v1",
+			"kind":       "TestConfig",
+			"value":      "test-value",
+		},
 	}
 
 	v, err := New("testobj")
