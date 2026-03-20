@@ -2359,6 +2359,9 @@ func (kl *Kubelet) SyncTerminatingPod(ctx context.Context, pod *v1.Pod, podStatu
 		State      string
 		ExitCode   int
 		FinishedAt string
+		ID         string
+		Log        string
+		LogErr     string
 	}
 	var containers []container
 	loggerV := logger.V(4)
@@ -2368,7 +2371,17 @@ func (kl *Kubelet) SyncTerminatingPod(ctx context.Context, pod *v1.Pod, podStatu
 			runningContainers = append(runningContainers, s.ID.String())
 		}
 		if loggerVEnabled {
-			containers = append(containers, container{Name: s.Name, State: string(s.State), ExitCode: s.ExitCode, FinishedAt: s.FinishedAt.UTC().Format(time.RFC3339Nano)})
+			c := container{Name: s.Name, ID: s.ID.String(), State: string(s.State), ExitCode: s.ExitCode, FinishedAt: s.FinishedAt.UTC().Format(time.RFC3339Nano)}
+			if s.ExitCode == 2 {
+				filename := "/run/containerd/io.containerd.runtime.v2.task/k8s.io/" + strings.TrimPrefix(s.ID.String(), "containerd://") + "/log.json"
+				log, err := os.ReadFile(filename)
+				if err != nil {
+					c.LogErr = err.Error()
+				} else {
+					c.Log = string(log)
+				}
+			}
+			containers = append(containers, c)
 		}
 	}
 	if loggerVEnabled {
