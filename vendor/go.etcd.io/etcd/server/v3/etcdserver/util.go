@@ -15,9 +15,9 @@
 package etcdserver
 
 import (
-	"fmt"
 	"time"
 
+	pb "go.etcd.io/etcd/api/v3/etcdserverpb"
 	"go.etcd.io/etcd/client/pkg/v3/types"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/membership"
 	"go.etcd.io/etcd/server/v3/etcdserver/api/rafthttp"
@@ -40,6 +40,25 @@ func isConnectedSince(transport rafthttp.Transporter, since time.Time, remote ty
 // members in the cluster since the given time.
 func isConnectedFullySince(transport rafthttp.Transporter, since time.Time, self types.ID, members []*membership.Member) bool {
 	return numConnectedSince(transport, since, self, members) == len(members)
+}
+
+// exceedsRequestLimit checks if the committed index is too far ahead of the applied index.
+// LeaseRevoke requests are prioritized to ensure timely lease expiration,
+// which helps mitigate pressure on the cluster.
+func exceedsRequestLimit(appliedIndex, committedIndex uint64, r *pb.InternalRaftRequest, enablePriority bool) bool {
+	if committedIndex <= appliedIndex+maxNormalGap {
+		return false
+	}
+	if enablePriority && isPriorityRequest(r) {
+		if committedIndex <= appliedIndex+maxPriorityGap {
+			return false
+		}
+	}
+	return true
+}
+
+func isPriorityRequest(r *pb.InternalRaftRequest) bool {
+	return r != nil && r.LeaseRevoke != nil
 }
 
 // numConnectedSince counts how many members are connected to the local member
@@ -95,22 +114,4 @@ func newNotifier() *notifier {
 func (nc *notifier) notify(err error) {
 	nc.err = err
 	close(nc.c)
-}
-
-// panicAlternativeStringer wraps a fmt.Stringer, and if calling String() panics, calls the alternative instead.
-// This is needed to ensure logging slow v2 requests does not panic, which occurs when running integration tests
-// with the embedded server with github.com/golang/protobuf v1.4.0+. See https://github.com/etcd-io/etcd/issues/12197.
-type panicAlternativeStringer struct {
-	stringer    fmt.Stringer
-	alternative func() string
-}
-
-func (n panicAlternativeStringer) String() (s string) {
-	defer func() {
-		if err := recover(); err != nil {
-			s = n.alternative()
-		}
-	}()
-	s = n.stringer.String()
-	return s
 }

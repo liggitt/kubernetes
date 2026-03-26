@@ -89,6 +89,9 @@ type maintenanceServer struct {
 	cg     ConfigGetter
 
 	healthNotifier notifier
+
+	// we want compile errors if new methods are added
+	pb.UnsafeMaintenanceServer
 }
 
 func NewMaintenanceServer(s *etcdserver.EtcdServer, healthNotifier notifier) pb.MaintenanceServer {
@@ -347,6 +350,13 @@ func (ams *authMaintenanceServer) HashKV(ctx context.Context, r *pb.HashKVReques
 		return nil, togRPCError(err)
 	}
 	return ams.maintenanceServer.HashKV(ctx, r)
+}
+
+func (ams *authMaintenanceServer) Alarm(ctx context.Context, ar *pb.AlarmRequest) (*pb.AlarmResponse, error) {
+	if err := ams.isPermitted(ctx); err != nil {
+		return nil, togRPCError(err)
+	}
+	return ams.maintenanceServer.Alarm(ctx, ar)
 }
 
 func (ams *authMaintenanceServer) Status(ctx context.Context, ar *pb.StatusRequest) (*pb.StatusResponse, error) {
