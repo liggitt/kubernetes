@@ -28,7 +28,7 @@ import (
 // StorageVersionMigration represents a migration of stored data to the latest
 // storage version.
 type StorageVersionMigration struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard object metadata.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	// +optional
@@ -80,7 +80,7 @@ type StorageVersionMigrationStatus struct {
 
 // StorageVersionMigrationList is a collection of storage version migrations.
 type StorageVersionMigrationList struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 
 	// Standard list metadata
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata

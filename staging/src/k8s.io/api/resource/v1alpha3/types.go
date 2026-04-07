@@ -204,7 +204,7 @@ const (
 // This has the same effect as if the taint was specified directly
 // in the ResourceSlice by the DRA driver.
 type DeviceTaintRule struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard object metadata
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -336,7 +336,7 @@ const DeviceTaintConditionEvictionInProgress = "EvictionInProgress"
 
 // DeviceTaintRuleList is a collection of DeviceTaintRules.
 type DeviceTaintRuleList struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard list metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -355,7 +355,7 @@ type DeviceTaintRuleList struct {
 // based on the provided filters. Once status is set, the request is considered complete and will not be reprocessed.
 // Users should delete and recreate requests to get updated information.
 type ResourcePoolStatusRequest struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard object metadata
 	// +required
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -566,7 +566,7 @@ const ResourcePoolStatusRequestConditionFailed = "Failed"
 
 // ResourcePoolStatusRequestList is a collection of ResourcePoolStatusRequests.
 type ResourcePoolStatusRequestList struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard list metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`

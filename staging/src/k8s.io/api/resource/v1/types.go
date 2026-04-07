@@ -93,7 +93,7 @@ const (
 // For resources that are not local to a node, the node name is not set. Instead,
 // the driver may use a node selector to specify where the devices are available.
 type ResourceSlice struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard object metadata
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -864,7 +864,7 @@ const (
 
 // ResourceSliceList is a collection of ResourceSlices.
 type ResourceSliceList struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard list metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -884,7 +884,7 @@ type ResourceSliceList struct {
 // stanza tracks whether this claim has been satisfied and what specific
 // resources have been allocated.
 type ResourceClaim struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard object metadata
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -1494,7 +1494,7 @@ type DeviceClaimConfiguration struct {
 	// +k8s:alpha(since: "1.36")=+k8s:maxItems=32
 	Requests []string `json:"requests,omitempty" protobuf:"bytes,1,opt,name=requests"`
 
-	DeviceConfiguration `json:",inline" protobuf:"bytes,2,name=deviceConfiguration"`
+	DeviceConfiguration `json:"" protobuf:"bytes,2,name=deviceConfiguration"`
 }
 
 // DeviceConfiguration must have exactly one field set. It gets embedded
@@ -1892,7 +1892,7 @@ type DeviceAllocationConfiguration struct {
 	// +k8s:alpha(since: "1.36")=+k8s:maxItems=32
 	Requests []string `json:"requests,omitempty" protobuf:"bytes,2,opt,name=requests"`
 
-	DeviceConfiguration `json:",inline" protobuf:"bytes,3,name=deviceConfiguration"`
+	DeviceConfiguration `json:"" protobuf:"bytes,3,name=deviceConfiguration"`
 }
 
 // +enum
@@ -1910,7 +1910,7 @@ const (
 
 // ResourceClaimList is a collection of claims.
 type ResourceClaimList struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard list metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -1929,7 +1929,7 @@ type ResourceClaimList struct {
 // the device requests of a claim to apply these presets.
 // Cluster scoped.
 type DeviceClass struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard object metadata
 	// +optional
 	// +k8s:alpha(since: "1.36")=+k8s:subfield(name)=+k8s:optional
@@ -1994,7 +1994,7 @@ type DeviceClassSpec struct {
 
 // DeviceClassConfiguration is used in DeviceClass.
 type DeviceClassConfiguration struct {
-	DeviceConfiguration `json:",inline" protobuf:"bytes,1,opt,name=deviceConfiguration"`
+	DeviceConfiguration `json:"" protobuf:"bytes,1,opt,name=deviceConfiguration"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -2002,7 +2002,7 @@ type DeviceClassConfiguration struct {
 
 // DeviceClassList is a collection of classes.
 type DeviceClassList struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard list metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -2017,7 +2017,7 @@ type DeviceClassList struct {
 
 // ResourceClaimTemplate is used to produce ResourceClaim objects.
 type ResourceClaimTemplate struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard object metadata
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
@@ -2049,7 +2049,7 @@ type ResourceClaimTemplateSpec struct {
 
 // ResourceClaimTemplateList is a collection of claim templates.
 type ResourceClaimTemplateList struct {
-	metav1.TypeMeta `json:",inline"`
+	metav1.TypeMeta `json:""`
 	// Standard list metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`

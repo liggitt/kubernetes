@@ -382,7 +382,7 @@ func (svmc *SVMController) failMigration(ctx context.Context, toBeProcessedSVM *
 }
 
 type typeMetaUIDRV struct {
-	metav1.TypeMeta    `json:",inline"`
+	metav1.TypeMeta    `json:""`
 	objectMetaUIDandRV `json:"metadata,omitempty"`
 }
 
