@@ -27,6 +27,7 @@ import (
 
 	metainternalversionscheme "k8s.io/apimachinery/pkg/apis/meta/internalversion/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -157,6 +158,47 @@ func (c *client) Delete(ctx context.Context, name string, opts metav1.DeleteOpti
 		Body(deleteOptionsByte).
 		Do(ctx)
 	return result.Error()
+}
+
+// Delete removes the provided resource from the server.
+func (c *client) DeleteStatus(ctx context.Context, name string, opts metav1.DeleteOptions, subresources ...string) (*metav1.Status, error) {
+	if len(name) == 0 {
+		return nil, fmt.Errorf("name is required")
+	}
+	// if DeleteOptions are delivered to Negotiator for serialization,
+	// HTTP-Request header will bring "Content-Type: application/vnd.kubernetes.protobuf"
+	// apiextensions-apiserver uses unstructuredNegotiatedSerializer to decode the input,
+	// server-side will reply with 406 errors.
+	// The special treatment here is to be compatible with CRD Handler
+	// see: https://github.com/kubernetes/kubernetes/blob/1a845ccd076bbf1b03420fe694c85a5cd3bd6bed/staging/src/k8s.io/apiextensions-apiserver/pkg/apiserver/customresource_handler.go#L843
+	deleteOptionsByte, err := runtime.Encode(deleteOptionsCodec.LegacyCodec(schema.GroupVersion{Version: "v1"}), &opts)
+	if err != nil {
+		return nil, err
+	}
+
+	result := c.client.client.
+		Delete().
+		AbsPath(append(c.makeURLSegments(name), subresources...)...).
+		SetHeader("Content-Type", runtime.ContentTypeJSON).
+		Body(deleteOptionsByte).
+		Do(ctx)
+
+	if err := result.Error(); err != nil {
+		return nil, err
+	}
+
+	if status := (&metav1.Status{}); result.Into(status) == nil {
+		return status, nil
+	}
+
+	rv := ""
+	if obj := (&unstructured.Unstructured{}); result.Into(obj) == nil {
+		rv = obj.GetResourceVersion()
+	}
+	return &metav1.Status{
+		ListMeta: metav1.ListMeta{ResourceVersion: rv},
+		Status:   metav1.StatusSuccess,
+	}, nil
 }
 
 // DeleteCollection triggers deletion of all resources in the specified scope (namespace or cluster).

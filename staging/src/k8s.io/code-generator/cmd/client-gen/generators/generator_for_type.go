@@ -163,6 +163,7 @@ func (g *genClientForType) GenerateType(c *generator.Context, t *types.Type, w i
 		"GroupGoName":               g.groupGoName,
 		"prefersProtobuf":           g.prefersProtobuf,
 		"Version":                   namer.IC(g.version),
+		"Status":                    c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "Status"}),
 		"CreateOptions":             c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "CreateOptions"}),
 		"DeleteOptions":             c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "DeleteOptions"}),
 		"GetOptions":                c.Universe.Type(types.Name{Package: "k8s.io/apimachinery/pkg/apis/meta/v1", Name: "GetOptions"}),
@@ -370,6 +371,7 @@ func buildDefaultVerbTemplates(generateApply bool) map[string]string {
 		"updateStatus": `// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
 UpdateStatus(ctx $.context|raw$, $.inputType|private$ *$.type|raw$, opts $.UpdateOptions|raw$) (*$.type|raw$, error)`,
 		"delete":           `Delete(ctx $.context|raw$, name string, opts $.DeleteOptions|raw$) error`,
+		"deleteStatus":     `DeleteStatus(ctx $.context|raw$, name string, opts $.DeleteOptions|raw$) (*$.Status|raw$, error)`,
 		"deleteCollection": `DeleteCollection(ctx $.context|raw$, opts $.DeleteOptions|raw$, listOpts $.ListOptions|raw$) error`,
 		"get":              `Get(ctx $.context|raw$, name string, opts $.GetOptions|raw$) (*$.resultType|raw$, error)`,
 		"list":             `List(ctx $.context|raw$, opts $.ListOptions|raw$) (*$.resultType|raw$List, error)`,

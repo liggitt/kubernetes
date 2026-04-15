@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -256,6 +257,36 @@ func (c *Client[T]) Delete(ctx context.Context, name string, opts metav1.DeleteO
 		Body(&opts).
 		Do(ctx).
 		Error()
+}
+
+// DeleteStatus takes name of the resource and deletes it. Returns an error if one occurs, or a *metav1.Status on success.
+func (c *Client[T]) DeleteStatus(ctx context.Context, name string, opts metav1.DeleteOptions) (*metav1.Status, error) {
+	result := c.client.Delete().
+		UseProtobufAsDefaultIfPreferred(c.prefersProtobuf).
+		NamespaceIfScoped(c.namespace, c.namespace != "").
+		Resource(c.resource).
+		Name(name).
+		Body(&opts).
+		Do(ctx)
+
+	if err := result.Error(); err != nil {
+		return nil, err
+	}
+
+	if status := (&metav1.Status{}); result.Into(status) == nil {
+		return status, nil
+	}
+
+	rv := ""
+	if obj := c.newObject(); result.Into(obj) == nil {
+		if accessor, err := meta.Accessor(obj); err == nil {
+			rv = accessor.GetResourceVersion()
+		}
+	}
+	return &metav1.Status{
+		ListMeta: metav1.ListMeta{ResourceVersion: rv},
+		Status:   metav1.StatusSuccess,
+	}, nil
 }
 
 // DeleteCollection deletes a collection of objects.

@@ -213,6 +213,38 @@ func (c *dynamicResourceClient) Delete(ctx context.Context, name string, opts me
 	return result.Error()
 }
 
+func (c *dynamicResourceClient) DeleteStatus(ctx context.Context, name string, opts metav1.DeleteOptions, subresources ...string) (*metav1.Status, error) {
+	if len(name) == 0 {
+		return nil, fmt.Errorf("name is required")
+	}
+	if err := validateNamespaceWithOptionalName(c.namespace, name); err != nil {
+		return nil, err
+	}
+
+	result := c.client.client.
+		Delete().
+		AbsPath(append(c.makeURLSegments(name), subresources...)...).
+		Body(&opts).
+		Do(ctx)
+
+	if err := result.Error(); err != nil {
+		return nil, err
+	}
+
+	if status := (&metav1.Status{}); result.Into(status) == nil {
+		return status, nil
+	}
+
+	rv := ""
+	if obj := (&unstructured.Unstructured{}); result.Into(obj) == nil {
+		rv = obj.GetResourceVersion()
+	}
+	return &metav1.Status{
+		ListMeta: metav1.ListMeta{ResourceVersion: rv},
+		Status:   metav1.StatusSuccess,
+	}, nil
+}
+
 func (c *dynamicResourceClient) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOptions metav1.ListOptions) error {
 	if err := validateNamespaceWithOptionalName(c.namespace); err != nil {
 		return err
