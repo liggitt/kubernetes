@@ -19,6 +19,7 @@ package storage
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -123,6 +124,20 @@ func (e *StorageError) Unwrap() error { return e.err }
 func (e *StorageError) Error() string {
 	return fmt.Sprintf("StorageError: %s, Code: %d, Key: %s, ResourceVersion: %d, AdditionalErrorMsg: %v",
 		errCodeToMessage[e.Code], e.Code, e.Key, e.ResourceVersion, e.err)
+}
+
+func ResourceVersion(err error) (string, bool) {
+	if err == nil {
+		return "", false
+	}
+	e, ok := err.(*StorageError)
+	if !ok {
+		return "", false
+	}
+	if e.ResourceVersion <= 0 {
+		return "", false
+	}
+	return strconv.Itoa(int(e.ResourceVersion)), true
 }
 
 // IsNotFound returns true if and only if err is "key" not found error.

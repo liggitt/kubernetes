@@ -593,6 +593,21 @@ func ShouldDeleteDuringUpdate(ctx context.Context, key string, obj, existing run
 	return oldMeta.GetDeletionGracePeriodSeconds() == nil || *oldMeta.GetDeletionGracePeriodSeconds() == 0
 }
 
+func setRVFromNotFound(err error, lastKnown runtime.Object) runtime.Object {
+	obj := lastKnown.DeepCopyObject()
+	accessor, err := meta.Accessor(obj)
+	if err != nil {
+		return obj
+	}
+	if rv, ok := storage.ResourceVersion(err); !ok || rv == "" {
+		// clear the resource version if we can't get it from the storage error
+		accessor.SetResourceVersion("")
+	} else {
+		accessor.SetResourceVersion(rv)
+	}
+	return obj
+}
+
 // deleteWithoutFinalizers handles deleting an object ignoring its finalizer list.
 // Used for objects that are either been finalized or have never initialized.
 func (e *Store) deleteWithoutFinalizers(ctx context.Context, name, key string, obj runtime.Object, preconditions *storage.Preconditions, options *metav1.DeleteOptions) (runtime.Object, bool, error) {
@@ -604,6 +619,7 @@ func (e *Store) deleteWithoutFinalizers(ctx context.Context, name, key string, o
 		// requests to remove all finalizers from the object, so we
 		// ignore the NotFound error.
 		if storage.IsNotFound(err) {
+			obj = setRVFromNotFound(err, obj)
 			_, err := e.finalizeDelete(ctx, obj, true, options)
 			// clients are expecting an updated object if a PUT succeeded,
 			// but finalizeDelete returns a metav1.Status, so return
@@ -616,7 +632,7 @@ func (e *Store) deleteWithoutFinalizers(ctx context.Context, name, key string, o
 	// clients are expecting an updated object if a PUT succeeded, but
 	// finalizeDelete returns a metav1.Status, so return the object in
 	// the request instead.
-	return obj, false, err
+	return out, false, err
 }
 
 // Update performs an atomic update and set of the object. Returns the result of the update
@@ -1218,6 +1234,7 @@ func (e *Store) Delete(ctx context.Context, name string, deleteValidation rest.V
 		if storage.IsNotFound(err) && ignoreNotFound && lastExisting != nil {
 			// The lastExisting object may not be the last state of the object
 			// before its deletion, but it's the best approximation.
+			lastExisting = setRVFromNotFound(err, lastExisting)
 			out, err := e.finalizeDelete(ctx, lastExisting, true, options)
 			return out, true, err
 		}
@@ -1415,6 +1432,7 @@ func (e *Store) finalizeDelete(ctx context.Context, obj runtime.Object, runHooks
 		UID:   accessor.GetUID(),
 	}
 	status := &metav1.Status{Status: metav1.StatusSuccess, Details: details}
+	status.ResourceVersion = accessor.GetResourceVersion()
 	return status, nil
 }
 
