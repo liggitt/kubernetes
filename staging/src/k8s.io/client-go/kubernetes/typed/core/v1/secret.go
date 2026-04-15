@@ -41,6 +41,7 @@ type SecretInterface interface {
 	Create(ctx context.Context, secret *corev1.Secret, opts metav1.CreateOptions) (*corev1.Secret, error)
 	Update(ctx context.Context, secret *corev1.Secret, opts metav1.UpdateOptions) (*corev1.Secret, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteStatus(ctx context.Context, name string, opts metav1.DeleteOptions) (*metav1.Status, error)
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*corev1.Secret, error)
 	List(ctx context.Context, opts metav1.ListOptions) (*corev1.SecretList, error)

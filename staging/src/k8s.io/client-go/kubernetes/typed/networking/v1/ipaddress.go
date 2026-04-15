@@ -41,6 +41,7 @@ type IPAddressInterface interface {
 	Create(ctx context.Context, iPAddress *networkingv1.IPAddress, opts metav1.CreateOptions) (*networkingv1.IPAddress, error)
 	Update(ctx context.Context, iPAddress *networkingv1.IPAddress, opts metav1.UpdateOptions) (*networkingv1.IPAddress, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
+	DeleteStatus(ctx context.Context, name string, opts metav1.DeleteOptions) (*metav1.Status, error)
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
 	Get(ctx context.Context, name string, opts metav1.GetOptions) (*networkingv1.IPAddress, error)
 	List(ctx context.Context, opts metav1.ListOptions) (*networkingv1.IPAddressList, error)
