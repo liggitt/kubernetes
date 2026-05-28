@@ -74,6 +74,9 @@ func ResolveEndpoint(services listersv1.ServiceLister, endpointSlices EndpointSl
 		return nil, err
 	}
 
+	if endpointSlices == nil {
+		return nil, errors.NewServiceUnavailable(fmt.Sprintf("no endpoints available for service %q", svc.Name))
+	}
 	slices, err := endpointSlices.GetEndpointSlices(namespace, svc.Name)
 	if err != nil {
 		return nil, err

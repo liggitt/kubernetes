@@ -28,9 +28,7 @@ import (
 )
 
 // StorageProvider is a REST storage provider for discovery.k8s.io.
-type StorageProvider struct {
-	EndpointSliceRESTCache *endpointslicestorage.EndpointSliceRESTCache
-}
+type StorageProvider struct{}
 
 // NewRESTStorage returns a new storage provider.
 func (p StorageProvider) NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, error) {
@@ -51,7 +49,7 @@ func (p StorageProvider) v1Storage(apiResourceConfigSource serverstorage.APIReso
 	storage := map[string]rest.Storage{}
 
 	if resource := "endpointslices"; apiResourceConfigSource.ResourceEnabled(discoveryv1.SchemeGroupVersion.WithResource(resource)) {
-		endpointSliceStorage, err := p.EndpointSliceRESTCache.GetOrCreate(restOptionsGetter)
+		endpointSliceStorage, err := endpointslicestorage.NewREST(restOptionsGetter)
 		if err != nil {
 			return storage, err
 		}

@@ -82,7 +82,6 @@ import (
 	"k8s.io/kubernetes/pkg/features"
 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
-	endpointslicestorage "k8s.io/kubernetes/pkg/registry/discovery/endpointslice/storage"
 
 	// RESTStorage installers
 	admissionregistrationrest "k8s.io/kubernetes/pkg/registry/admissionregistration/rest"
@@ -391,8 +390,6 @@ func (c CompletedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 }
 
 func (c CompletedConfig) StorageProviders(client *kubernetes.Clientset) ([]controlplaneapiserver.RESTStorageProvider, error) {
-	endpointSliceRESTFactory := endpointslicestorage.NewEndpointSliceRESTCache()
-
 	legacyRESTStorageProvider, err := corerest.New(corerest.Config{
 		GenericConfig: *c.ControlPlane.NewCoreGenericConfig(),
 		Proxy: corerest.ProxyConfig{
@@ -405,7 +402,7 @@ func (c CompletedConfig) StorageProviders(client *kubernetes.Clientset) ([]contr
 			NodePortRange:           c.Extra.ServiceNodePortRange,
 			IPRepairInterval:        c.Extra.RepairServicesInterval,
 		},
-		EndpointSliceRESTCache: endpointSliceRESTFactory,
+		EndpointSliceGetter: c.ControlPlane.Extra.EndpointSliceGetter,
 	}, c.ControlPlane.Generic.Authorization.Authorizer)
 	if err != nil {
 		return nil, err
@@ -427,7 +424,7 @@ func (c CompletedConfig) StorageProviders(client *kubernetes.Clientset) ([]contr
 		batchrest.RESTStorageProvider{},
 		certificatesrest.RESTStorageProvider{Authorizer: c.ControlPlane.Generic.Authorization.Authorizer},
 		coordinationrest.RESTStorageProvider{},
-		discoveryrest.StorageProvider{EndpointSliceRESTCache: endpointSliceRESTFactory},
+		discoveryrest.StorageProvider{},
 		networkingrest.RESTStorageProvider{},
 		noderest.RESTStorageProvider{},
 		policyrest.RESTStorageProvider{},

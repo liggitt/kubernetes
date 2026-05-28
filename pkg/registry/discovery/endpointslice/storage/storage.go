@@ -17,8 +17,6 @@ limitations under the License.
 package storage
 
 import (
-	"sync"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
@@ -53,30 +51,4 @@ func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, error) {
 		return nil, err
 	}
 	return &REST{store}, nil
-}
-
-type EndpointSliceRESTCache struct {
-	lock  sync.Mutex
-	cache map[generic.RESTOptionsGetter]*REST
-}
-
-func NewEndpointSliceRESTCache() *EndpointSliceRESTCache {
-	return &EndpointSliceRESTCache{
-		cache: map[generic.RESTOptionsGetter]*REST{},
-	}
-}
-
-func (f *EndpointSliceRESTCache) GetOrCreate(optsGetter generic.RESTOptionsGetter) (*REST, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-	r, ok := f.cache[optsGetter]
-	if ok {
-		return r, nil
-	}
-	r, err := NewREST(optsGetter)
-	if err != nil {
-		return nil, err
-	}
-	f.cache[optsGetter] = r
-	return r, nil
 }

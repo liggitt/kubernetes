@@ -26,22 +26,23 @@ import (
 	"sort"
 	"strconv"
 
-	discoveryv1 "k8s.io/api/discovery/v1"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
+
+	discovery "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apiserver/pkg/endpoints/request"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/apiserver/pkg/util/dryrun"
+	"k8s.io/apiserver/pkg/util/proxy"
 	api "k8s.io/kubernetes/pkg/apis/core"
-	"k8s.io/kubernetes/pkg/apis/discovery"
 	"k8s.io/kubernetes/pkg/printers"
 	printersinternal "k8s.io/kubernetes/pkg/printers/internalversion"
 	printerstorage "k8s.io/kubernetes/pkg/printers/storage"
@@ -49,7 +50,6 @@ import (
 	"k8s.io/kubernetes/pkg/registry/core/service/ipallocator"
 	"k8s.io/kubernetes/pkg/registry/core/service/portallocator"
 	netutil "k8s.io/utils/net"
-	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 )
 
 type PodStorage interface {
@@ -61,7 +61,7 @@ type REST struct {
 	primaryIPFamily   api.IPFamily
 	secondaryIPFamily api.IPFamily
 	alloc             Allocators
-	endpointSlices    rest.Lister
+	endpointSlices    proxy.EndpointSliceGetter
 	pods              PodStorage
 	proxyTransport    http.RoundTripper
 }
@@ -80,7 +80,7 @@ func NewREST(
 	serviceIPFamily api.IPFamily,
 	ipAllocs map[api.IPFamily]ipallocator.Interface,
 	portAlloc portallocator.Interface,
-	endpointSliceLister rest.Lister,
+	endpointSliceGetter proxy.EndpointSliceGetter,
 	pods PodStorage,
 	proxyTransport http.RoundTripper) (*REST, *StatusREST, *svcreg.ProxyREST, error) {
 
@@ -121,7 +121,7 @@ func NewREST(
 		primaryIPFamily:   primaryIPFamily,
 		secondaryIPFamily: secondaryIPFamily,
 		alloc:             makeAlloc(serviceIPFamily, ipAllocs, portAlloc),
-		endpointSlices:    endpointSliceLister,
+		endpointSlices:    endpointSliceGetter,
 		pods:              pods,
 		proxyTransport:    proxyTransport,
 	}
@@ -439,15 +439,17 @@ func (r *REST) ResourceLocation(ctx context.Context, id string) (*url.URL, http.
 	if r.endpointSlices == nil {
 		return nil, nil, errors.NewServiceUnavailable(fmt.Sprintf("no endpoints available for service %q", svcName))
 	}
-	obj, err := r.endpointSlices.List(ctx, &metainternalversion.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{discoveryv1.LabelServiceName: svcName})})
+	namespace := request.NamespaceValue(ctx)
+	if len(namespace) == 0 {
+		return nil, nil, errors.NewBadRequest("missing required namespace")
+	}
+	if r.endpointSlices == nil {
+		return nil, nil, errors.NewServiceUnavailable(fmt.Sprintf("no endpoints available for service %q", svcName))
+	}
+	slices, err := r.endpointSlices.GetEndpointSlices(namespace, svcName)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.NewInternalError(err)
 	}
-	endpointSliceList, ok := obj.(*discovery.EndpointSliceList)
-	if !ok {
-		return nil, nil, errors.NewInternalError(fmt.Errorf("unexpected list type %T", endpointSliceList))
-	}
-	slices := endpointSliceList.Items
 	if len(slices) == 0 {
 		return nil, nil, errors.NewServiceUnavailable(fmt.Sprintf("no endpoints available for service %q", svcName))
 	} else if len(slices) > 1 {
