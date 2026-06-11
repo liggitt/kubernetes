@@ -515,30 +515,47 @@ func (gc *GarbageCollector) attemptToDeleteItem(ctx context.Context, item *node)
 		)
 		return nil
 	}
-	// TODO: It's only necessary to talk to the API server if this is a
+
+	// Initial owners/rv/finalizers from the cached version
+	var (
+		ownerReferences           = item.getOwners()
+		resourceVersion           = item.getResourceVersion()
+		orphanFinalizer           = item.hasOrphanFinalizer.Load()
+		deleteDependentsFinalizer = item.hasDeleteDependentsFinalizer.Load()
+	)
+
+	// It's only necessary to talk to the API server if this is a
 	// "virtual" node. The local graph could lag behind the real status, but in
 	// practice, the difference is small.
-	latest, err := gc.getObject(item.identity)
-	switch {
-	case errors.IsNotFound(err):
-		// the GraphBuilder can add "virtual" node for an owner that doesn't
-		// exist yet, so we need to enqueue a virtual Delete event to remove
-		// the virtual node from GraphBuilder.uidToNode.
-		logger.V(5).Info("item not found, generating a virtual delete event",
-			"item", item.identity,
-		)
-		gc.dependencyGraphBuilder.enqueueVirtualDeleteEvent(item.identity)
-		return enqueuedVirtualDeleteEventErr
-	case err != nil:
-		return err
-	}
+	if !item.isObserved() {
+		latest, err := gc.getObject(item.identity)
+		switch {
+		case errors.IsNotFound(err):
+			// the GraphBuilder can add "virtual" node for an owner that doesn't
+			// exist yet, so we need to enqueue a virtual Delete event to remove
+			// the virtual node from GraphBuilder.uidToNode.
+			logger.V(5).Info("item not found, generating a virtual delete event",
+				"item", item.identity,
+			)
+			gc.dependencyGraphBuilder.enqueueVirtualDeleteEvent(item.identity)
+			return enqueuedVirtualDeleteEventErr
+		case err != nil:
+			return err
+		}
 
-	if latest.GetUID() != item.identity.UID {
-		logger.V(5).Info("UID doesn't match, item not found, generating a virtual delete event",
-			"item", item.identity,
-		)
-		gc.dependencyGraphBuilder.enqueueVirtualDeleteEvent(item.identity)
-		return enqueuedVirtualDeleteEventErr
+		if latest.GetUID() != item.identity.UID {
+			logger.V(5).Info("UID doesn't match, item not found, generating a virtual delete event",
+				"item", item.identity,
+			)
+			gc.dependencyGraphBuilder.enqueueVirtualDeleteEvent(item.identity)
+			return enqueuedVirtualDeleteEventErr
+		}
+
+		// update from the live version if fetched
+		ownerReferences = latest.GetOwnerReferences()
+		resourceVersion = latest.GetResourceVersion()
+		orphanFinalizer = hasOrphanFinalizer(latest)
+		deleteDependentsFinalizer = hasDeleteDependentsFinalizer(latest)
 	}
 
 	// TODO: attemptToOrphanWorker() routine is similar. Consider merging
@@ -548,7 +565,6 @@ func (gc *GarbageCollector) attemptToDeleteItem(ctx context.Context, item *node)
 	}
 
 	// compute if we should delete the item
-	ownerReferences := latest.GetOwnerReferences()
 	if len(ownerReferences) == 0 {
 		logger.V(2).Info("item doesn't have an owner, continue on next item",
 			"item", item.identity,
@@ -625,7 +641,7 @@ func (gc *GarbageCollector) attemptToDeleteItem(ctx context.Context, item *node)
 		// FinalizerDeletingDependents from the item, resulting in the final
 		// deletion of the item.
 		policy := metav1.DeletePropagationForeground
-		err := gc.deleteObject(item.identity, latest.ResourceVersion, latest.OwnerReferences, &policy)
+		err := gc.deleteObject(item.identity, resourceVersion, ownerReferences, &policy)
 		if errors.IsNotFound(err) {
 			gc.dependencyGraphBuilder.enqueueVirtualDeleteEvent(item.identity)
 			return enqueuedVirtualDeleteEventErr
@@ -637,10 +653,10 @@ func (gc *GarbageCollector) attemptToDeleteItem(ctx context.Context, item *node)
 		// the dependents, so set propagationPolicy based on existing finalizers.
 		var policy metav1.DeletionPropagation
 		switch {
-		case hasOrphanFinalizer(latest):
+		case orphanFinalizer:
 			// if an existing orphan finalizer is already on the object, honor it.
 			policy = metav1.DeletePropagationOrphan
-		case hasDeleteDependentsFinalizer(latest):
+		case deleteDependentsFinalizer:
 			// if an existing foreground finalizer is already on the object, honor it.
 			policy = metav1.DeletePropagationForeground
 		default:
@@ -651,7 +667,7 @@ func (gc *GarbageCollector) attemptToDeleteItem(ctx context.Context, item *node)
 			"item", item.identity,
 			"propagationPolicy", policy,
 		)
-		err := gc.deleteObject(item.identity, latest.ResourceVersion, latest.OwnerReferences, &policy)
+		err := gc.deleteObject(item.identity, resourceVersion, ownerReferences, &policy)
 		if errors.IsNotFound(err) {
 			gc.dependencyGraphBuilder.enqueueVirtualDeleteEvent(item.identity)
 			return enqueuedVirtualDeleteEventErr

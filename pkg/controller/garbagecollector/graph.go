@@ -19,6 +19,7 @@ package garbagecollector
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/go-logr/logr"
 
@@ -81,6 +82,10 @@ type node struct {
 	// ownerReferences with the owners recorded in the graph.
 	owners     []metav1.OwnerReference
 	ownersLock sync.RWMutex
+
+	hasOrphanFinalizer           atomic.Bool
+	hasDeleteDependentsFinalizer atomic.Bool
+	resourceVersion              atomic.Value
 }
 
 // clone() must only be called from the single-threaded GraphBuilder.processGraphChanges()
@@ -99,7 +104,15 @@ func (n *node) clone() *node {
 	for _, owner := range n.owners {
 		c.owners = append(c.owners, owner)
 	}
+	c.hasOrphanFinalizer.Store(n.hasOrphanFinalizer.Load())
+	c.hasDeleteDependentsFinalizer.Store(n.hasDeleteDependentsFinalizer.Load())
+	c.resourceVersion.Store(n.getResourceVersion())
 	return c
+}
+
+func (n *node) getResourceVersion() string {
+	rv, _ := n.resourceVersion.Load().(string)
+	return rv
 }
 
 // An object is on a one way trip to its final deletion if it starts being
@@ -116,10 +129,16 @@ func (n *node) isBeingDeleted() bool {
 	return n.beingDeleted
 }
 
-func (n *node) markObserved() {
+func (n *node) observe(accessor metav1.Object) {
+	n.hasOrphanFinalizer.Store(hasOrphanFinalizer(accessor))
+	n.hasDeleteDependentsFinalizer.Store(hasDeleteDependentsFinalizer(accessor))
+	n.resourceVersion.Store(accessor.GetResourceVersion())
+}
+func (n *node) markObserved(accessor metav1.Object) {
 	n.virtualLock.Lock()
 	defer n.virtualLock.Unlock()
 	n.virtual = false
+	n.observe(accessor)
 }
 func (n *node) isObserved() bool {
 	n.virtualLock.RLock()

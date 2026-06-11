@@ -757,8 +757,14 @@ func (gb *GraphBuilder) processGraphChanges(logger klog.Logger) bool {
 			existingNode.identity = observedIdentity
 			gb.uidToNode.Write(existingNode)
 		}
-		existingNode.markObserved()
+
+		// update finalizer/resourceVersion info from the observed object
+		existingNode.markObserved(accessor)
+	} else if found && !event.virtual {
+		// update finalizer/resourceVersion info from the observed object
+		existingNode.observe(accessor)
 	}
+
 	switch {
 	case (event.eventType == addEvent || event.eventType == updateEvent) && !found:
 		newNode := &node{
@@ -768,6 +774,9 @@ func (gb *GraphBuilder) processGraphChanges(logger klog.Logger) bool {
 			deletingDependents: beingDeleted(accessor) && hasDeleteDependentsFinalizer(accessor),
 			beingDeleted:       beingDeleted(accessor),
 		}
+		// populate finalizer/resourceVersion info from the observed object
+		newNode.observe(accessor)
+
 		gb.insertNode(logger, newNode)
 		// the underlying delta_fifo may combine a creation and a deletion into
 		// one event, so we need to further process the event.
