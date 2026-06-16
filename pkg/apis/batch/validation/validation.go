@@ -17,6 +17,7 @@ limitations under the License.
 package validation
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -32,6 +33,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/component-helpers/scheduling/schedulingv1/workloadbuilder"
+	jobutil "k8s.io/kubernetes/pkg/api/job"
 	"k8s.io/kubernetes/pkg/apis/batch"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	apivalidation "k8s.io/kubernetes/pkg/apis/core/validation"
@@ -272,6 +275,17 @@ func validateJobSpec(spec *batch.JobSpec, fldPath *field.Path, opts apivalidatio
 	}
 
 	allErrs = append(allErrs, validatePodReplacementPolicy(spec, fldPath.Child("podReplacementPolicy"))...)
+
+	// The scheduling gang minCount must not exceed parallelism. This runs on both
+	// create and update, and for Jobs embedded in a CronJob jobTemplate. It is a
+	// no-op when spec.scheduling is unset.
+	allErrs = append(allErrs, validateGangMinCount(spec, fldPath.Child("scheduling"))...)
+
+	// Controller-policy checks that declarative validation cannot express:
+	// the resolved scheduling policy and disruption mode must be in the Job's
+	// allow-lists, and the Basic policy cannot be combined with All disruption.
+	// Structural building-block constraints are enforced by DV.
+	allErrs = append(allErrs, validateJobScheduling(spec, fldPath.Child("scheduling"))...)
 
 	allErrs = append(allErrs, apivalidation.ValidatePodTemplateSpec(&spec.Template, fldPath.Child("template"), opts)...)
 
@@ -625,7 +639,89 @@ func ValidateJobSpecUpdate(spec, oldSpec batch.JobSpec, fldPath *field.Path, opt
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(spec.BackoffLimitPerIndex, oldSpec.BackoffLimitPerIndex, fldPath.Child("backoffLimitPerIndex"))...)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(spec.ManagedBy, oldSpec.ManagedBy, fldPath.Child("managedBy"))...)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(spec.SuccessPolicy, oldSpec.SuccessPolicy, fldPath.Child("successPolicy"))...)
+	allErrs = append(allErrs, validateJobSchedulingUpdate(spec, oldSpec, fldPath.Child("scheduling"))...)
 	return allErrs
+}
+
+// gangMinCountExceedsParallelism reports whether spec sets an explicit gang
+// minCount greater than parallelism.
+func gangMinCountExceedsParallelism(spec *batch.JobSpec) bool {
+	if spec == nil || spec.Scheduling == nil ||
+		spec.Scheduling.SchedulingPolicy == nil ||
+		spec.Scheduling.SchedulingPolicy.Gang == nil {
+		return false
+	}
+	minCount := spec.Scheduling.SchedulingPolicy.Gang.MinCount
+	if minCount == nil {
+		return false
+	}
+	parallelism := int32(1)
+	if spec.Parallelism != nil {
+		parallelism = *spec.Parallelism
+	}
+	return *minCount > parallelism
+}
+
+// validateGangMinCount rejects a gang minCount that exceeds the Job's parallelism.
+func validateGangMinCount(spec *batch.JobSpec, fldPath *field.Path) field.ErrorList {
+	if !gangMinCountExceedsParallelism(spec) {
+		return nil
+	}
+	parallelism := int32(1)
+	if spec.Parallelism != nil {
+		parallelism = *spec.Parallelism
+	}
+	return field.ErrorList{field.Invalid(
+		fldPath.Child("schedulingPolicy", "gang", "minCount"),
+		*spec.Scheduling.SchedulingPolicy.Gang.MinCount,
+		fmt.Sprintf("must not be greater than parallelism (%d)", parallelism))}
+}
+
+// validateJobSchedulingUpdate enforces the spec.scheduling immutability
+// constraint that declarative validation cannot express: the basic/gang policy
+// variant is frozen after creation. Only schedulingPolicy.gang.minCount may change.
+// Adding or removing the scheduling or schedulingPolicy fields themselves is handled by
+// declarative validation, so this only guards an in-place variant switch.
+func validateJobSchedulingUpdate(spec, oldSpec batch.JobSpec, fldPath *field.Path) field.ErrorList {
+	if spec.Scheduling == nil || oldSpec.Scheduling == nil {
+		return nil
+	}
+	newPolicy, oldPolicy := spec.Scheduling.SchedulingPolicy, oldSpec.Scheduling.SchedulingPolicy
+	if newPolicy == nil || oldPolicy == nil {
+		return nil
+	}
+	if (oldPolicy.Basic != nil) != (newPolicy.Basic != nil) {
+		return field.ErrorList{field.Invalid(
+			fldPath.Child("schedulingPolicy"), nil,
+			"the basic/gang policy variant is immutable after creation; only schedulingPolicy.gang.minCount may be updated")}
+	}
+	return nil
+}
+
+// validateJobScheduling runs the controller-policy checks that declarative
+// validation cannot express via the shared workloadbuilder library.
+// Structural building-block constraints come from DV, so they are not
+// repeated here. It is a no-op when spec.scheduling is unset.
+func validateJobScheduling(spec *batch.JobSpec, fldPath *field.Path) field.ErrorList {
+	if spec.Scheduling == nil {
+		return nil
+	}
+	// Build the same logical workload tree the Job controller compiles, so
+	// validation and the controller never drift.
+	s := spec.Scheduling
+	input := jobutil.WorkloadInputForJob(s.SchedulingPolicy,
+		s.SchedulingConstraints, s.DisruptionMode, s.ResourceClaims)
+	item := jobutil.WorkloadItemForJob("job",
+		spec.Template.Spec.PriorityClassName, spec.Parallelism, input)
+	return workloadbuilder.NewBuilder(item, workloadbuilder.BuildOptions{
+		AllowedPolicies:        []workloadbuilder.SchedulingPolicyOption{workloadbuilder.BasicPolicy, workloadbuilder.GangPolicy},
+		AllowedDisruptionModes: []workloadbuilder.DisruptionModeOption{workloadbuilder.SingleMode, workloadbuilder.AllMode},
+		// The apiserver already runs declarative validation on the versioned
+		// building blocks, so Validate here only runs the controller-policy
+		// checks against the resolved config; it neither compiles the Workload
+		// nor needs an owner.
+		DisableDeclarativeValidation: true,
+	}).Validate(context.Background(), fldPath, workloadbuilder.ValidationInput{})
 }
 
 func validatePodTemplateUpdate(spec, oldSpec batch.JobSpec, fldPath *field.Path, opts JobValidationOptions) field.ErrorList {
