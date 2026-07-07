@@ -22,9 +22,7 @@ import (
 
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apiserver/pkg/features"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	featuregatetesting "k8s.io/component-base/featuregate/testing"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestExcludedResourcesNamedByRule(t *testing.T) {
@@ -63,7 +61,11 @@ func TestExcludedResourcesNamedByRule(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := excludedResourcesNamedByRule(tc.apiGroups, tc.apiVersions, tc.resources); !reflect.DeepEqual(got, tc.want) {
+			excluded := sets.New(
+				schema.GroupResource{Group: "authentication.k8s.io", Resource: "tokenreviews"},
+				schema.GroupResource{Group: "authorization.k8s.io", Resource: "subjectaccessreviews"},
+			)
+			if got := excludedResourcesNamedByRule(tc.apiGroups, tc.apiVersions, tc.resources, excluded); !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("excludedResourcesNamedByRule() = %v, want %v", got, tc.want)
 			}
 		})
@@ -71,16 +73,14 @@ func TestExcludedResourcesNamedByRule(t *testing.T) {
 }
 
 // TestLogExcludedResourcesForWebhook is a smoke test ensuring the logging helpers run without
-// panicking when the feature is enabled.
+// panicking when no resources are excluded.
 func TestLogExcludedResourcesForWebhook(t *testing.T) {
-	featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExcludeAdmissionWebhookVirtualResources, true)
-
 	logExcludedResourcesForValidatingWebhook("test-config", []v1.ValidatingWebhook{{
 		Name:  "test-webhook",
 		Rules: []v1.RuleWithOperations{{Rule: v1.Rule{APIGroups: []string{"authentication.k8s.io"}, APIVersions: []string{"v1"}, Resources: []string{"tokenreviews"}}}},
-	}})
+	}}, nil)
 	logExcludedResourcesForMutatingWebhook("test-config", []v1.MutatingWebhook{{
 		Name:  "test-mutating-webhook",
 		Rules: []v1.RuleWithOperations{{Rule: v1.Rule{APIGroups: []string{"authorization.k8s.io"}, APIVersions: []string{"v1"}, Resources: []string{"subjectaccessreviews"}}}},
-	}})
+	}}, nil)
 }

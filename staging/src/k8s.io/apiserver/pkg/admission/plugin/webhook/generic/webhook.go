@@ -54,6 +54,7 @@ type Webhook struct {
 	*admission.Handler
 
 	// Factories for creating webhook sources.
+	apiSourceInformers  informers.SharedInformerFactory
 	apiSourceFactory    sourceFactory
 	staticSourceFactory StaticSourceFactory
 
@@ -101,7 +102,7 @@ var (
 	_ admission.Interface                                  = &Webhook{}
 )
 
-type sourceFactory func(f informers.SharedInformerFactory) Source
+type sourceFactory func(f informers.SharedInformerFactory, excludedWebhookResources sets.Set[schema.GroupResource]) Source
 type dispatcherFactory func(cm *webhookutil.ClientManager) Dispatcher
 
 // ReloadableSource extends Source with a method to run a reload loop
@@ -216,8 +217,8 @@ func (a *Webhook) SetExternalKubeInformerFactory(f informers.SharedInformerFacto
 	a.namespaceMatcher.NamespaceLister = namespaceInformer.Lister()
 	a.namespaceInformer = namespaceInformer
 
-	// Create the API-based source (stored for later use in ValidateInitialization)
-	a.apiSource = a.apiSourceFactory(f)
+	// stored for later use in constructing apiSource in ValidateInitialization
+	a.apiSourceInformers = f
 }
 
 func (a *Webhook) SetUnconditionalAuthorizer(authorizer authorizer.UnconditionalAuthorizer) {
@@ -225,12 +226,21 @@ func (a *Webhook) SetUnconditionalAuthorizer(authorizer authorizer.Unconditional
 }
 
 // ValidateInitialization implements the InitializationValidator interface.
-// Static source creation happens here (after all initializers have run) because
-// SetManifestLoaders may be called after SetExternalKubeInformerFactory.
+// API and static source creation happens here (after all initializers have run) because
+// initialization setter order is not guaranteed.
 func (a *Webhook) ValidateInitialization() error {
+	// Construct apiSource if needed
 	if a.apiSource == nil {
-		return fmt.Errorf("kubernetes client is not properly setup")
+		if a.apiSourceInformers == nil {
+			return fmt.Errorf("kubernetes client is not properly setup")
+		}
+		if a.excludeVirtualResources {
+			a.apiSource = a.apiSourceFactory(a.apiSourceInformers, a.excludedAdmissionResources)
+		} else {
+			a.apiSource = a.apiSourceFactory(a.apiSourceInformers, nil)
+		}
 	}
+
 	if err := a.namespaceMatcher.Validate(); err != nil {
 		return fmt.Errorf("namespaceMatcher is not properly setup: %v", err)
 	}

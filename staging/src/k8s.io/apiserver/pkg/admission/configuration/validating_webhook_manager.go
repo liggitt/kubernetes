@@ -23,7 +23,9 @@ import (
 
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook"
 	"k8s.io/apiserver/pkg/admission/plugin/webhook/generic"
 	"k8s.io/client-go/informers"
@@ -46,15 +48,17 @@ type validatingWebhookConfigurationManager struct {
 	// This function is defined as field instead of a struct method to allow injection
 	// during tests
 	createValidatingWebhookAccessor validatingWebhookAccessorCreator
+	excludedWebhookResources        sets.Set[schema.GroupResource]
 }
 
 var _ generic.Source = &validatingWebhookConfigurationManager{}
 
-func NewValidatingWebhookConfigurationManager(f informers.SharedInformerFactory) generic.Source {
+func NewValidatingWebhookConfigurationManager(f informers.SharedInformerFactory, excludedWebhookResources sets.Set[schema.GroupResource]) generic.Source {
 	informer := f.Admissionregistration().V1().ValidatingWebhookConfigurations()
 	manager := &validatingWebhookConfigurationManager{
 		lister:                          informer.Lister(),
 		createValidatingWebhookAccessor: webhook.NewValidatingWebhookAccessor,
+		excludedWebhookResources:        excludedWebhookResources,
 	}
 	manager.lazy.Evaluate = manager.getConfiguration
 
@@ -130,7 +134,7 @@ func (v *validatingWebhookConfigurationManager) getValidatingWebhookConfiguratio
 			continue
 		}
 
-		logExcludedResourcesForValidatingWebhook(c.Name, c.Webhooks)
+		logExcludedResourcesForValidatingWebhook(c.Name, c.Webhooks, v.excludedWebhookResources)
 
 		// webhook names are not validated for uniqueness, so we check for duplicates and
 		// add a int suffix to distinguish between them

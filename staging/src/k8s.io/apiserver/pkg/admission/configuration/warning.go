@@ -22,60 +22,39 @@ import (
 	v1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apiserver/pkg/features"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 )
 
-// excludedWebhookResources is the set of virtual auth/authz resources that admission webhooks
-// do not intercept when the ExcludeAdmissionWebhookVirtualResources feature is enabled.
-//
-// NOTE: This list MUST be kept in sync with the authoritative list in
-// k8s.io/kubernetes/pkg/kubeapiserver/admission/exclusion (exclusion.Excluded()). This package
-// lives in staging and cannot import from k8s.io/kubernetes, so the list is duplicated here.
-// This copy is only used for the advisory log below; the dispatch path uses the authoritative
-// list injected via SetExcludedAdmissionResources.
-var excludedWebhookResources = sets.New(
-	schema.GroupResource{Group: "authentication.k8s.io", Resource: "selfsubjectreviews"},
-	schema.GroupResource{Group: "authentication.k8s.io", Resource: "tokenreviews"},
-	schema.GroupResource{Group: "authorization.k8s.io", Resource: "localsubjectaccessreviews"},
-	schema.GroupResource{Group: "authorization.k8s.io", Resource: "selfsubjectaccessreviews"},
-	schema.GroupResource{Group: "authorization.k8s.io", Resource: "selfsubjectrulesreviews"},
-	schema.GroupResource{Group: "authorization.k8s.io", Resource: "subjectaccessreviews"},
-)
-
-// logExcludedResourcesForValidatingWebhook logs an advisory for a ValidatingWebhookConfiguration
-// whose rules name resources excluded from admission webhooks. It is a no-op when
-// ExcludeAdmissionWebhookVirtualResources is disabled.
-func logExcludedResourcesForValidatingWebhook(name string, webhooks []v1.ValidatingWebhook) {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.ExcludeAdmissionWebhookVirtualResources) {
+// logExcludedResourcesForValidatingWebhook logs an advisory for a ValidatingWebhookConfiguration whose rules name resources excluded from admission webhooks.
+// It is a no-op when excludedWebhookResources is empty.
+func logExcludedResourcesForValidatingWebhook(name string, webhooks []v1.ValidatingWebhook, excludedWebhookResources sets.Set[schema.GroupResource]) {
+	if excludedWebhookResources.Len() == 0 {
 		return
 	}
 	var rules []v1.RuleWithOperations
 	for _, w := range webhooks {
 		rules = append(rules, w.Rules...)
 	}
-	logExcludedWebhookResources("ValidatingWebhookConfiguration", name, rules)
+	logExcludedWebhookResources("ValidatingWebhookConfiguration", name, rules, excludedWebhookResources)
 }
 
-// logExcludedResourcesForMutatingWebhook logs an advisory for a MutatingWebhookConfiguration
-// whose rules name resources excluded from admission webhooks. It is a no-op when
-// ExcludeAdmissionWebhookVirtualResources is disabled.
-func logExcludedResourcesForMutatingWebhook(name string, webhooks []v1.MutatingWebhook) {
-	if !utilfeature.DefaultFeatureGate.Enabled(features.ExcludeAdmissionWebhookVirtualResources) {
+// logExcludedResourcesForMutatingWebhook logs an advisory for a MutatingWebhookConfiguration whose rules name resources excluded from admission webhooks.
+// It is a no-op when excludedWebhookResources is empty.
+func logExcludedResourcesForMutatingWebhook(name string, webhooks []v1.MutatingWebhook, excludedWebhookResources sets.Set[schema.GroupResource]) {
+	if excludedWebhookResources.Len() == 0 {
 		return
 	}
 	var rules []v1.RuleWithOperations
 	for _, w := range webhooks {
 		rules = append(rules, w.Rules...)
 	}
-	logExcludedWebhookResources("MutatingWebhookConfiguration", name, rules)
+	logExcludedWebhookResources("MutatingWebhookConfiguration", name, rules, excludedWebhookResources)
 }
 
-func logExcludedWebhookResources(kind, name string, rules []v1.RuleWithOperations) {
+func logExcludedWebhookResources(kind, name string, rules []v1.RuleWithOperations, excludedWebhookResources sets.Set[schema.GroupResource]) {
 	excluded := sets.New[schema.GroupResource]()
 	for _, r := range rules {
-		excluded.Insert(excludedResourcesNamedByRule(r.APIGroups, r.APIVersions, r.Resources)...)
+		excluded.Insert(excludedResourcesNamedByRule(r.APIGroups, r.APIVersions, r.Resources, excludedWebhookResources)...)
 	}
 	if excluded.Len() == 0 {
 		return
@@ -92,7 +71,7 @@ func logExcludedWebhookResources(kind, name string, rules []v1.RuleWithOperation
 // excludedResourcesNamedByRule returns the excluded GroupResources a rule explicitly names.
 // A rule that uses a wildcard ("*") in apiGroups, apiVersions, or resources is not flagged
 // because its intent toward the excluded resource is ambiguous.
-func excludedResourcesNamedByRule(apiGroups, apiVersions, resources []string) []schema.GroupResource {
+func excludedResourcesNamedByRule(apiGroups, apiVersions, resources []string, excludedWebhookResources sets.Set[schema.GroupResource]) []schema.GroupResource {
 	if slices.Contains(apiGroups, "*") || slices.Contains(apiVersions, "*") || slices.Contains(resources, "*") {
 		return nil
 	}
