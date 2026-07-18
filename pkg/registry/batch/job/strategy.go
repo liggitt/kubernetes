@@ -129,7 +129,7 @@ func (jobStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object
 func (jobStrategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
 	job := obj.(*batch.Job)
 	opts := validationOptionsForJob(job, nil)
-	return batchvalidation.ValidateJob(job, opts)
+	return batchvalidation.ValidateJobCreate(job, opts)
 }
 
 // DeclarativeValidationConfig declares the options referenced by this type's tags,
@@ -278,9 +278,7 @@ func (jobStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) 
 	oldJob := old.(*batch.Job)
 
 	opts := validationOptionsForJob(job, oldJob)
-	validationErrorList := batchvalidation.ValidateJob(job, opts)
-	updateErrorList := batchvalidation.ValidateJobUpdate(job, oldJob, opts)
-	return append(validationErrorList, updateErrorList...)
+	return batchvalidation.ValidateJobUpdate(job, oldJob, opts)
 }
 
 // WarningsOnUpdate returns warnings for the given update.

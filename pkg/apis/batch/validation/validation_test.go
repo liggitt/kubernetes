@@ -83,7 +83,7 @@ func getValidPodTemplateSpecForGenerated(selector *metav1.LabelSelector) api.Pod
 	}
 }
 
-func TestValidateJob(t *testing.T) {
+func TestValidateJobCreate(t *testing.T) {
 	validJobObjectMeta := metav1.ObjectMeta{
 		Name:      "myjob",
 		Namespace: metav1.NamespaceDefault,
@@ -425,7 +425,7 @@ func TestValidateJob(t *testing.T) {
 	}
 	for k, v := range successCases {
 		t.Run(k, func(t *testing.T) {
-			if errs := ValidateJob(&v.job, v.opts); len(errs) != 0 {
+			if errs := ValidateJobCreate(&v.job, v.opts); len(errs) != 0 {
 				t.Errorf("Got unexpected validation errors: %v", errs)
 			}
 		})
@@ -1448,7 +1448,7 @@ func TestValidateJob(t *testing.T) {
 
 	for k, v := range errorCases {
 		t.Run(k, func(t *testing.T) {
-			errs := ValidateJob(&v.job, v.opts)
+			errs := ValidateJobCreate(&v.job, v.opts)
 			if len(errs) == 0 {
 				t.Errorf("expected failure for %s", k)
 			} else {
@@ -3636,7 +3636,7 @@ func TestValidateJobSchedulingGangMinCount(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			tc.opts.RequirePrefixedLabels = true
-			errs := ValidateJob(mkJob(tc.parallelism, tc.sched), tc.opts)
+			errs := ValidateJobCreate(mkJob(tc.parallelism, tc.sched), tc.opts)
 			var wantErrs field.ErrorList
 			if tc.err != nil {
 				wantErrs = append(wantErrs, tc.err)

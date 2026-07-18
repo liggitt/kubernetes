@@ -150,12 +150,17 @@ func validateGeneratedSelector(obj *batch.Job, validateBatchLabels bool) field.E
 	return allErrs
 }
 
-// ValidateJob validates a Job and returns an ErrorList with any errors.
-func ValidateJob(job *batch.Job, opts JobValidationOptions) field.ErrorList {
+// ValidateJobCreate validates a Job and returns an ErrorList with any errors.
+func ValidateJobCreate(job *batch.Job, opts JobValidationOptions) field.ErrorList {
 	// Jobs and rcs have the same name validation
 	allErrs := apivalidation.ValidateObjectMeta(&job.ObjectMeta, true, apimachineryapivalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 	allErrs = append(allErrs, validateGeneratedSelector(job, opts.RequirePrefixedLabels)...)
 	allErrs = append(allErrs, ValidateJobSpec(&job.Spec, field.NewPath("spec"), opts.PodValidationOptions)...)
+	allErrs = append(allErrs, validateNameAllowsCompletions(job, opts)...)
+	return allErrs
+}
+func validateNameAllowsCompletions(job *batch.Job, opts JobValidationOptions) field.ErrorList {
+	var allErrs field.ErrorList
 	if job.Spec.CompletionMode != nil && *job.Spec.CompletionMode == batch.IndexedCompletion && job.Spec.Completions != nil && *job.Spec.Completions > 0 {
 		// For indexed job, the job controller appends a suffix (`-$INDEX`)
 		// to the pod hostname when indexed job create pods.
@@ -617,6 +622,7 @@ func validateJobStatus(job *batch.Job, fldPath *field.Path, opts JobStatusValida
 func ValidateJobUpdate(job, oldJob *batch.Job, opts JobValidationOptions) field.ErrorList {
 	allErrs := apivalidation.ValidateObjectMetaUpdate(&job.ObjectMeta, &oldJob.ObjectMeta, field.NewPath("metadata"))
 	allErrs = append(allErrs, ValidateJobSpecUpdate(job.Spec, oldJob.Spec, field.NewPath("spec"), opts)...)
+	allErrs = append(allErrs, validateNameAllowsCompletions(job, opts)...)
 	return allErrs
 }
 

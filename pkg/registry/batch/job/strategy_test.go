@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -966,10 +967,7 @@ func TestJobStrategy_ValidateUpdate(t *testing.T) {
 			update: func(job *batch.Job) {
 				job.Spec.Scheduling.SchedulingPolicy.Gang.MinCount = ptr.To[int32](8)
 			},
-			// ValidateUpdate runs both ValidateJob and ValidateJobUpdate, and each
-			// evaluates the spec, so the minCount error surfaces from both paths.
 			wantErrs: field.ErrorList{
-				{Type: field.ErrorTypeInvalid, Field: "spec.scheduling.schedulingPolicy.gang.minCount"},
 				{Type: field.ErrorTypeInvalid, Field: "spec.scheduling.schedulingPolicy.gang.minCount"},
 			},
 		},
