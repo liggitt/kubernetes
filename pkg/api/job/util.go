@@ -17,6 +17,7 @@ limitations under the License.
 package job
 
 import (
+	batchv1 "k8s.io/api/batch/v1"
 	schedulingv1alpha3 "k8s.io/api/scheduling/v1alpha3"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	workloadbuilder "k8s.io/component-helpers/scheduling/schedulingv1/workloadbuilder"
@@ -40,13 +41,26 @@ func schedulingInUse(jobSpec *batch.JobSpec) bool {
 	return jobSpec != nil && jobSpec.Scheduling != nil
 }
 
-// WorkloadInputForJob maps a Job's spec.scheduling building blocks into a
+func WorkloadInputForJobInternal(s *batch.JobSchedulingConfiguration) workloadbuilder.WorkloadInput {
+	if s == nil {
+		s = &batch.JobSchedulingConfiguration{}
+	}
+	return WorkloadInput(s.SchedulingPolicy, s.SchedulingConstraints, s.DisruptionMode, s.ResourceClaims)
+}
+func WorkloadInputForJobV1(s *batchv1.JobSchedulingConfiguration) workloadbuilder.WorkloadInput {
+	if s == nil {
+		s = &batchv1.JobSchedulingConfiguration{}
+	}
+	return WorkloadInput(s.SchedulingPolicy, s.SchedulingConstraints, s.DisruptionMode, s.ResourceClaims)
+}
+
+// WorkloadInput maps a Job's spec.scheduling building blocks into a
 // workloadbuilder.WorkloadInput, pairing each block with the spec.scheduling
 // sub-path where it lives so validation errors are reported at the right field.
 // Both Job controller and the internal batch API embed the schedulingv1alpha3
 // building blocks directly, so this single mapping serves both.
 // Nil blocks fall back to the item's DefaultConfig.
-func WorkloadInputForJob(
+func WorkloadInput(
 	policy *schedulingv1alpha3.WorkloadPodGroupSchedulingPolicy,
 	constraints *schedulingv1alpha3.WorkloadPodGroupSchedulingConstraints,
 	disruptionMode *schedulingv1alpha3.WorkloadPodGroupDisruptionMode,

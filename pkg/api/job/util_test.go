@@ -104,7 +104,7 @@ func TestDropDisabledFieldsScheduling(t *testing.T) {
 	}
 }
 
-func TestWorkloadInputForJob(t *testing.T) {
+func TestWorkloadInput(t *testing.T) {
 	policy := &schedulingv1alpha3.WorkloadPodGroupSchedulingPolicy{
 		Gang: &schedulingv1alpha3.WorkloadPodGroupGangSchedulingPolicy{MinCount: ptr.To[int32](3)},
 	}
@@ -149,7 +149,7 @@ func TestWorkloadInputForJob(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := WorkloadInputForJob(tc.policy, tc.constraints, tc.disruptionMode, tc.resourceClaims)
+			got := WorkloadInput(tc.policy, tc.constraints, tc.disruptionMode, tc.resourceClaims)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("unexpected WorkloadInput (-want,+got):\n%s", diff)
 			}
@@ -158,7 +158,7 @@ func TestWorkloadInputForJob(t *testing.T) {
 }
 
 func TestWorkloadItemForJob(t *testing.T) {
-	input := WorkloadInputForJob(nil, nil, nil, nil)
+	input := WorkloadInput(nil, nil, nil, nil)
 
 	cases := map[string]struct {
 		itemName          string
@@ -238,7 +238,7 @@ func TestWorkloadItemForJobMinCountDefaulting(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			item := WorkloadItemForJob("job", "", tc.parallelism, WorkloadInputForJob(nil, nil, nil, nil))
+			item := WorkloadItemForJob("job", "", tc.parallelism, WorkloadInput(nil, nil, nil, nil))
 			item.Callbacks[0](tc.cfg)
 			if diff := cmp.Diff(tc.wantMin, tc.cfg.Policy.Gang.MinCount); diff != "" {
 				t.Errorf("unexpected resolved MinCount (-want,+got):\n%s", diff)
@@ -247,7 +247,7 @@ func TestWorkloadItemForJobMinCountDefaulting(t *testing.T) {
 	}
 
 	t.Run("basic policy is left untouched", func(t *testing.T) {
-		item := WorkloadItemForJob("job", "", ptr.To[int32](5), WorkloadInputForJob(nil, nil, nil, nil))
+		item := WorkloadItemForJob("job", "", ptr.To[int32](5), WorkloadInput(nil, nil, nil, nil))
 		cfg := &workloadbuilder.SchedulingConfig{
 			Policy: &workloadbuilder.SchedulingPolicy{Basic: &workloadbuilder.BasicSchedulingPolicy{}},
 		}
@@ -258,7 +258,7 @@ func TestWorkloadItemForJobMinCountDefaulting(t *testing.T) {
 	})
 
 	t.Run("nil config does not panic", func(t *testing.T) {
-		item := WorkloadItemForJob("job", "", ptr.To[int32](5), WorkloadInputForJob(nil, nil, nil, nil))
+		item := WorkloadItemForJob("job", "", ptr.To[int32](5), WorkloadInput(nil, nil, nil, nil))
 		item.Callbacks[0](nil)
 	})
 }

@@ -529,8 +529,7 @@ func podGroupTemplateName(job *batch.Job) string {
 func buildWorkloadItem(job *batch.Job) *workloadbuilder.WorkloadItem {
 	var input workloadbuilder.WorkloadInput
 	if s := job.Spec.Scheduling; s != nil {
-		input = jobutil.WorkloadInputForJob(s.SchedulingPolicy,
-			s.SchedulingConstraints, s.DisruptionMode, s.ResourceClaims)
+		input = jobutil.WorkloadInputForJobV1(s)
 	}
 	return jobutil.WorkloadItemForJob(podGroupTemplateName(job),
 		job.Spec.Template.Spec.PriorityClassName, job.Spec.Parallelism, input)

@@ -708,9 +708,7 @@ func validateJobScheduling(spec *batch.JobSpec, fldPath *field.Path) field.Error
 	}
 	// Build the same logical workload tree the Job controller compiles, so
 	// validation and the controller never drift.
-	s := spec.Scheduling
-	input := jobutil.WorkloadInputForJob(s.SchedulingPolicy,
-		s.SchedulingConstraints, s.DisruptionMode, s.ResourceClaims)
+	input := jobutil.WorkloadInputForJobInternal(spec.Scheduling)
 	item := jobutil.WorkloadItemForJob("job",
 		spec.Template.Spec.PriorityClassName, spec.Parallelism, input)
 	return workloadbuilder.NewBuilder(item, workloadbuilder.BuildOptions{
