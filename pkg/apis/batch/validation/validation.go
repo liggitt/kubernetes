@@ -155,7 +155,7 @@ func ValidateJobCreate(job *batch.Job, opts JobValidationOptions) field.ErrorLis
 	// Jobs and rcs have the same name validation
 	allErrs := apivalidation.ValidateObjectMeta(&job.ObjectMeta, true, apimachineryapivalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 	allErrs = append(allErrs, validateGeneratedSelector(job, opts.RequirePrefixedLabels)...)
-	allErrs = append(allErrs, ValidateJobSpec(&job.Spec, field.NewPath("spec"), opts.PodValidationOptions)...)
+	allErrs = append(allErrs, ValidateJobSpec(&job.Spec, nil, field.NewPath("spec"), opts.PodValidationOptions)...)
 	allErrs = append(allErrs, validateNameAllowsCompletions(job, opts)...)
 	return allErrs
 }
@@ -175,8 +175,9 @@ func validateNameAllowsCompletions(job *batch.Job, opts JobValidationOptions) fi
 }
 
 // ValidateJobSpec validates a JobSpec and returns an ErrorList with any errors.
-func ValidateJobSpec(spec *batch.JobSpec, fldPath *field.Path, opts apivalidation.PodValidationOptions) field.ErrorList {
-	allErrs := validateJobSpec(spec, fldPath, opts)
+// oldSpec is nil on create, non-nil on update.
+func ValidateJobSpec(spec, oldSpec *batch.JobSpec, fldPath *field.Path, opts apivalidation.PodValidationOptions) field.ErrorList {
+	allErrs := validateJobSpec(spec, oldSpec, fldPath, opts)
 	if spec.Selector == nil {
 		allErrs = append(allErrs, field.Required(fldPath.Child("selector"), ""))
 	} else {
@@ -196,7 +197,8 @@ func ValidateJobSpec(spec *batch.JobSpec, fldPath *field.Path, opts apivalidatio
 	return allErrs
 }
 
-func validateJobSpec(spec *batch.JobSpec, fldPath *field.Path, opts apivalidation.PodValidationOptions) field.ErrorList {
+// oldSpec is nil on create, non-nil on update.
+func validateJobSpec(spec, oldSpec *batch.JobSpec, fldPath *field.Path, opts apivalidation.PodValidationOptions) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if spec.Parallelism != nil {
@@ -290,7 +292,7 @@ func validateJobSpec(spec *batch.JobSpec, fldPath *field.Path, opts apivalidatio
 	// the resolved scheduling policy and disruption mode must be in the Job's
 	// allow-lists, and the Basic policy cannot be combined with All disruption.
 	// Structural building-block constraints are enforced by DV.
-	allErrs = append(allErrs, validateJobScheduling(spec, fldPath.Child("scheduling"))...)
+	allErrs = append(allErrs, validateJobScheduling(spec, oldSpec, fldPath.Child("scheduling"))...)
 
 	allErrs = append(allErrs, apivalidation.ValidatePodTemplateSpec(&spec.Template, fldPath.Child("template"), opts)...)
 
@@ -636,7 +638,7 @@ func ValidateJobUpdateStatus(job, oldJob *batch.Job, opts JobStatusValidationOpt
 // ValidateJobSpecUpdate validates an update to a JobSpec and returns an ErrorList with any errors.
 func ValidateJobSpecUpdate(spec, oldSpec batch.JobSpec, fldPath *field.Path, opts JobValidationOptions) field.ErrorList {
 	allErrs := field.ErrorList{}
-	allErrs = append(allErrs, ValidateJobSpec(&spec, fldPath, opts.PodValidationOptions)...)
+	allErrs = append(allErrs, ValidateJobSpec(&spec, &oldSpec, fldPath, opts.PodValidationOptions)...)
 	allErrs = append(allErrs, validateCompletions(spec, oldSpec, fldPath.Child("completions"), opts)...)
 	allErrs = append(allErrs, apivalidation.ValidateImmutableField(spec.Selector, oldSpec.Selector, fldPath.Child("selector"))...)
 	allErrs = append(allErrs, validatePodTemplateUpdate(spec, oldSpec, fldPath, opts)...)
@@ -708,15 +710,22 @@ func validateJobSchedulingUpdate(spec, oldSpec batch.JobSpec, fldPath *field.Pat
 // validation cannot express via the shared workloadbuilder library.
 // Structural building-block constraints come from DV, so they are not
 // repeated here. It is a no-op when spec.scheduling is unset.
-func validateJobScheduling(spec *batch.JobSpec, fldPath *field.Path) field.ErrorList {
+// oldSpec is nil on create, non-nil on update.
+func validateJobScheduling(spec, oldSpec *batch.JobSpec, fldPath *field.Path) field.ErrorList {
 	if spec.Scheduling == nil {
 		return nil
 	}
 	// Build the same logical workload tree the Job controller compiles, so
 	// validation and the controller never drift.
 	input := jobutil.WorkloadInputForJobInternal(spec.Scheduling)
-	item := jobutil.WorkloadItemForJob("job",
-		spec.Template.Spec.PriorityClassName, spec.Parallelism, input)
+	item := jobutil.WorkloadItemForJob("job", spec.Template.Spec.PriorityClassName, spec.Parallelism, input)
+
+	var oldItem *workloadbuilder.WorkloadItem
+	if oldSpec != nil {
+		oldInput := jobutil.WorkloadInputForJobInternal(oldSpec.Scheduling)
+		oldItem = jobutil.WorkloadItemForJob("job", oldSpec.Template.Spec.PriorityClassName, oldSpec.Parallelism, oldInput)
+	}
+
 	return workloadbuilder.NewBuilder(item, workloadbuilder.BuildOptions{
 		AllowedPolicies:        []workloadbuilder.SchedulingPolicyOption{workloadbuilder.BasicPolicy, workloadbuilder.GangPolicy},
 		AllowedDisruptionModes: []workloadbuilder.DisruptionModeOption{workloadbuilder.SingleMode, workloadbuilder.AllMode},
@@ -725,7 +734,7 @@ func validateJobScheduling(spec *batch.JobSpec, fldPath *field.Path) field.Error
 		// checks against the resolved config; it neither compiles the Workload
 		// nor needs an owner.
 		DisableDeclarativeValidation: true,
-	}).Validate(context.Background(), fldPath, workloadbuilder.ValidationInput{})
+	}).Validate(context.Background(), fldPath, workloadbuilder.ValidationInput{OldRoot: oldItem})
 }
 
 func validatePodTemplateUpdate(spec, oldSpec batch.JobSpec, fldPath *field.Path, opts JobValidationOptions) field.ErrorList {
@@ -894,8 +903,12 @@ func validateCronJobSpec(spec, oldSpec *batch.CronJobSpec, fldPath *field.Path, 
 		allErrs = append(allErrs, validateTimeZone(spec.TimeZone, fldPath.Child("timeZone"))...)
 	}
 
+	var oldTemplateSpec *batch.JobTemplateSpec
+	if oldSpec != nil {
+		oldTemplateSpec = &oldSpec.JobTemplate
+	}
 	allErrs = append(allErrs, validateConcurrencyPolicy(&spec.ConcurrencyPolicy, fldPath.Child("concurrencyPolicy"))...)
-	allErrs = append(allErrs, ValidateJobTemplateSpec(&spec.JobTemplate, fldPath.Child("jobTemplate"), opts)...)
+	allErrs = append(allErrs, ValidateJobTemplateSpec(&spec.JobTemplate, oldTemplateSpec, fldPath.Child("jobTemplate"), opts)...)
 
 	if spec.SuccessfulJobsHistoryLimit != nil {
 		// zero is a valid SuccessfulJobsHistoryLimit
@@ -980,8 +993,13 @@ func validateTimeZone(timeZone *string, fldPath *field.Path) field.ErrorList {
 }
 
 // ValidateJobTemplateSpec validates a JobTemplateSpec and returns an ErrorList with any errors.
-func ValidateJobTemplateSpec(spec *batch.JobTemplateSpec, fldPath *field.Path, opts apivalidation.PodValidationOptions) field.ErrorList {
-	allErrs := validateJobSpec(&spec.Spec, fldPath.Child("spec"), opts)
+// oldSpec is nil on create, non-nil on update.
+func ValidateJobTemplateSpec(spec, oldSpec *batch.JobTemplateSpec, fldPath *field.Path, opts apivalidation.PodValidationOptions) field.ErrorList {
+	var oldJobSpec *batch.JobSpec
+	if oldSpec != nil {
+		oldJobSpec = &oldSpec.Spec
+	}
+	allErrs := validateJobSpec(&spec.Spec, oldJobSpec, fldPath.Child("spec"), opts)
 
 	// jobtemplate will always have the selector automatically generated
 	if spec.Spec.Selector != nil {
