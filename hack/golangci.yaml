@@ -574,12 +574,6 @@ linters:
         # consistency with existing code
         # and it's just syntactic sugar.
         - any
-        # Replace []byte(fmt.Sprintf) with fmt.Appendf.
-        #
-        # A useful hint for new code, but
-        # should only be updated in old code
-        # where it really matters.
-        - fmtappendf
         # Replace explicit loops over maps with calls to maps package.
         #
         # Completely disabled because the benefit
@@ -642,7 +636,7 @@ linters:
         #
         # A useful hint leading to shorter code.
         # Makes wait.Group obsolete.
-        - waitgroup
+        - waitgroupgo
 
     revive:
       # Only these rules are enabled.

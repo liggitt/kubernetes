@@ -294,12 +294,6 @@ linters:
         # and it's just syntactic sugar.
         - any
         {{- if .Base }}
-        # Replace []byte(fmt.Sprintf) with fmt.Appendf.
-        #
-        # A useful hint for new code, but
-        # should only be updated in old code
-        # where it really matters.
-        - fmtappendf
         # Replace explicit loops over maps with calls to maps package.
         #
         # Completely disabled because the benefit
@@ -369,7 +363,7 @@ linters:
         # Please enable when all supported Kubernetes versions
         # are on GoLang 1.25+
         {{- end }}
-        - waitgroup
+        - waitgroupgo
 
     revive:
       # Only these rules are enabled.
