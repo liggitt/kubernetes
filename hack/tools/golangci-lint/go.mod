@@ -6,6 +6,7 @@ tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 	sigs.k8s.io/kube-api-linter/pkg/plugin
 	sigs.k8s.io/logtools/logcheck
+	sigs.k8s.io/logtools/logcheck/plugin
 )
 
 require (
