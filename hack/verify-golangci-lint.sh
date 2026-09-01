@@ -46,6 +46,10 @@ source "${KUBE_ROOT}/hack/lib/util.sh"
 kube::golang::setup_env
 export GOBIN="${KUBE_OUTPUT_BIN}"
 
+# DEBUG
+go version
+go env
+
 kube::util::require-jq
 
 invocation=(./hack/verify-golangci-lint.sh "$@")
@@ -135,6 +139,10 @@ if [ "${golangci_config}" ]; then
   # Plugins cannot be used without a config.
   # This uses `go build` because `go install -buildmode=plugin` doesn't work
   # (on purpose: https://github.com/golang/go/issues/64964).
+  # DEBUG
+  echo "GOTOOLCHAIN=$(kube::golang::hack_tools_gotoolchain)"
+  GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" go version
+  GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" go env
   GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" go -C "${KUBE_ROOT}/hack/tools/golangci-lint" build -o "${GOBIN}/logcheck.so" -buildmode=plugin sigs.k8s.io/logtools/logcheck/plugin
   GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" go -C "${KUBE_ROOT}/hack/tools/golangci-lint" build -o "${GOBIN}/kube-api-linter.so" -buildmode=plugin sigs.k8s.io/kube-api-linter/pkg/plugin
   GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" go -C "${KUBE_ROOT}/hack/tools/golangci-lint" build -o "${GOBIN}/sorted.so" -buildmode=plugin k8s.io/kubernetes/hack/tools/golangci-lint/sorted/plugin
@@ -143,7 +151,7 @@ fi
 # Verify that the given config is valid (if one is provided). "golangci-lint run" does not
 # do that, which makes it easy to miss mistakes while editing the configuration.
 if [ "${golangci_config}" ]; then
-  if ! failures=$( "${GOBIN}/golangci-lint" config verify --config="${golangci_config}" 2>&1 ); then
+  if ! failures=$( GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" "${GOBIN}/golangci-lint" config verify --config="${golangci_config}" 2>&1 ); then
     cat >&2 <<EOF
 
 Verification of the golangci-lint configuration failed. Command:
@@ -194,7 +202,7 @@ run () {
   # - redirect stdout to file
   # - redirect stderr to original stdout in FD 3
   # - pipe stderr via stdout into sed for on-the-fly processing, writing to stderr again
-  "${golangci[@]}" "${targets[@]}" 3>&1 >"${KUBE_TEMP}/golangci-stdout.log" 2>&3 | sed -e 's;^;ERROR: ;' >&2 || res=$?
+  GOTOOLCHAIN="$(kube::golang::hack_tools_gotoolchain)" "${golangci[@]}" "${targets[@]}" 3>&1 >"${KUBE_TEMP}/golangci-stdout.log" 2>&3 | sed -e 's;^;ERROR: ;' >&2 || res=$?
   cat "${KUBE_TEMP}/golangci-stdout.log"
 }
 # First run with normal output.
