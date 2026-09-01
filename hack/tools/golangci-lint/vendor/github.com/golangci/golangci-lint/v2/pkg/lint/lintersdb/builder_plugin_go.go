@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"path/filepath"
 	"plugin"
 
@@ -49,6 +52,7 @@ func (b *PluginGoBuilder) Build(cfg *config.Config) ([]*linter.Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("unable to load custom analyzer %q: %s, %w", name, settings.Path, err)
 		}
+
 		linters = append(linters, lc)
 	}
 
@@ -92,11 +96,23 @@ func (b *PluginGoBuilder) getAnalyzerPlugin(cfg *config.Config, path string, set
 		path = filepath.Join(basePath, path)
 	}
 
+	{
+		fmt.Println("plugin.Open before", path)
+		f, _ := parser.ParseFile(token.NewFileSet(), "", `package p; func _() { defer func() { }() } // test`, parser.SkipObjectResolution)
+		ast.Inspect(f, func(n ast.Node) bool { return true })
+	}
+
 	//nolint:staticcheck,nolintlint // Ignore because the implementation on Windows returns nil
 	plug, err := plugin.Open(path)
 	//nolint:staticcheck,nolintlint // Ignore because the implementation on Windows returns nil
 	if err != nil {
 		return nil, err
+	}
+
+	{
+		f, _ := parser.ParseFile(token.NewFileSet(), "", `package p; func _() { defer func() { }() } // test`, parser.SkipObjectResolution)
+		ast.Inspect(f, func(n ast.Node) bool { return true })
+		fmt.Println("plugin.Open after", path)
 	}
 
 	analyzers, err := b.lookupPlugin(plug, settings)
