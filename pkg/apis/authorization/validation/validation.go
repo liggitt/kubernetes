@@ -19,12 +19,14 @@ package validation
 import (
 	"context"
 	"fmt"
-	"strings"
+	"slices"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
 	authorizationv1alpha1 "k8s.io/api/authorization/v1alpha1"
+	authorizationv1beta1 "k8s.io/api/authorization/v1beta1"
 	"k8s.io/apimachinery/pkg/api/operation"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/registry/rest"
 
@@ -32,6 +34,19 @@ import (
 	authorizationapi "k8s.io/kubernetes/pkg/apis/authorization"
 	authorizationinternalv1 "k8s.io/kubernetes/pkg/apis/authorization/v1"
 )
+
+var omittedV1beta1SARPaths = []string{
+	"spec.authorizationOptions",
+	"status.conditionalDecision",
+}
+
+func OmittedFieldPaths() map[schema.GroupVersionKind][]string {
+	return map[schema.GroupVersionKind][]string{
+		authorizationv1beta1.SchemeGroupVersion.WithKind("SubjectAccessReview"):      slices.Clone(omittedV1beta1SARPaths),
+		authorizationv1beta1.SchemeGroupVersion.WithKind("SelfSubjectAccessReview"):  slices.Clone(omittedV1beta1SARPaths),
+		authorizationv1beta1.SchemeGroupVersion.WithKind("LocalSubjectAccessReview"): slices.Clone(omittedV1beta1SARPaths),
+	}
+}
 
 // ValidateSubjectAccessReviewCreate is the single composition of handwritten and declarative
 // SubjectAccessReview validation.
@@ -100,52 +115,4 @@ func ValidateAuthorizationConditionsReviewCreate(ctx context.Context, scheme *ru
 	errs := apiservervalidation.ValidateAuthorizationConditionsReview(versionedACR)
 	dv := rest.DeclarativeValidation{Scheme: scheme}
 	return dv.ValidateDeclaratively(ctx, acr, nil, errs, operation.Create, apiservervalidation.DeclarativeValidationConfig())
-}
-
-const (
-	authorizationV1      = "authorization.k8s.io/v1"
-	authorizationV1beta1 = "authorization.k8s.io/v1beta1"
-)
-
-var v1OnlyFieldPaths = []string{
-	"spec.authorizationOptions",
-	"status.conditionalDecision",
-}
-
-// MapV1ToV1beta1ErrorLists makes the cross-version validation equivalence sweep tolerate
-// the fields that only exist in authorization.k8s.io/v1. When a v1 error list is compared
-// against a v1beta1 one, errors under the v1-only paths are dropped from the v1 side,
-// since the corresponding fields do not survive the conversion and v1beta1 therefore has
-// nothing to report. Comparisons that do not involve exactly this pair are left alone.
-func MapV1ToV1beta1ErrorLists(gvLeft, gvRight string, errListLeft, errListRight field.ErrorList) (field.ErrorList, field.ErrorList) {
-	switch {
-	case gvLeft == authorizationV1 && gvRight == authorizationV1beta1:
-		return dropV1OnlyFieldErrors(errListLeft), errListRight
-	case gvLeft == authorizationV1beta1 && gvRight == authorizationV1:
-		return errListLeft, dropV1OnlyFieldErrors(errListRight)
-	default:
-		return errListLeft, errListRight
-	}
-}
-
-func dropV1OnlyFieldErrors(errs field.ErrorList) field.ErrorList {
-	kept := make(field.ErrorList, 0, len(errs))
-	for _, err := range errs {
-		if !isV1OnlyFieldPath(err.Field) {
-			kept = append(kept, err)
-		}
-	}
-	return kept
-}
-
-// isV1OnlyFieldPath reports whether path is one of the v1-only paths or nested under one.
-// Matching the separators explicitly keeps a sibling such as "status.conditionalDecisions"
-// from being swallowed by the "status.conditionalDecision" entry.
-func isV1OnlyFieldPath(path string) bool {
-	for _, v1Only := range v1OnlyFieldPaths {
-		if path == v1Only || strings.HasPrefix(path, v1Only+".") || strings.HasPrefix(path, v1Only+"[") {
-			return true
-		}
-	}
-	return false
 }

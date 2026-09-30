@@ -367,7 +367,7 @@ func testDeclarativeValidate(t *testing.T, apiVersion string) {
 				// conditionalDecision, so converting to it drops those fields and that
 				// version cannot report errors under them. Only errors on those paths are
 				// excused; every field the two versions share is still compared.
-				apitesting.WithMapErrorListsFuncs(authorizationvalidation.MapV1ToV1beta1ErrorLists),
+				apitesting.WithOmittedFieldPaths(authorizationvalidation.OmittedFieldPaths()),
 			)
 		})
 	}

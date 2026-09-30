@@ -84,15 +84,12 @@ func TestVersionedValidationByFuzzing(t *testing.T) {
 				allRules = append(allRules, nodevalidation.NodeNormalizationRules...)
 				opts = append(opts, WithNormalizationRules(allRules...), WithFuzzer(f))
 
+				// TODO: accumulate omitted fields and and set opts
+				allOmittedPaths := authorizationvalidation.OmittedFieldPaths()
+				opts = append(opts, WithOmittedFieldPaths(allOmittedPaths))
+
 				if subresource != "" {
 					opts = append(opts, WithSubResources(subresource))
-				}
-
-				// TODO(luxas): Find a better place for this configuration, as per the comment above.
-				if gvk.Group == "authorization.k8s.io" {
-					opts = append(opts,
-						WithMapErrorListsFuncs(authorizationvalidation.MapV1ToV1beta1ErrorLists),
-					)
 				}
 
 				VerifyVersionedValidationEquivalence(t, obj, nil, opts...)
