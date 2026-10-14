@@ -3395,6 +3395,7 @@ type Container struct {
 	// If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext.
 	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
 	// +optional
+	// +k8s:optional
 	SecurityContext *SecurityContext `json:"securityContext,omitempty" protobuf:"bytes,15,opt,name=securityContext"`
 
 	// Variables for interactive containers, these have very specialized use-cases (e.g. debugging)
@@ -4484,6 +4485,7 @@ type PodSpec struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=name
+	// +k8s:optional
 	InitContainers []Container `json:"initContainers,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,20,rep,name=initContainers"`
 	// containers is the list of containers belonging to the pod.
 	// Containers cannot currently be added or removed.
@@ -4504,6 +4506,7 @@ type PodSpec struct {
 	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=name
+	// +k8s:optional
 	EphemeralContainers []EphemeralContainer `json:"ephemeralContainers,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,34,rep,name=ephemeralContainers"`
 	// restartPolicy is the restart policy for all containers within the pod.
 	// One of Always, OnFailure, Never. In some contexts, only a subset of those values may be permitted.
@@ -4588,6 +4591,7 @@ type PodSpec struct {
 	// securityContext holds pod-level security attributes and common container settings.
 	// Optional: Defaults to empty.  See type description for default values of each field.
 	// +optional
+	// +k8s:optional
 	SecurityContext *PodSecurityContext `json:"securityContext,omitempty" protobuf:"bytes,14,opt,name=securityContext"`
 	// imagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec.
 	// If specified, these secrets will be passed to individual puller implementations for them to use.
@@ -5599,6 +5603,7 @@ type EphemeralContainerCommon struct {
 	// securityContext is optional: SecurityContext defines the security options the ephemeral container should be run with.
 	// If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext.
 	// +optional
+	// +k8s:optional
 	SecurityContext *SecurityContext `json:"securityContext,omitempty" protobuf:"bytes,15,opt,name=securityContext"`
 
 	// Variables for interactive containers, these have very specialized use-cases (e.g. debugging)
@@ -8831,6 +8836,7 @@ type SecurityContext struct {
 	// This field cannot be set for ephemeral containers or when spec.os.name is windows.
 	// +featureGate=CgroupOptions
 	// +optional
+	// +k8s:optional
 	CgroupOptions *CgroupOptions `json:"cgroupOptions,omitempty" protobuf:"bytes,13,opt,name=cgroupOptions"`
 }
 
@@ -8842,12 +8848,13 @@ type CgroupOptions struct {
 	// The kubelet refuses to create a container with an unrecognized value.
 	// "ReadOnly" cannot be set when the container's privileged field is true.
 	// +optional
+	// +k8s:optional
 	MountMode *CgroupMountMode `json:"mountMode,omitempty" protobuf:"bytes,1,opt,name=mountMode"`
 }
 
 // CgroupMountMode defines how the cgroup filesystem is mounted in a container.
 // +enum
-// +k8s:validation-gen-nolint
+// +k8s:enum
 type CgroupMountMode string
 
 const (

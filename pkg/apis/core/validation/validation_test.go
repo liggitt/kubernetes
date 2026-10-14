@@ -25390,11 +25390,6 @@ func TestValidateSecurityContext(t *testing.T) {
 			errorField:   "field.cgroupOptions.mountMode",
 			capAllowPriv: true,
 		},
-		"with unsupported cgroup mount mode": {
-			sc:          cgroupMountModeInvalid,
-			errorType:   "FieldValueNotSupported",
-			errorDetail: `supported values: "ReadOnly", "ReadWrite"`,
-		},
 	}
 	for k, v := range errorCases {
 		capabilities.ResetForTest()

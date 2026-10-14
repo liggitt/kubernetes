@@ -8897,26 +8897,12 @@ func ValidateSecurityContext(sc *core.SecurityContext, fldPath *field.Path, host
 
 	allErrs = append(allErrs, validateWindowsSecurityContextOptions(sc.WindowsOptions, fldPath.Child("windowsOptions"))...)
 	allErrs = append(allErrs, ValidateAppArmorProfileField(sc.AppArmorProfile, fldPath.Child("appArmorProfile"))...)
-	allErrs = append(allErrs, validateCgroupOptions(sc.CgroupOptions, fldPath.Child("cgroupOptions"))...)
 	if sc.Privileged != nil && *sc.Privileged && sc.CgroupOptions != nil {
 		if mountMode := sc.CgroupOptions.MountMode; mountMode != nil && *mountMode == core.CgroupMountModeReadOnly {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("cgroupOptions", "mountMode"), *mountMode, "cannot be set to ReadOnly when privileged is true"))
 		}
 	}
 
-	return allErrs
-}
-
-var validCgroupMountModes = sets.New(core.CgroupMountModeReadOnly, core.CgroupMountModeReadWrite)
-
-func validateCgroupOptions(cgroupOptions *core.CgroupOptions, fldPath *field.Path) field.ErrorList {
-	allErrs := field.ErrorList{}
-	if cgroupOptions == nil {
-		return allErrs
-	}
-	if mountMode := cgroupOptions.MountMode; mountMode != nil && !validCgroupMountModes.Has(*mountMode) {
-		allErrs = append(allErrs, field.NotSupported(fldPath.Child("mountMode"), *mountMode, sets.List(validCgroupMountModes)))
-	}
 	return allErrs
 }
 
