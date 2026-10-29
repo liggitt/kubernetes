@@ -348,6 +348,7 @@ type parseQuantityStringTestcase struct {
 	// should be set.
 	positive           bool
 	num, denom, suffix string
+	defaultedNum       bool
 
 	// err is the error parseQuantityString should return for invalid input test
 	// cases. This is nil for valid input test cases.
@@ -375,11 +376,12 @@ func quantityStringCombinations() []parseQuantityStringTestcase {
 			for _, fraction := range fractions {
 				for _, suf := range suffixes {
 					testcases = append(testcases, parseQuantityStringTestcase{
-						input:    sign + integer + fraction + suf,
-						positive: sign != "-",
-						num:      num,
-						denom:    strings.TrimPrefix(fraction, "."),
-						suffix:   suf,
+						input:        sign + integer + fraction + suf,
+						positive:     sign != "-",
+						num:          num,
+						denom:        strings.TrimPrefix(fraction, "."),
+						suffix:       suf,
+						defaultedNum: len(integer) == 0,
 					})
 				}
 			}
@@ -424,14 +426,14 @@ func TestParseQuantityString(t *testing.T) {
 		{input: "0.025Ti", positive: true, num: "0", denom: "025", suffix: "Ti"},
 		{input: "1.025Ti", positive: true, num: "1", denom: "025", suffix: "Ti"},
 		{input: "-1.025Ti", positive: false, num: "1", denom: "025", suffix: "Ti"},
-		{input: ".", positive: true, num: "0", denom: "", suffix: ""},
-		{input: "-.", positive: false, num: "0", denom: "", suffix: ""},
+		{input: ".", positive: true, num: "0", denom: "", suffix: "", defaultedNum: true},
+		{input: "-.", positive: false, num: "0", denom: "", suffix: "", defaultedNum: true},
 		{input: "1E-3", positive: true, num: "1", denom: "", suffix: "E-3"},
 		// allowed omissions
 		{input: "1.", positive: true, num: "1"},
-		{input: ".1", positive: true, num: "0", denom: "1"},
-		{input: "Ki", positive: true, num: "0", suffix: "Ki"},
-		{input: "-", positive: false, num: "0"},
+		{input: ".1", positive: true, num: "0", denom: "1", defaultedNum: true},
+		{input: "Ki", positive: true, num: "0", suffix: "Ki", defaultedNum: true},
+		{input: "-", positive: false, num: "0", defaultedNum: true},
 		// allowed extraneous signs and digits
 		{input: "+1", positive: true, num: "1"},
 		{input: "001", positive: true, num: "1"},
@@ -440,8 +442,8 @@ func TestParseQuantityString(t *testing.T) {
 		// (parseQuantityString accepts some invalid input data in the suffix,
 		// which is then dealt with by the caller)
 		// invalid signs
-		{input: "--1", positive: false, num: "0", suffix: "-1"},
-		{input: ".-1", positive: true, num: "0", suffix: "-1"},
+		{input: "--1", positive: false, num: "0", suffix: "-1", defaultedNum: true},
+		{input: ".-1", positive: true, num: "0", suffix: "-1", defaultedNum: true},
 		{input: "1-", positive: true, num: "1", suffix: "-"},
 		{input: "1-1", positive: true, num: "1", suffix: "-1"},
 		{input: "1.-1", positive: true, num: "1", suffix: "-1"},
@@ -460,7 +462,7 @@ func TestParseQuantityString(t *testing.T) {
 		{input: "1Ki1", positive: true, num: "1", suffix: "Ki1"},
 		{input: "1Ki-", positive: true, num: "1", suffix: "Ki-"},
 		// invalid suffix before the number
-		{input: "Ki1", positive: true, num: "0", suffix: "Ki1"},
+		{input: "Ki1", positive: true, num: "0", suffix: "Ki1", defaultedNum: true},
 
 		// Invalid inputs:
 		// repeated decimal points
@@ -508,7 +510,7 @@ func TestParseQuantityString(t *testing.T) {
 	table = append(table, quantityStringInsertions()...)
 
 	for _, test := range table {
-		positive, num, denom, suf, err := parseQuantityString(test.input)
+		positive, num, denom, suf, defaultedNum, err := parseQuantityString(test.input)
 		if test.err != nil {
 			if !errors.Is(err, test.err) {
 				t.Errorf("%q: got error %v, want %v", test.input, err, test.err)
@@ -519,8 +521,8 @@ func TestParseQuantityString(t *testing.T) {
 			t.Errorf("%s: error: %v", test.input, err)
 			continue
 		}
-		if positive != test.positive || num != test.num || denom != test.denom || suf != test.suffix {
-			t.Errorf("%s: unmatched: %t %q %q %q", test.input, positive, num, denom, suf)
+		if positive != test.positive || num != test.num || denom != test.denom || suf != test.suffix || defaultedNum != test.defaultedNum {
+			t.Errorf("%s: unmatched: %t %q %q %q %v", test.input, positive, num, denom, suf, defaultedNum)
 		}
 	}
 }
@@ -774,7 +776,7 @@ func TestQuantityParse(t *testing.T) {
 			}
 
 			// verify that we can decompose the input and get the same result by building up from the base.
-			positive, num, denom, suffix, err := parseQuantityString(item.input)
+			positive, num, denom, suffix, defaultedNum, err := parseQuantityString(item.input)
 			if err != nil {
 				t.Errorf("%v: unexpected error: %v", item.input, err)
 				continue
@@ -787,10 +789,19 @@ func TestQuantityParse(t *testing.T) {
 			if !positive {
 				value = "-"
 			}
-			value += num
+
+			if !defaultedNum {
+				// only include the parsed num in the reconstructed value if it was actually parsed from the input
+				value += num
+			}
 			if len(denom) > 0 {
 				value += "." + denom
 			}
+			if defaultedNum && len(denom) == 0 {
+				// if we have no parsed num and no parsed denom, add a solo decimal
+				value += "."
+			}
+
 			value += suffix
 			if len(value) == 0 {
 				t.Errorf("%v: did not parse correctly, %q %q %q", item.input, num, denom, suffix)

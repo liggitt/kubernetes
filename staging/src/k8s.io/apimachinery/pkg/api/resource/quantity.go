@@ -245,9 +245,10 @@ var (
 //   - denom, which represents the fractional part: the digits after the decimal point, or
 //     "" if there are none.
 //   - suffix, which represents the rest of str, such as "Ki", "m" or "e-3".
+//   - defaultedNum, which is true if num was not parsed from the input and was defaulted to "0".
 //
 // err is ErrFormatWrong if str has characters that fit none of these parts.
-func parseQuantityString(str string) (positive bool, num, denom, suffix string, err error) {
+func parseQuantityString(str string) (positive bool, num, denom, suffix string, defaultedNum bool, err error) {
 	positive = true
 	pos := 0
 	end := len(str)
@@ -264,14 +265,17 @@ func parseQuantityString(str string) (positive bool, num, denom, suffix string, 
 	}
 
 	// strip leading zeros
+	sawZeros := false
 Zeroes:
 	for i := pos; ; i++ {
 		if i >= end {
+			defaultedNum = !sawZeros
 			num = "0"
 			return
 		}
 		switch str[i] {
 		case '0':
+			sawZeros = true
 			pos++
 		default:
 			break Zeroes
@@ -296,6 +300,7 @@ Num:
 
 	// if we stripped all numerator positions, always return 0
 	if len(num) == 0 {
+		defaultedNum = !sawZeros
 		num = "0"
 	}
 
@@ -368,7 +373,7 @@ func ParseQuantity(str string) (Quantity, error) {
 		return Quantity{Format: DecimalSI, s: newCachedString(str, DecimalSI)}, nil
 	}
 
-	positive, num, denom, suf, err := parseQuantityString(str)
+	positive, num, denom, suf, defaultedNum, err := parseQuantityString(str)
 	if err != nil {
 		return Quantity{}, err
 	}
@@ -449,7 +454,7 @@ func ParseQuantity(str string) (Quantity, error) {
 	}
 
 	// Handle a number with no digits, such as "-.Pi", as an error.
-	if !strings.ContainsAny(str[:len(str)-len(suf)], "0123456789") {
+	if len(denom) == 0 && (len(num) == 0 || defaultedNum) {
 		return Quantity{}, ErrNumeric
 	}
 
