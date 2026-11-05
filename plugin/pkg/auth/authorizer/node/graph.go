@@ -30,6 +30,7 @@ import (
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	"k8s.io/kubernetes/third_party/forked/gonum/graph"
 	"k8s.io/kubernetes/third_party/forked/gonum/graph/simple"
+	"k8s.io/kubernetes/third_party/forked/gonum/graph/traverse"
 )
 
 // namedVertex implements graph.Node and remembers the type, namespace, and name of its related API object
@@ -627,4 +628,61 @@ func (g *Graph) DeleteResourceSlice(sliceName string) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
 	g.deleteVertexLocked(sliceVertexType, "", sliceName)
+}
+
+// relatedToObject returns true if the specified node is related to the specified type/namespace/name
+func (g *Graph) relatedToObject(nodeName string, objectType vertexType, objectNamespace, objectName string) (bool, error) {
+	g.lock.RLock()
+	defer g.lock.RUnlock()
+
+	nodeVertex, exists := g.getVertexRLocked(nodeVertexType, "", nodeName)
+	if !exists {
+		return false, fmt.Errorf("unknown node '%s' cannot get %s %s/%s", nodeName, vertexTypes[objectType], objectNamespace, objectName)
+	}
+
+	startingVertex, exists := g.getVertexRLocked(objectType, objectNamespace, objectName)
+	if !exists {
+		return false, fmt.Errorf("node '%s' cannot get unknown %s %s/%s", nodeName, vertexTypes[objectType], objectNamespace, objectName)
+	}
+
+	if index, indexExists := g.destinationEdgeIndex[startingVertex.ID()]; indexExists {
+		// Fast check to see if we know of a destination edge
+		if index.has(nodeVertex.ID()) {
+			return true, nil
+		}
+		// For some types of vertices, the destination edge index is authoritative
+		// (as long as it exists), hence we can fail-fast here instead of running
+		// a potentially costly DFS below.
+		if vertexTypeWithAuthoritativeIndex[objectType] {
+			return false, fmt.Errorf("node '%s' cannot get %s %s/%s, no relationship to this object was found in the node authorizer graph", nodeName, vertexTypes[objectType], objectNamespace, objectName)
+		}
+	}
+
+	found := false
+	traversal := &traverse.VisitingDepthFirst{
+		EdgeFilter: func(edge graph.Edge) bool {
+			if destinationEdge, ok := edge.(*destinationEdge); ok {
+				if destinationEdge.DestinationID() != nodeVertex.ID() {
+					// Don't follow edges leading to other nodes
+					return false
+				}
+				// We found an edge leading to the node we want
+				found = true
+			}
+			// Visit this edge
+			return true
+		},
+	}
+	traversal.Walk(g.graph, startingVertex, func(n graph.Node) bool {
+		if n.ID() == nodeVertex.ID() {
+			// We found the node we want
+			found = true
+		}
+		// Stop visiting if we've found the node we want
+		return found
+	})
+	if !found {
+		return false, fmt.Errorf("node '%s' cannot get %s %s/%s, no relationship to this object was found in the node authorizer graph", nodeName, vertexTypes[objectType], objectNamespace, objectName)
+	}
+	return true, nil
 }

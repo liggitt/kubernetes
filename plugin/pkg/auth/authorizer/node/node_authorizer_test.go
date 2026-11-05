@@ -1700,7 +1700,7 @@ func BenchmarkAuthorization(b *testing.B) {
 				for shouldWrite == 1 {
 					go func() {
 						start := time.Now()
-						authz.graph.AddPod(podToAdd)
+						g.AddPod(podToAdd)
 						diff := time.Since(start)
 						atomic.AddInt64(&writes, 1)
 						switch {

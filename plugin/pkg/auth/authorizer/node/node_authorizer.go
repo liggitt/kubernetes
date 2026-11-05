@@ -37,9 +37,11 @@ import (
 	"k8s.io/kubernetes/pkg/auth/nodeidentifier"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac"
-	"k8s.io/kubernetes/third_party/forked/gonum/graph"
-	"k8s.io/kubernetes/third_party/forked/gonum/graph/traverse"
 )
+
+type relatedObjectChecker interface {
+	relatedToObject(nodeName string, referencedType vertexType, referencedNamespace, referencedName string) (bool, error)
+}
 
 // NodeAuthorizer authorizes requests from kubelets, with the following logic:
 //  1. If a request is not from a node (NodeIdentity() returns isNode=false), reject
@@ -61,9 +63,9 @@ import (
 //     is set to the node.
 //  5. For other resources, authorize all nodes uniformly using statically defined rules
 type NodeAuthorizer struct {
-	graph      *Graph
-	identifier nodeidentifier.NodeIdentifier
-	nodeRules  []rbacv1.PolicyRule
+	relatedObjects relatedObjectChecker
+	identifier     nodeidentifier.NodeIdentifier
+	nodeRules      []rbacv1.PolicyRule
 
 	// allows overriding for testing
 	features featuregate.FeatureGate
@@ -73,12 +75,12 @@ var _ = authorizer.Authorizer(&NodeAuthorizer{})
 var _ = authorizer.RuleResolver(&NodeAuthorizer{})
 
 // NewAuthorizer returns a new node authorizer
-func NewAuthorizer(graph *Graph, identifier nodeidentifier.NodeIdentifier, rules []rbacv1.PolicyRule) *NodeAuthorizer {
+func NewAuthorizer(relatedObjects relatedObjectChecker, identifier nodeidentifier.NodeIdentifier, rules []rbacv1.PolicyRule) *NodeAuthorizer {
 	return &NodeAuthorizer{
-		graph:      graph,
-		identifier: identifier,
-		nodeRules:  rules,
-		features:   utilfeature.DefaultFeatureGate,
+		relatedObjects: relatedObjects,
+		identifier:     identifier,
+		nodeRules:      rules,
+		features:       utilfeature.DefaultFeatureGate,
 	}
 }
 
@@ -233,7 +235,7 @@ func (r *NodeAuthorizer) authorize(nodeName string, startingType vertexType, att
 		return authorizer.DecisionNoOpinion, "No Object name found", nil
 	}
 
-	ok, err := r.hasPathFrom(nodeName, startingType, attrs.GetNamespace(), attrs.GetName())
+	ok, err := r.relatedToObject(nodeName, startingType, attrs.GetNamespace(), attrs.GetName())
 	if err != nil {
 		klog.V(2).InfoS("NODE DENY", "err", err)
 		return authorizer.DecisionNoOpinion, fmt.Sprintf("no relationship found between node '%s' and this object", nodeName), nil
@@ -275,7 +277,7 @@ func (r *NodeAuthorizer) authorizeCreateToken(nodeName string, startingType vert
 		return authorizer.DecisionNoOpinion, "can only create token subresource of serviceaccount", nil
 	}
 
-	ok, err := r.hasPathFrom(nodeName, startingType, attrs.GetNamespace(), attrs.GetName())
+	ok, err := r.relatedToObject(nodeName, startingType, attrs.GetNamespace(), attrs.GetName())
 	if err != nil {
 		klog.V(2).Infof("NODE DENY: %v", err)
 		return authorizer.DecisionNoOpinion, fmt.Sprintf("no relationship found between node '%s' and this object", nodeName), nil
@@ -507,59 +509,7 @@ func (r *NodeAuthorizer) authorizePod(nodeName string, attrs authorizer.Attribut
 	return authorizer.DecisionNoOpinion, "", nil
 }
 
-// hasPathFrom returns true if there is a directed path from the specified type/namespace/name to the specified Node
-func (r *NodeAuthorizer) hasPathFrom(nodeName string, startingType vertexType, startingNamespace, startingName string) (bool, error) {
-	r.graph.lock.RLock()
-	defer r.graph.lock.RUnlock()
-
-	nodeVertex, exists := r.graph.getVertexRLocked(nodeVertexType, "", nodeName)
-	if !exists {
-		return false, fmt.Errorf("unknown node '%s' cannot get %s %s/%s", nodeName, vertexTypes[startingType], startingNamespace, startingName)
-	}
-
-	startingVertex, exists := r.graph.getVertexRLocked(startingType, startingNamespace, startingName)
-	if !exists {
-		return false, fmt.Errorf("node '%s' cannot get unknown %s %s/%s", nodeName, vertexTypes[startingType], startingNamespace, startingName)
-	}
-
-	if index, indexExists := r.graph.destinationEdgeIndex[startingVertex.ID()]; indexExists {
-		// Fast check to see if we know of a destination edge
-		if index.has(nodeVertex.ID()) {
-			return true, nil
-		}
-		// For some types of vertices, the destination edge index is authoritative
-		// (as long as it exists), hence we can fail-fast here instead of running
-		// a potentially costly DFS below.
-		if vertexTypeWithAuthoritativeIndex[startingType] {
-			return false, fmt.Errorf("node '%s' cannot get %s %s/%s, no relationship to this object was found in the node authorizer graph", nodeName, vertexTypes[startingType], startingNamespace, startingName)
-		}
-	}
-
-	found := false
-	traversal := &traverse.VisitingDepthFirst{
-		EdgeFilter: func(edge graph.Edge) bool {
-			if destinationEdge, ok := edge.(*destinationEdge); ok {
-				if destinationEdge.DestinationID() != nodeVertex.ID() {
-					// Don't follow edges leading to other nodes
-					return false
-				}
-				// We found an edge leading to the node we want
-				found = true
-			}
-			// Visit this edge
-			return true
-		},
-	}
-	traversal.Walk(r.graph.graph, startingVertex, func(n graph.Node) bool {
-		if n.ID() == nodeVertex.ID() {
-			// We found the node we want
-			found = true
-		}
-		// Stop visiting if we've found the node we want
-		return found
-	})
-	if !found {
-		return false, fmt.Errorf("node '%s' cannot get %s %s/%s, no relationship to this object was found in the node authorizer graph", nodeName, vertexTypes[startingType], startingNamespace, startingName)
-	}
-	return true, nil
+// relatedToObject returns true if the specified node is related to the specified type/namespace/name
+func (r *NodeAuthorizer) relatedToObject(nodeName string, objectType vertexType, objectNamespace, objectName string) (bool, error) {
+	return r.relatedObjects.relatedToObject(nodeName, objectType, objectNamespace, objectName)
 }

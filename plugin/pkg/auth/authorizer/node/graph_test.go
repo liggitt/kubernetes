@@ -251,7 +251,7 @@ func TestIndex(t *testing.T) {
 			},
 		}
 		g.AddPod(pod)
-		if ok, err := a.hasPathFrom(nodeName, configMapVertexType, "ns", "cm1"); err != nil || !ok {
+		if ok, err := a.relatedToObject(nodeName, configMapVertexType, "ns", "cm1"); err != nil || !ok {
 			t.Errorf("expected path from %s to cm1, got %v, %v", nodeName, ok, err)
 		}
 	}
