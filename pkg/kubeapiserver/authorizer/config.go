@@ -106,8 +106,8 @@ func (config Config) New(ctx context.Context, serverID string) (authorizer.Autho
 				podCertificateRequestInformer = config.VersionedInformerFactory.Certificates().V1().PodCertificateRequests()
 			}
 			node.RegisterMetrics()
-			graph := node.NewGraph()
-			node.AddGraphEventHandlers(
+			graph := node.NewGraphV2()
+			node.AddGraphV2EventHandlers(
 				ctx,
 				graph,
 				config.VersionedInformerFactory.Core().V1().Nodes(),
